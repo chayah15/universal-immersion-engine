@@ -1,9 +1,9 @@
 {
     "name": "Universal Immersion Engine",
     "display_name": "Universal Immersion Engine",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "author": "Extension Maker",
-    "description": "Full RPG Suite with built-in Diagnostics.",
+    "description": "Sanguine UI with Nested Menus and Diagnostics.",
     "js": "index.js",
     "css": "style.css",
     "type": "module"

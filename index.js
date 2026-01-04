@@ -7,26 +7,17 @@ const defaultSettings = {
     enabled: true, posX: 100, posY: 100, 
     hp: 100, maxHp: 100, mp: 50, maxMp: 50, ap: 10, maxAp: 10, shield: 0,
     currency: 150, 
-    inventory: { items: [], skills: [], assets: [], statuses: [] },
-    equipment: {}, 
+    inventory: { items: [], skills: [], assets: [] },
     uiScale: 1.0, characterClass: "Sanguine Shinobi"
 };
 
 let currentTab = "items";
-let selectedItemIndex = -1;
-
-// --- UTILS ---
-function getEventPos(e) {
-    if (e.touches && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    return { x: e.clientX, y: e.clientY };
-}
+let isDrag = false, dragTarget, ox, oy;
 
 function sanitize() {
     if (!extension_settings[extensionName]) extension_settings[extensionName] = defaultSettings;
     const s = extension_settings[extensionName];
-    // Ensure vital defaults
     if(!s.inventory) s.inventory = defaultSettings.inventory;
-    if(!s.equipment) s.equipment = {};
     saveSettingsDebounced();
 }
 
@@ -42,119 +33,140 @@ function updateUI() {
     $("#val-currency").text(s.currency);
     $("#uie-char-class").text(s.characterClass);
     
-    // Scale Application
+    // Apply Scale
     $("#uie-inventory-modal, #uie-main-menu, #uie-debug-window").css("transform", `scale(${s.uiScale})`);
-    $("#uie-scale-display").text(s.uiScale);
 }
 
-// --- RENDERERS ---
 function renderGrid() {
     const s = extension_settings[extensionName];
-    $(".uie-grid-view, #uie-view-equip, #uie-view-status").hide();
-    
+    $(".uie-grid-view").hide();
     if(currentTab === 'items') {
         $("#uie-view-items").show().empty();
         s.inventory.items.forEach((item, idx) => {
             $("#uie-view-items").append(`<div class="uie-item-slot" data-idx="${idx}"><i class="fa-solid fa-flask"></i><div>${item.name}</div></div>`);
         });
         for(let i=0; i<(16-s.inventory.items.length); i++) $("#uie-view-items").append(`<div class="uie-item-slot empty"></div>`);
-    } 
-    else if(currentTab === 'equip') {
-        $("#uie-view-equip").show();
-        $(".uie-equip-slot").each(function() {
-            const slot = $(this).data("slot");
-            const item = s.equipment[slot];
-            if(item) $(this).addClass("filled").html(`<i class="fa-solid fa-shield-cat"></i><br>${item}`);
-            else $(this).removeClass("filled").html(slot.replace('_', ' '));
-        });
     }
 }
 
-// --- INIT & EVENTS ---
+// --- DIAGNOSTICS ---
+function runDiagnostics() {
+    const log = $("#uie-debug-log");
+    log.empty();
+    const add = (msg, type) => log.append(`<div class="log-${type}" style="margin-bottom:2px;">[${new Date().toLocaleTimeString()}] ${msg}</div>`);
+    
+    add("Running System Scan...", "info");
+    
+    // 1. Check Data
+    if(extension_settings[extensionName]) add("✅ Settings Object: OK", "pass");
+    else add("❌ Settings Object: MISSING", "fail");
+    
+    // 2. Check DOM Elements (Proof files loaded)
+    const checks = [
+        {id: "#uie-launcher", name: "Launcher"},
+        {id: "#uie-main-menu", name: "Menu"},
+        {id: "#uie-inventory-modal", name: "Inventory"},
+        {id: "#uie-debug-window", name: "Debugger"}
+    ];
+    
+    checks.forEach(c => {
+        if($(c.id).length) add(`✅ ${c.name} Loaded`, "pass");
+        else add(`❌ ${c.name} HTML Missing`, "fail");
+    });
+    
+    add("Scan Complete.", "info");
+}
+
+// --- INIT ---
 jQuery(async () => {
     $("<link>").attr({rel:"stylesheet", type:"text/css", href: `${basePath}/style.css?v=${Date.now()}`}).appendTo("head");
-    $("#uie-launcher, #uie-main-menu, .uie-window, .uie-phone").remove();
+    $("#uie-launcher, #uie-main-menu, .uie-window").remove();
     sanitize();
     
-    // Load Templates
-    const tpls = ['launcher', 'menu', 'inventory', 'phone', 'debug'];
-    for(const t of tpls) {
-        try { $("body").append(await $.get(`${basePath}/src/templates/${t}.html`)); } catch(e){}
+    const files = ['launcher', 'menu', 'inventory', 'phone', 'debug'];
+    for(const f of files) {
+        try { $("body").append(await $.get(`${basePath}/src/templates/${f}.html`)); } catch(e){}
     }
     
-    // Inject Settings
-    setInterval(async()=>{
-        if($("#extensions_settings, #extensions_settings_panel").length && !$("#uie-scale-slider").length) {
-            $("#extensions_settings, #extensions_settings_panel").append(await $.get(`${basePath}/src/templates/settings.html`));
-            $("#uie-scale-slider").on("input", function(){ 
-                extension_settings[extensionName].uiScale=$(this).val(); 
-                saveSettingsDebounced(); updateUI(); 
-            });
-        }
-    }, 2000);
-
     const s = extension_settings[extensionName];
     $("#uie-inventory-modal").css({top: s.posY, left: s.posX});
 
-    // --- BUTTONS ---
+    // --- EVENTS & NAVIGATION ---
+    
+    // Launcher
     $(document).on("click", "#uie-launcher", (e) => { e.stopPropagation(); $("#uie-main-menu").toggle(); });
     
+    // Main Menu Nav
     $(document).on("click", "#uie-btn-inventory", () => { $("#uie-main-menu").hide(); $("#uie-inventory-modal").show(); renderGrid(); });
-    $(document).on("click", "#uie-btn-phone", () => { $("#uie-main-menu").hide(); $("#uie-phone-window").show(); });
-    $(document).on("click", "#uie-btn-debug", () => { $("#uie-main-menu").hide(); $("#uie-debug-window").show(); });
+    $(document).on("click", "#uie-btn-shop", () => { $("#uie-main-menu").hide(); alert("Shop feature coming soon!"); });
     
-    $(document).on("click", ".uie-close-btn, #uie-phone-close", function() { $(this).closest(".uie-window, .uie-phone").hide(); });
-    $(document).on("click", ".uie-tab", function(){ $(".uie-tab").removeClass("active"); $(this).addClass("active"); currentTab=$(this).data("tab"); renderGrid(); });
-    $(document).on("click", "#uie-fab-sparkle", () => $("#uie-gen-modal").toggle());
-    $(document).on("click", "#uie-gen-close", () => $("#uie-gen-modal").hide());
+    // Misc Sub-Menu Logic
+    $(document).on("click", "#uie-btn-misc", () => { 
+        $("#uie-view-main").hide(); 
+        $("#uie-view-misc").show(); 
+    });
+    
+    $(document).on("click", "#uie-btn-back", () => { 
+        $("#uie-view-misc").hide(); 
+        $("#uie-view-main").show(); 
+    });
+    
+    // Misc Menu Items
+    $(document).on("click", "#uie-btn-open-phone", () => { $("#uie-main-menu").hide(); $("#uie-phone-window").show(); });
+    $(document).on("click", "#uie-btn-debug", () => { $("#uie-main-menu").hide(); $("#uie-debug-window").show(); runDiagnostics(); });
+    
+    // Close Logic
+    $(document).on("click", ".uie-close-btn", function() { $(this).closest(".uie-window").hide(); });
+    $(document).on("click", "#uie-run-diag", runDiagnostics);
 
-    // --- DRAGGING LOGIC (TOUCH FIXED) ---
-    let isDrag = false, t, ox, oy;
+    // --- DRAGGING (TOUCH FIX) ---
+    function getPos(e) { return e.touches ? {x:e.touches[0].clientX, y:e.touches[0].clientY} : {x:e.clientX, y:e.clientY}; }
 
     function handleStart(e) {
-        // Identify target (Menu or Window Header or Phone StatusBar)
+        // IGNORE clicks on buttons/inputs so they work!
+        // This is crucial for the "Cannot click it off" fix
+        if ($(e.target).closest("button, .uie-close-btn, .uie-tab, .uie-menu-item, input, i.fa-solid").length) return;
+
         const target = $(e.target);
-        if(target.closest(".uie-inv-header").length) t = $("#uie-inventory-modal");
-        else if(target.closest(".phone-status-bar").length) t = $("#uie-phone-window");
-        else if(target.closest("#uie-menu-drag").length) t = $("#uie-main-menu");
-        else if(target.closest(".uie-header").length) t = target.closest(".uie-window");
+        if(target.closest(".uie-inv-header").length) dragTarget = $("#uie-inventory-modal");
+        else if(target.closest(".uie-menu-header, .uie-misc-header").length) dragTarget = $("#uie-main-menu");
+        else if(target.closest(".uie-header").length) dragTarget = target.closest(".uie-window");
         else return;
 
-        e.preventDefault(); // Stop scrolling while dragging
+        e.preventDefault(); // Only prevent default if we are actually dragging
         isDrag = true;
-        const rect = t[0].getBoundingClientRect();
-        const pos = getEventPos(e);
+        const rect = dragTarget[0].getBoundingClientRect();
+        const pos = getPos(e);
         ox = pos.x - rect.left;
         oy = pos.y - rect.top;
     }
 
     function handleMove(e) {
-        if (!isDrag || !t) return;
+        if (!isDrag || !dragTarget) return;
         e.preventDefault();
-        const pos = getEventPos(e);
-        t.css({ top: pos.y - oy, left: pos.x - ox });
+        const pos = getPos(e);
+        dragTarget.css({ top: pos.y - oy, left: pos.x - ox });
     }
 
     function handleEnd() {
-        if (isDrag && t && t.attr('id') === 'uie-inventory-modal') {
-            s.posX = parseFloat(t.css('left'));
-            s.posY = parseFloat(t.css('top'));
+        if (isDrag && dragTarget && dragTarget.attr('id') === 'uie-inventory-modal') {
+            s.posX = parseFloat(dragTarget.css('left'));
+            s.posY = parseFloat(dragTarget.css('top'));
             saveSettingsDebounced();
         }
         isDrag = false;
-        t = null;
+        dragTarget = null;
     }
 
-    // Attach to Document for global dragging
+    // Bind listeners
     document.addEventListener("mousedown", handleStart);
     document.addEventListener("mousemove", handleMove);
     document.addEventListener("mouseup", handleEnd);
-    
-    // Mobile Touch Listeners (Passive: false allows preventDefault)
     document.addEventListener("touchstart", handleStart, { passive: false });
     document.addEventListener("touchmove", handleMove, { passive: false });
     document.addEventListener("touchend", handleEnd);
 
     updateUI();
-    console.log("[UIE] System V3.1: Mobile Dragging & Responsive Layout Active.");
+    console.log("[UIE] Sanguine V4 Loaded: Original Menu Restored.");
 });
+
