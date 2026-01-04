@@ -4,13 +4,19 @@
 #uie-launcher { position: fixed; top: 100px; left: 100px; width: 60px; height: 60px; background-image: url("https://files.catbox.moe/l7w79y.png"); background-size: contain; cursor: pointer; z-index: 20000; transition: transform 0.1s; touch-action: none; }
 #uie-launcher:active { transform: scale(0.9); }
 
-/* MENU (The Cube Menu - With Sub-views) */
+/* MAIN MENU */
 #uie-main-menu { 
     position: fixed; top: 170px; left: 100px; width: 220px; 
     background: #121218; border: 2px solid var(--uie-gold); border-radius: 8px; 
     z-index: 20002; overflow: hidden; display: none; transform-origin: top left;
 }
-.uie-menu-header, .uie-misc-header { background: #0f1014; padding: 12px; font-weight: bold; color: var(--uie-gold); text-align: center; border-bottom: 1px solid #333; cursor: move; display: flex; align-items: center; justify-content: center; }
+/* IMPORTANT: touch-action: none only on the HEADER allows dragging without blocking buttons */
+.uie-menu-header, .uie-misc-header { 
+    background: #0f1014; padding: 12px; font-weight: bold; color: var(--uie-gold); 
+    text-align: center; border-bottom: 1px solid #333; cursor: move; 
+    display: flex; align-items: center; justify-content: center;
+    touch-action: none; 
+}
 .uie-misc-header i { cursor: pointer; padding: 5px; position: absolute; left: 10px; }
 .uie-menu-item { padding: 12px 15px; border-bottom: 1px solid #222; color: #ccc; cursor: pointer; display: flex; align-items: center; gap: 10px; background: #1a1a2e; }
 .uie-menu-item:hover { background: var(--uie-gold); color: #000; }
@@ -18,26 +24,33 @@
 /* WINDOWS */
 .uie-window { 
     position: fixed; top: 100px; left: 200px; width: 340px; 
-    height: auto; max-height: 85vh; /* Keyboard compression */
+    height: auto; max-height: 80vh; /* Keyboard compression */
     background: var(--uie-bg); border: 2px solid var(--uie-gold); border-radius: 12px; 
     display: flex; flex-direction: column; overflow: hidden; z-index: 20001; 
     font-family: "Segoe UI", sans-serif; color: #e0e0e0; 
     box-shadow: 0 10px 50px rgba(0,0,0,0.9);
 }
 
-/* HEADER */
+/* HEADER (Drag Zone) */
 .uie-header, .uie-inv-header { 
     padding: 12px; background: var(--uie-panel); border-bottom: 1px solid var(--uie-gold); 
     display: flex; align-items: center; gap: 12px; cursor: move; 
     flex-shrink: 0;
+    touch-action: none; /* Only header blocks scroll to allow dragging */
 }
 .uie-inv-avatar { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--uie-gold); background: #000; }
 .uie-inv-info h2 { font-weight: bold; color: var(--uie-gold); font-size: 1.1em; margin: 0; }
 .uie-gold { color: #ffd700; font-weight: bold; font-size: 0.9em; }
-.uie-close-btn { cursor: pointer; margin-left: auto; padding: 5px; z-index: 20010; }
+.uie-close-btn { cursor: pointer; margin-left: auto; padding: 5px; z-index: 20010; font-size: 1.2em; }
 
-/* VITALS */
-.uie-vitals-container { padding: 8px; background: #080a10; display: flex; flex-direction: column; gap: 4px; position: relative; flex-shrink: 0; }
+/* CONTENT (Scrollable) */
+.uie-content, .uie-inv-content { 
+    flex: 1; padding: 10px; overflow-y: auto; min-height: 200px; 
+    -webkit-overflow-scrolling: touch; /* Smooth scroll on mobile */
+}
+
+/* VITALS & STATS */
+.uie-vitals-container { padding: 8px; background: #080a10; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; position: relative; }
 .uie-vital-row { display: flex; flex-direction: column; }
 .uie-vital-top { display: flex; justify-content: space-between; font-size: 0.7em; color: #aaa; margin-bottom: 1px; }
 .uie-bar-track { height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
@@ -47,21 +60,21 @@
 .uie-bar-fill.ap { background: var(--uie-orange); }
 .uie-shield-badge { position: absolute; top: 10px; right: 10px; background: #16a085; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; font-weight: bold; border: 1px solid #1abc9c; display: none; }
 
-/* STATS & CONTENT */
 .uie-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 8px; background: var(--uie-bg); border-bottom: 1px solid #333; flex-shrink: 0; }
 .uie-stat-box { border: 1px solid #445; background: #131b2e; border-radius: 4px; text-align: center; padding: 3px; }
 .uie-stat-box .lbl { font-size: 0.65em; color: #888; display: block; }
 .uie-stat-box .val { font-size: 1em; font-weight: bold; color: #fff; }
-.uie-content, .uie-inv-content { flex: 1; padding: 10px; overflow-y: auto; min-height: 0; }
-.uie-grid-view { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.uie-item-slot { aspect-ratio: 1; background: #1a2236; border: 1px solid #334; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.7em; cursor: pointer; position: relative; }
-.uie-item-slot:hover { border-color: var(--uie-gold); background: #252d45; }
-.uie-item-slot.empty { opacity: 0.3; }
 
 /* TABS */
 .uie-inv-tabs { display: flex; background: #131b2e; border-bottom: 1px solid var(--uie-gold); flex-shrink: 0; }
 .uie-tab { flex: 1; text-align: center; padding: 10px 0; font-size: 0.8em; color: #888; cursor: pointer; }
 .uie-tab.active { color: var(--uie-gold); border-bottom: 3px solid var(--uie-gold); background: rgba(203,163,92,0.1); }
+
+/* GRID VIEW */
+.uie-grid-view { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.uie-item-slot { aspect-ratio: 1; background: #1a2236; border: 1px solid #334; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.7em; cursor: pointer; position: relative; }
+.uie-item-slot:hover { border-color: var(--uie-gold); background: #252d45; }
+.uie-item-slot.empty { opacity: 0.3; }
 
 /* PHONE */
 .uie-phone { 
@@ -69,16 +82,19 @@
     background: #000; border-radius: 40px; border: 4px solid #333; z-index: 20005; 
     overflow: hidden; display: none; box-shadow: 0 20px 60px rgba(0,0,0,0.9); 
 }
-.phone-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.phone-status-bar { height: 20px; cursor: move; touch-action: none; background: rgba(255,255,255,0.1); }
+.phone-screen { position: absolute; top: 20px; left: 0; width: 100%; height: calc(100% - 20px); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 
-/* DEBUG */
-#uie-debug-window { border-color: #00f0ff; background: #0d1117; }
+/* DEBUG & SYSTEM CHECK */
+#uie-debug-window { border-color: #00f0ff; background: #0d1117; z-index: 21000; }
 #uie-debug-log { font-family: monospace; font-size: 0.8em; white-space: pre-wrap; color: #ccc; background: #000; flex: 1; padding: 10px; overflow-y: auto; }
-.log-pass { color: #3fb950; } .log-fail { color: #f85149; }
+.log-pass { color: #3fb950; border-left: 3px solid #3fb950; padding-left: 5px; } 
+.log-fail { color: #f85149; border-left: 3px solid #f85149; padding-left: 5px; font-weight: bold; background: rgba(248, 81, 73, 0.1); }
+.log-info { color: #58a6ff; }
+.log-warn { color: #d29922; }
 
-/* SETTINGS & MODALS */
-#uie-gen-modal { position: absolute; top: 60px; right: 10px; width: 200px; background: #161b22; border: 1px solid var(--uie-gold); border-radius: 6px; padding: 10px; z-index: 20005; }
-.uie-gen-content { display: flex; flex-direction: column; gap: 5px; }
-.uie-gen-btn { padding: 8px; background: #222; border: 1px solid #333; color: #ccc; cursor: pointer; border-radius: 4px; text-align: left; font-size: 0.85em; }
-.uie-gen-btn:hover { border-color: var(--uie-gold); color: #fff; }
-.uie-settings-block { margin-bottom: 10px; }
+/* DIARY & SOCIAL */
+.uie-book-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 20002; display: flex; align-items: center; justify-content: center; }
+.uie-book-container { width: 90vw; max-width: 600px; height: 60vh; background: #fdf6e3; display: flex; border-radius: 5px; padding: 20px; position: relative; color: #000; font-family: serif; }
+.uie-book-page { flex: 1; display: flex; flex-direction: column; }
+.uie-diary-input { flex: 1; background: transparent; border: none; resize: none; font-size: 1.1em; outline: none; margin-top: 10px; }
