@@ -1,0 +1,87 @@
+<div id="uie-inventory-modal" style="display:none;">
+    <div class="uie-inv-header">
+        <div class="uie-inv-avatar"></div>
+        <div class="uie-inv-info">
+            <h2 id="uie-char-name">Player</h2>
+            <div class="uie-inv-meta">
+                <span id="uie-char-class">Sanguine Shinobi</span>
+                <span class="uie-gold"><i class="fa-solid fa-coins"></i> <span id="val-currency">0</span> GP</span>
+            </div>
+        </div>
+        <div id="uie-fab-sparkle" class="uie-sparkle-btn" title="Creative Engine"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+        <div id="uie-inv-close" class="uie-close-btn"><i class="fa-solid fa-xmark"></i></div>
+    </div>
+
+    <div class="uie-vitals-container">
+        <div class="uie-shield-badge" id="uie-shield-badge"><i class="fa-solid fa-shield-halved"></i> <span id="val-shield">0</span></div>
+        <div class="uie-vital-row">
+            <div class="uie-vital-top"><span>HP</span><span id="txt-hp">100/100</span></div>
+            <div class="uie-bar-track"><div class="uie-bar-fill hp" id="bar-hp" style="width:100%"></div></div>
+        </div>
+        <div class="uie-vital-row">
+            <div class="uie-vital-top"><span>MP</span><span id="txt-mp">50/50</span></div>
+            <div class="uie-bar-track"><div class="uie-bar-fill mp" id="bar-mp" style="width:100%"></div></div>
+        </div>
+        <div class="uie-vital-row">
+            <div class="uie-vital-top"><span>AP</span><span id="txt-ap">10/10</span></div>
+            <div class="uie-bar-track"><div class="uie-bar-fill ap" id="bar-ap" style="width:100%"></div></div>
+        </div>
+    </div>
+
+    <div class="uie-stats-grid">
+        <div class="uie-stat-box"><span class="lbl">STR</span><span class="val">10</span></div>
+        <div class="uie-stat-box"><span class="lbl">DEX</span><span class="val">10</span></div>
+        <div class="uie-stat-box"><span class="lbl">CON</span><span class="val">10</span></div>
+        <div class="uie-stat-box"><span class="lbl">INT</span><span class="val">10</span></div>
+        <div class="uie-stat-box"><span class="lbl">WIS</span><span class="val">10</span></div>
+        <div class="uie-stat-box"><span class="lbl">CHA</span><span class="val">10</span></div>
+        <div class="uie-stat-box"><span class="lbl">LUK</span><span class="val">10</span></div>
+        <div class="uie-stat-box"><span class="lbl">PER</span><span class="val">10</span></div>
+    </div>
+
+    <div class="uie-inv-tabs">
+        <div class="uie-tab active" data-tab="items">ITEMS</div>
+        <div class="uie-tab" data-tab="equip">EQUIP</div>
+        <div class="uie-tab" data-tab="status">STATUS</div>
+        <div class="uie-tab" data-tab="skills">SKILLS</div>
+        <div class="uie-tab" data-tab="assets">ASSETS</div>
+    </div>
+
+    <div class="uie-inv-content">
+        <div id="uie-view-items" class="uie-grid-view"></div>
+        
+        <div id="uie-view-status" style="display:none;"></div>
+
+        <div id="uie-view-equip" style="display:none;">
+            <div class="uie-equip-section"><div class="uie-equip-header">Torso</div><div class="uie-equip-grid"><div class="uie-equip-slot" data-slot="top_under">Under</div><div class="uie-equip-slot" data-slot="top_mid">Top</div><div class="uie-equip-slot" data-slot="top_outer">Outer</div></div></div>
+            <div class="uie-equip-section"><div class="uie-equip-header">Legs</div><div class="uie-equip-grid"><div class="uie-equip-slot" data-slot="bot_under">Under</div><div class="uie-equip-slot" data-slot="bot_mid">Bottom</div><div class="uie-equip-slot" data-slot="feet">Feet</div></div></div>
+            <div class="uie-equip-section"><div class="uie-equip-header">Accessories</div><div class="uie-equip-grid"><div class="uie-equip-slot" data-slot="neck">Neck</div><div class="uie-equip-slot" data-slot="ring">Ring</div><div class="uie-equip-slot" data-slot="belt">Belt</div><div class="uie-equip-slot" data-slot="l_arm">L. Arm</div><div class="uie-equip-slot" data-slot="r_arm">R. Arm</div></div></div>
+            <div class="uie-equip-section"><div class="uie-equip-header">Held</div><div class="uie-equip-grid" style="grid-template-columns:1fr 1fr;"><div class="uie-equip-slot" data-slot="main_hand">Main Hand</div><div class="uie-equip-slot" data-slot="off_hand">Off Hand</div></div></div>
+        </div>
+        
+        <div id="uie-view-skills" style="display:none;" class="uie-grid-view"></div>
+        <div id="uie-view-assets" style="display:none;" class="uie-grid-view"></div>
+    </div>
+
+    <div id="uie-item-actions">
+        <div style="color:var(--uie-gold); margin-bottom:10px; font-weight:bold; text-align:center;" id="uie-action-title">Item Name</div>
+        <button class="uie-action-btn uie-btn-use" id="uie-act-use">USE ITEM</button>
+        <button class="uie-action-btn uie-btn-discard" id="uie-act-discard">DISCARD</button>
+        <button class="uie-action-btn uie-btn-cancel" id="uie-act-cancel">CANCEL</button>
+    </div>
+
+    <div id="uie-gen-modal" style="display:none;">
+        <div class="uie-gen-header"><span>✨ Creative Engine</span><i class="fa-solid fa-xmark" id="uie-gen-close" style="float:right; cursor:pointer;"></i></div>
+        <div class="uie-gen-content">
+            <textarea id="uie-gen-input" placeholder="Context (e.g. Cyberpunk)" style="width:100%; box-sizing:border-box; background:#000; color:#fff; border:1px solid #444;" rows="2"></textarea>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;">
+                <button class="uie-gen-btn" id="uie-gen-scan" style="grid-column:span 2; border-left:3px solid #fff;">👁️ Scan Chat</button>
+                <button class="uie-gen-btn" id="uie-gen-class" style="border-left:3px solid #ffd700;">🛡️ Class</button>
+                <button class="uie-gen-btn" id="uie-gen-item" style="border-left:3px solid #3498db;">⚔️ Item</button>
+                <button class="uie-gen-btn" id="uie-gen-skill" style="border-left:3px solid #2ecc71;">⚡ Skill</button>
+                <button class="uie-gen-btn" id="uie-gen-asset" style="border-left:3px solid #e74c3c;">🏠 Asset</button>
+                <button class="uie-gen-btn" id="uie-gen-status" style="grid-column:span 2; border-left:3px solid #9b59b6;">✨ Add Status</button>
+            </div>
+        </div>
+    </div>
+</div>

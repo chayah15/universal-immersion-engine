@@ -1,0 +1,87 @@
+:root { --uie-gold: #cba35c; --uie-bg: #0b1120; --uie-panel: #161b22; --uie-red: #e74c3c; --uie-blue: #3498db; --uie-orange: #e67e22; }
+
+/* LAUNCHER */
+#uie-launcher { position: fixed; top: 100px; left: 100px; width: 60px; height: 60px; background-image: url("https://files.catbox.moe/l7w79y.png"); background-size: contain; cursor: pointer; z-index: 20000; transition: transform 0.1s; touch-action: none; }
+#uie-launcher:active { transform: scale(0.9); }
+
+/* MENU (Context Menu) */
+#uie-main-menu { 
+    position: fixed; top: 170px; left: 100px; width: 220px; 
+    background: #121218; border: 2px solid var(--uie-gold); border-radius: 8px; 
+    z-index: 20002; overflow: hidden; display: none; transform-origin: top left;
+    /* Prevent default touch actions to allow dragging */
+    touch-action: none;
+}
+.uie-menu-header { background: #0f1014; padding: 12px; font-weight: bold; color: var(--uie-gold); text-align: center; border-bottom: 1px solid #333; cursor: move; }
+.uie-menu-item { padding: 12px 15px; border-bottom: 1px solid #222; color: #ccc; cursor: pointer; display: flex; align-items: center; gap: 10px; background: #1a1a2e; }
+.uie-menu-item:hover { background: var(--uie-gold); color: #000; }
+
+/* WINDOWS (Responsive for Keyboard) */
+.uie-window { 
+    position: fixed; top: 100px; left: 200px; width: 340px; 
+    /* Dynamic Height: Shrinks if screen gets small (keyboard) */
+    height: auto; max-height: 85vh; 
+    background: var(--uie-bg); border: 2px solid var(--uie-gold); border-radius: 12px; 
+    display: flex; flex-direction: column; overflow: hidden; z-index: 20001; 
+    font-family: "Segoe UI", sans-serif; color: #e0e0e0; 
+    box-shadow: 0 10px 50px rgba(0,0,0,0.9);
+    touch-action: none; /* Crucial for dragging on mobile */
+}
+
+/* WINDOW HEADER (Drag Zone) */
+.uie-header, .uie-inv-header { 
+    padding: 12px; background: var(--uie-panel); border-bottom: 1px solid var(--uie-gold); 
+    display: flex; align-items: center; gap: 12px; cursor: move; 
+    flex-shrink: 0; /* Header never shrinks */
+}
+
+/* CONTENT (Scrollable & Shrinkable) */
+.uie-content, .uie-inv-content { 
+    flex: 1; padding: 10px; overflow-y: auto; 
+    min-height: 0; /* Allows flex child to shrink past content size */
+}
+
+.uie-close-btn { cursor: pointer; margin-left: auto; padding: 5px; }
+
+/* INVENTORY SPECIFICS */
+.uie-inv-avatar { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--uie-gold); background: #000; }
+.uie-inv-info h2 { font-weight: bold; color: var(--uie-gold); font-size: 1.1em; margin: 0; }
+.uie-gold { color: #ffd700; font-weight: bold; font-size: 0.9em; }
+
+.uie-vitals-container { padding: 8px; background: #080a10; display: flex; flex-direction: column; gap: 4px; position: relative; flex-shrink: 0; }
+.uie-vital-row { display: flex; flex-direction: column; }
+.uie-vital-top { display: flex; justify-content: space-between; font-size: 0.7em; color: #aaa; margin-bottom: 1px; }
+.uie-bar-track { height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+.uie-bar-fill { height: 100%; transition: width 0.3s; }
+.uie-bar-fill.hp { background: var(--uie-red); } .uie-bar-fill.mp { background: var(--uie-blue); } .uie-bar-fill.ap { background: var(--uie-orange); }
+.uie-shield-badge { position: absolute; top: 10px; right: 10px; background: #16a085; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; font-weight: bold; border: 1px solid #1abc9c; display: none; }
+
+.uie-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 8px; background: var(--uie-bg); border-bottom: 1px solid #333; flex-shrink: 0; }
+.uie-stat-box { border: 1px solid #445; background: #131b2e; border-radius: 4px; text-align: center; padding: 3px; }
+.uie-stat-box .lbl { font-size: 0.65em; color: #888; display: block; }
+.uie-stat-box .val { font-size: 1em; font-weight: bold; color: #fff; }
+
+.uie-inv-tabs { display: flex; background: #131b2e; border-bottom: 1px solid var(--uie-gold); flex-shrink: 0; }
+.uie-tab { flex: 1; text-align: center; padding: 10px 0; font-size: 0.8em; color: #888; cursor: pointer; }
+.uie-tab.active { color: var(--uie-gold); border-bottom: 3px solid var(--uie-gold); background: rgba(203,163,92,0.1); }
+
+.uie-grid-view { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.uie-item-slot { aspect-ratio: 1; background: #1a2236; border: 1px solid #334; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.7em; cursor: pointer; position: relative; }
+.uie-item-slot:hover { border-color: var(--uie-gold); background: #252d45; }
+.uie-item-slot.empty { opacity: 0.3; }
+
+/* PHONE - Fixed Height (Doesn't compress) */
+.uie-phone { 
+    position: fixed; top: 100px; left: 400px; width: 270px; height: 550px; 
+    background: #000; border-radius: 40px; border: 4px solid #333; z-index: 20005; 
+    overflow: hidden; display: none; box-shadow: 0 20px 60px rgba(0,0,0,0.9); 
+    touch-action: none;
+}
+.phone-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; flex-direction: column; }
+.phone-status-bar { height: 20px; padding: 5px 15px; display: flex; justify-content: space-between; font-size: 10px; cursor: move; }
+
+/* DEBUG & GENERATION */
+#uie-debug-window { border-color: #00f0ff; background: #0d1117; }
+#uie-gen-modal { position: absolute; top: 60px; right: 10px; width: 200px; background: #161b22; border: 1px solid var(--uie-gold); border-radius: 6px; padding: 10px; z-index: 20005; }
+.uie-gen-btn { width: 100%; padding: 8px; margin-bottom: 5px; background: #222; border: 1px solid #333; color: #ccc; cursor: pointer; border-radius: 4px; text-align: left; font-size: 0.8em; }
+.uie-gen-btn:hover { border-color: var(--uie-gold); color: #fff; }

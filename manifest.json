@@ -1,0 +1,10 @@
+{
+    "name": "Universal Immersion Engine",
+    "display_name": "Universal Immersion Engine",
+    "version": "3.0.0",
+    "author": "Extension Maker",
+    "description": "Full RPG Suite with built-in Diagnostics.",
+    "js": "index.js",
+    "css": "style.css",
+    "type": "module"
+}
