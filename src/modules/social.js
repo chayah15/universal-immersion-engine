@@ -105,6 +105,8 @@ function findAvatarForNameFromChat(name) {
 function normalizeSocial(s) {
     if(!s.social) s.social = { friends: [], romance: [], family: [], rivals: [] };
     ["friends","romance","family","rivals"].forEach(k => { if(!Array.isArray(s.social[k])) s.social[k] = []; });
+    if (!s.socialMeta || typeof s.socialMeta !== "object") s.socialMeta = { autoScan: false, deletedNames: [] };
+    if (!Array.isArray(s.socialMeta.deletedNames)) s.socialMeta.deletedNames = [];
     ["friends","romance","family","rivals"].forEach(k => {
         (s.social[k] || []).forEach(p => {
             if (!p || typeof p !== "object") return;
@@ -143,6 +145,29 @@ function normalizeSocial(s) {
     s.social.family = moveToRivals(s.social.family);
     const after = { f: s.social.friends.length, r: s.social.romance.length, fa: s.social.family.length, rv: s.social.rivals.length };
     return before.f !== after.f || before.r !== after.r || before.fa !== after.fa || before.rv !== after.rv;
+}
+
+function deletedNameSet(s) {
+    normalizeSocial(s);
+    const arr = Array.isArray(s?.socialMeta?.deletedNames) ? s.socialMeta.deletedNames : [];
+    return new Set(arr.map(x => String(x || "").toLowerCase().trim()).filter(Boolean));
+}
+
+function rememberDeletedNames(s, names) {
+    normalizeSocial(s);
+    const cur = new Set((s.socialMeta.deletedNames || []).map(x => String(x || "").toLowerCase().trim()).filter(Boolean));
+    for (const n of (names || [])) {
+        const k = String(n || "").toLowerCase().trim();
+        if (k) cur.add(k);
+    }
+    s.socialMeta.deletedNames = Array.from(cur).slice(-400);
+}
+
+function unforgetDeletedName(s, name) {
+    normalizeSocial(s);
+    const k = String(name || "").toLowerCase().trim();
+    if (!k) return;
+    s.socialMeta.deletedNames = (s.socialMeta.deletedNames || []).filter(x => String(x || "").toLowerCase().trim() !== k);
 }
 
 function getChatTranscript(maxMessages) {
@@ -506,8 +531,9 @@ function applyAddOrEdit() {
         s.social[t].push({ ...prev, ...person });
     } else {
         const t = tab || currentTab;
-        s.social[t].push(person);
+        s.social[t].push({ id: newId("person"), memories: [], familyRole: "", relationshipStatus: "", ...person });
     }
+    try { unforgetDeletedName(s, name); } catch (_) {}
     saveSettings();
     closeAddModal();
     renderSocial();
@@ -522,7 +548,10 @@ function toggleDeleteMode() {
 
 function confirmMassDelete() {
     const s = getSettings();
+    normalizeSocial(s);
     const list = s.social[currentTab] || [];
+    const removed = list.filter((_, idx) => selectedForDelete.includes(idx)).map(p => String(p?.name || "").trim()).filter(Boolean);
+    try { rememberDeletedNames(s, removed); } catch (_) {}
     const keep = list.filter((_, idx) => !selectedForDelete.includes(idx));
     s.social[currentTab] = keep;
     saveSettings();
@@ -542,16 +571,102 @@ function extractNamesFromChatDom(maxMessages) {
     try {
         const nodes = Array.from(document.querySelectorAll("#chat .mes")).slice(-1 * Math.max(10, Number(maxMessages || 80)));
         for (const m of nodes) {
+            const isUser =
+                m.classList?.contains("is_user") ||
+                m.getAttribute?.("is_user") === "true" ||
+                m.getAttribute?.("data-is-user") === "true" ||
+                m.dataset?.isUser === "true";
+            if (isUser) continue;
             const nm =
                 m.querySelector(".mes_name")?.textContent ||
                 m.querySelector(".name_text")?.textContent ||
                 m.querySelector(".name")?.textContent ||
+                m.querySelector(".ch_name")?.textContent ||
+                m.getAttribute?.("ch_name") ||
+                m.getAttribute?.("data-name") ||
+                m.dataset?.name ||
+                m.dataset?.chName ||
                 "";
             const n = String(nm || "").trim();
-            if (n) names.add(n);
+            if (n && n.length <= 64) names.add(n);
         }
     } catch (_) {}
     return Array.from(names);
+}
+
+function extractTaggedNamesFromChatText(maxMessages) {
+    const names = new Set();
+    try {
+        const nodes = Array.from(document.querySelectorAll("#chat .mes_text, #chat .mes_text *")).map(n => n.textContent).filter(Boolean);
+        const blob = nodes.join("\n");
+        const lines = blob.split("\n").slice(-1 * Math.max(20, Number(maxMessages || 120)));
+        const reA = /<char:([^>]{2,48})>/ig;
+        const reB = /<npc:([^>]{2,48})>/ig;
+        const reC = /^<([^>]{2,48})>:\s/;
+        for (const line of lines) {
+            const s = String(line || "");
+            let m = null;
+            while ((m = reA.exec(s)) !== null) names.add(String(m[1] || "").trim());
+            while ((m = reB.exec(s)) !== null) names.add(String(m[1] || "").trim());
+            const c = s.match(reC);
+            if (c && c[1]) names.add(String(c[1] || "").trim());
+        }
+    } catch (_) {}
+    return Array.from(names);
+}
+
+function shouldExcludeName(n, { userNames, deletedSet } = {}) {
+    const name = String(n || "").trim();
+    if (!name) return true;
+    const k = name.toLowerCase();
+    if (deletedSet && deletedSet.has(k)) return true;
+    const hard = new Set(["you", "user", "narrator", "system", "assistant", "story", "gm", "game master"]);
+    if (hard.has(k)) return true;
+    if (Array.isArray(userNames) && userNames.some(u => String(u || "").toLowerCase().trim() === k)) return true;
+    return false;
+}
+
+async function promptOrganizationForNewContacts(names) {
+    const list = Array.isArray(names) ? names.map(x => String(x || "").trim()).filter(Boolean) : [];
+    if (!list.length) return;
+    const max = 8;
+    const subset = list.slice(0, max);
+    for (const nm of subset) {
+        const tab = prompt(`Organize contact: ${nm}\nTab? (friends/romance/family/rivals)\nBlank = keep default (friends)`, "") ?? "";
+        if (tab === null) break;
+        const t = String(tab || "").trim().toLowerCase();
+        const wantTab = (t === "romance" || t === "relationships") ? "romance" : (t === "family") ? "family" : (t === "rivals" || t === "rival") ? "rivals" : (t === "friends" ? "friends" : "");
+        const rel = prompt(`Relationship status for ${nm}? (optional)`, "") ?? "";
+        const affRaw = prompt(`Initial affinity for ${nm}? (0-100)`, "50");
+        if (affRaw === null) break;
+        const aff = Math.max(0, Math.min(100, Number(affRaw || 50)));
+        const origin = prompt(`Origin / where did ${nm} come from? (optional)`, "") ?? "";
+
+        const s = getSettings();
+        normalizeSocial(s);
+        const allTabs = ["friends","romance","family","rivals"];
+        let curTab = allTabs.find(k => (s.social[k] || []).some(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase())) || "friends";
+        let idx = (s.social[curTab] || []).findIndex(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase());
+        if (idx < 0) continue;
+        const p = s.social[curTab][idx];
+        p.affinity = aff;
+        if (String(rel || "").trim()) p.relationshipStatus = String(rel || "").trim().slice(0, 80);
+        if (String(origin || "").trim()) {
+            const o = String(origin || "").trim().slice(0, 160);
+            p.thoughts = p.thoughts ? String(p.thoughts).slice(0, 240) : `Origin: ${o}`;
+        }
+        const move = wantTab && wantTab !== curTab;
+        if (move) {
+            s.social[curTab].splice(idx, 1);
+            p.tab = wantTab;
+            s.social[wantTab].push(p);
+        }
+        saveSettings();
+    }
+    renderSocial();
+    if (list.length > max) {
+        try { notify("info", `Added ${list.length} names. Prompted for ${max}; organize the rest later in Social.`, "Social", "social"); } catch (_) {}
+    }
 }
 
 function extractNamesFromTextHeuristics(maxMessages) {
@@ -613,7 +728,7 @@ Return ONLY valid JSON:
 
 Rules:
 - names: 0 to 24 distinct person names seen in chat (speakers or explicitly referenced as characters).
-- Exclude the User name and Main character name.
+- Exclude the User name. Include the Main character name if it appears in chat.
 - Do not invent new people. Only output names that appear in the transcript.
 - If uncertain about whether a token is a name, do NOT include it; instead add a short question in questions asking what it refers to.
 - Keep names short (2–40 chars), no emojis, no titles like "Mr.", no roles like "Guard #2" unless that is literally used as the name.`;
@@ -633,23 +748,43 @@ async function scanChatIntoSocial({ silent } = {}) {
     const s = getSettings();
     normalizeSocial(s);
     const ctx = getContext ? getContext() : {};
-    const user = String(ctx?.name1 || "").toLowerCase();
-    const main = String(ctx?.name2 || "").toLowerCase();
+    const userName = String(ctx?.name1 || "").trim();
+    const mainName = String(ctx?.name2 || "").trim();
+    const userNames = [userName, "You"].filter(Boolean);
+    const mainKey = mainName.toLowerCase();
+    const deleted = deletedNameSet(s);
 
     let found = [
-        ...extractNamesFromChatDom(90),
-        ...extractNamesFromTextHeuristics(90),
+        ...extractNamesFromChatDom(120),
+        ...extractNamesFromTextHeuristics(120),
+        ...extractTaggedNamesFromChatText(120),
     ].map(n => String(n || "").trim()).filter(Boolean);
     found = Array.from(new Set(found)).slice(0, 40);
+    try {
+        if (mainName) {
+            const blob = String(getChatTranscript(140) || "");
+            if (/<char>/i.test(blob) || /<Char>/i.test(blob)) found.push(mainName);
+        }
+    } catch (_) {}
+    found = Array.from(new Set(found)).slice(0, 40);
     found = found.filter(n => {
-        const k = n.toLowerCase();
+        const k = String(n || "").toLowerCase().trim();
         if (!k) return false;
-        if (k === user || k === main) return false;
-        return true;
+        if (k === mainKey) return !deleted.has(k);
+        return !shouldExcludeName(n, { userNames, deletedSet: deleted });
     });
     if (!found.length) {
-        const ai = await aiExtractNamesFromChat(100);
-        found = (ai?.names || []).map(n => String(n || "").trim()).filter(Boolean);
+        let ai = null;
+        try {
+            const allow = getSettings()?.ai?.socialScan !== false;
+            if (allow) ai = await aiExtractNamesFromChat(140);
+        } catch (_) {}
+        found = (ai?.names || []).map(n => String(n || "").trim()).filter(Boolean).filter(n => {
+            const k = String(n || "").toLowerCase().trim();
+            if (!k) return false;
+            if (k === mainKey) return !deleted.has(k);
+            return !shouldExcludeName(n, { userNames, deletedSet: deleted });
+        });
         if (!silent && Array.isArray(ai?.questions) && ai.questions.length) {
             try { notify("info", `Social scan questions:\n- ${ai.questions.join("\n- ")}`, "Social", "social"); } catch (_) {}
         }
@@ -665,17 +800,23 @@ async function scanChatIntoSocial({ silent } = {}) {
     );
 
     let added = 0;
+    const addedNames = [];
     for (const n of found) {
         const key = n.toLowerCase();
         if (existing.has(key)) continue;
+        if (deleted.has(key)) continue;
         s.social.friends.push({ id: newId("person"), name: n, affinity: 50, thoughts: "", avatar: "", likes: "", dislikes: "", birthday: "", location: "", age: "", knownFamily: "", familyRole: "", relationshipStatus: "", url: "", tab: "friends", memories: [] });
         existing.add(key);
         added++;
+        addedNames.push(n);
     }
     if (added) {
         saveSettings();
         renderSocial();
         if (!silent) notify("success", `Added ${added} contact(s).`, "Social", "social");
+        if (!silent) {
+            try { await promptOrganizationForNewContacts(addedNames); } catch (_) {}
+        }
     } else {
         if (!silent) notify("info", "No new contacts to add.", "Social", "social");
     }
@@ -870,7 +1011,13 @@ export function initSocial() {
         e.preventDefault(); e.stopPropagation();
         if (activeProfileIndex === null) return;
         const s = getSettings();
+        normalizeSocial(s);
         if (!confirm("Delete this contact?")) return;
+        try {
+            const p = s?.social?.[currentTab]?.[activeProfileIndex] || null;
+            const nm = String(p?.name || "").trim();
+            if (nm) rememberDeletedNames(s, [nm]);
+        } catch (_) {}
         s.social[currentTab].splice(activeProfileIndex, 1);
         saveSettings();
         activeProfileIndex = null;

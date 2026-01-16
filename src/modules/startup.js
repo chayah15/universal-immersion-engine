@@ -40,7 +40,11 @@ export async function loadTemplates() {
                 if (html) break;
             } catch (_) {}
         }
-        if (!html) throw new Error(`[UIE] Required template failed to load: ${f}`);
+        if (!html) {
+            try { console.error(`[UIE] Required template failed to load: ${f}`, { baseUrl, urls }); } catch (_) {}
+            try { window.toastr?.error?.(`UIE failed to load required UI: ${f}. Check UIE_BASEURL / install.`); } catch (_) {}
+            return;
+        }
         $("body").append(html);
     }
 

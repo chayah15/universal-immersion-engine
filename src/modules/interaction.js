@@ -447,12 +447,40 @@ export function initInteractions() {
             saveSettings();
         });
     $(document)
+        .off("input.uieTurboUrl", "#uie-turbo-url")
+        .on("input.uieTurboUrl", "#uie-turbo-url", function () {
+            const v = String($(this).val() || "").trim();
+            const s2 = getSettings();
+            if (!s2.turbo || typeof s2.turbo !== "object") s2.turbo = {};
+            s2.turbo.url = v;
+            try {
+                clearTimeout(window.UIE_turboSaveTimer);
+                window.UIE_turboSaveTimer = setTimeout(() => { try { saveSettings(); } catch (_) {} }, 250);
+            } catch (_) {
+                saveSettings();
+            }
+        });
+    $(document)
         .off("change.uieTurboModel", "#uie-turbo-model")
         .on("change.uieTurboModel", "#uie-turbo-model", function () {
             const s2 = getSettings();
             if (!s2.turbo || typeof s2.turbo !== "object") s2.turbo = {};
             s2.turbo.model = String($(this).val() || "").trim();
             saveSettings();
+        });
+    $(document)
+        .off("input.uieTurboModel", "#uie-turbo-model")
+        .on("input.uieTurboModel", "#uie-turbo-model", function () {
+            const v = String($(this).val() || "").trim();
+            const s2 = getSettings();
+            if (!s2.turbo || typeof s2.turbo !== "object") s2.turbo = {};
+            s2.turbo.model = v;
+            try {
+                clearTimeout(window.UIE_turboSaveTimer);
+                window.UIE_turboSaveTimer = setTimeout(() => { try { saveSettings(); } catch (_) {} }, 250);
+            } catch (_) {
+                saveSettings();
+            }
         });
 
     $(document)
@@ -488,6 +516,20 @@ export function initInteractions() {
             if (!s2.turbo || typeof s2.turbo !== "object") s2.turbo = {};
             s2.turbo.key = String($(this).val() || "").trim();
             saveSettings();
+        });
+    $(document)
+        .off("input.uieTurboKey", "#uie-turbo-key")
+        .on("input.uieTurboKey", "#uie-turbo-key", function () {
+            const v = String($(this).val() || "").trim();
+            const s2 = getSettings();
+            if (!s2.turbo || typeof s2.turbo !== "object") s2.turbo = {};
+            s2.turbo.key = v;
+            try {
+                clearTimeout(window.UIE_turboSaveTimer);
+                window.UIE_turboSaveTimer = setTimeout(() => { try { saveSettings(); } catch (_) {} }, 250);
+            } catch (_) {
+                saveSettings();
+            }
         });
 
     $(document)

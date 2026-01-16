@@ -402,13 +402,20 @@ async function generateTurbo(prompt, systemPrompt) {
             "HTTP-Referer": "https://github.com/SillyTavern/SillyTavern",
             "X-Title": "UIE"
         };
-        if (rawKey) {
-            headers.Authorization = `Bearer ${rawKey}`;
-            headers["x-api-key"] = rawKey;
-            headers["api-key"] = rawKey;
+        const key = rawKey ? rawKey.replace(/^bearer\s+/i, "").trim() : "";
+        if (key) {
+            headers.Authorization = `Bearer ${key}`;
+            headers["x-api-key"] = key;
+            headers["api-key"] = key;
         }
 
-        const model = String(t.model || "google/gemini-2.0-flash-exp");
+        const norm = normalizeTurboInputUrl(rawUrl);
+        let model = String(t.model || "").trim();
+        if (!model) model = "google/gemini-2.0-flash-exp";
+        if (/^https?:\/\/api\.openai\.com(\/|$)/i.test(norm)) {
+            const looksDefault = model === "google/gemini-2.0-flash-exp" || /gemini|deepseek|openrouter|google\//i.test(model);
+            if (looksDefault) model = "gpt-4o-mini";
+        }
         const messages = [
             ...(systemPrompt ? [{ role: "system", content: String(systemPrompt) }] : []),
             { role: "user", content: String(prompt || "") }
@@ -497,7 +504,12 @@ export async function testTurboConnection() {
 
 export async function generateContent(prompt, type) {
     const s = getSettings();
-    const useTurbo = !!(s.turbo && s.turbo.enabled);
+    const turboEnabled = !!(s.turbo && s.turbo.enabled);
+    const turboUrl = String(s?.turbo?.url || "").trim();
+    const turboKeyRaw = String(s?.turbo?.key || "").trim();
+    const turboIsLocal = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(normalizeTurboInputUrl(turboUrl));
+    const turboReady = turboEnabled && !!turboUrl && (turboIsLocal || !!turboKeyRaw);
+    const useTurbo = turboReady;
 
     if (type === "Logic" || type === "JSON") type = "System Check";
 
@@ -548,6 +560,16 @@ export async function generateContent(prompt, type) {
             preview: String(finalPrompt || "").slice(0, 900)
         });
         if (!ok) return null;
+    }
+
+    if (turboEnabled && !turboReady) {
+        try {
+            const why = !turboUrl ? "missing endpoint" : (!turboIsLocal && !turboKeyRaw ? "missing key" : "not ready");
+            if (window.UIE_warnedTurboNotReady !== why) {
+                window.UIE_warnedTurboNotReady = why;
+                notify("warning", `Turbo enabled but ${why} — using Main API.`, "UIE", "api");
+            }
+        } catch (_) {}
     }
 
     notify("info", useTurbo ? `⚡ ${displayType}` : `📝 ${displayType}`, undefined, "api");

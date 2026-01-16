@@ -199,7 +199,10 @@ export function sanitizeSettings() {
         if (typeof s.ai[k] !== "boolean") s.ai[k] = SETTINGS_DEFAULT.ai[k];
     }
     if (!s.turbo || typeof s.turbo !== "object") s.turbo = { ...SETTINGS_DEFAULT.turbo };
-    if (typeof s.turbo.enabled !== "boolean") s.turbo.enabled = SETTINGS_DEFAULT.turbo.enabled;
+    if (typeof s.turbo.enabled !== "boolean") {
+        const raw = String(s.turbo.enabled ?? "").toLowerCase().trim();
+        s.turbo.enabled = raw === "true" ? true : raw === "false" ? false : SETTINGS_DEFAULT.turbo.enabled;
+    }
     if (typeof s.turbo.url !== "string") s.turbo.url = String(s.turbo.url || SETTINGS_DEFAULT.turbo.url || "");
     if (typeof s.turbo.key !== "string") s.turbo.key = String(s.turbo.key || "");
     if (typeof s.turbo.model !== "string") s.turbo.model = String(s.turbo.model || SETTINGS_DEFAULT.turbo.model || "");
