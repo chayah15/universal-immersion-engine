@@ -109,7 +109,7 @@ export const SETTINGS_DEFAULT = {
     uiScale: 1.0,
     characterClass: "Sanguine Shinobi",
     turbo: { enabled: false, url: "https://openrouter.ai/api/v1/chat/completions", key: "", model: "google/gemini-2.0-flash-exp" },
-    image: { enabled: false, url: "https://api.openai.com/v1/images/generations", key: "", model: "dall-e-3", features: { map: true, doll: true, social: true, phoneBg: true, msg: true, party: true, items: true }, comfy: { workflow: "", positiveNodeId: "", negativeNodeId: "", outputNodeId: "" } },
+    image: { enabled: false, url: "https://api.openai.com/v1/images/generations", key: "", model: "dall-e-3", negativePrompt: "", features: { map: true, doll: true, social: true, phoneBg: true, msg: true, party: true, items: true }, comfy: { workflow: "", checkpoint: "", quality: "balanced", positiveNodeId: "", negativeNodeId: "", outputNodeId: "" } },
     connections: { activeProfileId: "", profiles: [] }
 };
 
@@ -214,12 +214,15 @@ export function sanitizeSettings() {
     if (typeof s.image.url !== "string") s.image.url = String(s.image.url || SETTINGS_DEFAULT.image.url || "");
     if (typeof s.image.key !== "string") s.image.key = String(s.image.key || "");
     if (typeof s.image.model !== "string") s.image.model = String(s.image.model || SETTINGS_DEFAULT.image.model || "");
+    if (typeof s.image.negativePrompt !== "string") s.image.negativePrompt = String(s.image.negativePrompt || "");
     if (!s.image.features || typeof s.image.features !== "object") s.image.features = { ...SETTINGS_DEFAULT.image.features };
     for (const k of Object.keys(SETTINGS_DEFAULT.image.features || {})) {
         if (typeof s.image.features[k] !== "boolean") s.image.features[k] = SETTINGS_DEFAULT.image.features[k];
     }
     if (!s.image.comfy || typeof s.image.comfy !== "object") s.image.comfy = { ...SETTINGS_DEFAULT.image.comfy };
     if (typeof s.image.comfy.workflow !== "string") s.image.comfy.workflow = String(s.image.comfy.workflow || "");
+    if (typeof s.image.comfy.checkpoint !== "string") s.image.comfy.checkpoint = String(s.image.comfy.checkpoint || "");
+    if (typeof s.image.comfy.quality !== "string") s.image.comfy.quality = String(s.image.comfy.quality || "balanced");
     if (typeof s.image.comfy.positiveNodeId !== "string") s.image.comfy.positiveNodeId = String(s.image.comfy.positiveNodeId || "");
     if (typeof s.image.comfy.negativeNodeId !== "string") s.image.comfy.negativeNodeId = String(s.image.comfy.negativeNodeId || "");
     if (typeof s.image.comfy.outputNodeId !== "string") s.image.comfy.outputNodeId = String(s.image.comfy.outputNodeId || "");
@@ -243,6 +246,12 @@ export function sanitizeSettings() {
                 url: String(p.image.url || ""),
                 key: String(p.image.key || ""),
                 model: String(p.image.model || ""),
+                negativePrompt: String(p.image.negativePrompt || ""),
+                comfy: p.image.comfy && typeof p.image.comfy === "object" ? {
+                    workflow: String(p.image.comfy.workflow || ""),
+                    checkpoint: String(p.image.comfy.checkpoint || ""),
+                    quality: String(p.image.comfy.quality || "balanced"),
+                } : null,
             } : null,
         }))
         .filter(p => p.id && p.name);

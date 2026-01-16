@@ -699,6 +699,91 @@ export async function testTurboConnection() {
     return { ok: true, ms, tried: urls, sample: String(res).slice(0, 240) };
 }
 
+export async function listTurboModels() {
+    const s = getSettings();
+    const t = s?.turbo || {};
+    const rawUrl = String(t.url || "").trim();
+    const rawKey = String(t.key || "").trim();
+    if (!rawUrl) return { ok: false, error: "No Turbo endpoint set.", models: [] };
+
+    const key = rawKey ? rawKey.replace(/^bearer\s+/i, "").trim() : "";
+    const headers = { "Accept": "application/json" };
+    if (key) {
+        headers.Authorization = `Bearer ${key}`;
+        headers["x-api-key"] = key;
+        headers["api-key"] = key;
+    }
+
+    const norm = normalizeTurboInputUrl(rawUrl);
+    let base;
+    try { base = new URL(norm); } catch (_) { base = null; }
+    const host = base ? String(base.hostname || "").toLowerCase() : "";
+    const path = base ? String(base.pathname || "") : "";
+    const origin = base ? base.origin : norm.replace(/\/+$/g, "");
+
+    const stripKnown = (p) => String(p || "")
+        .replace(/\/chat\/completions$/i, "")
+        .replace(/\/completions$/i, "")
+        .replace(/\/responses$/i, "")
+        .replace(/\/models$/i, "")
+        .replace(/\/+$/g, "");
+
+    const p0 = stripKnown(path);
+    const isOpenRouter = host.includes("openrouter.ai") || /openrouter\.ai/i.test(origin);
+    const add = (u, out) => { const x = String(u || "").trim(); if (x && !out.includes(x)) out.push(x); };
+    const urls = [];
+
+    if (isOpenRouter) {
+        const basePath = /\/api\/v1$/i.test(p0) ? p0 : (p0.replace(/\/v1$/i, "/api/v1") || "/api/v1");
+        add(`${origin}${basePath}/models`, urls);
+        add(`https://openrouter.ai/api/v1/models`, urls);
+    } else {
+        if (/\/v1$/i.test(p0)) add(`${origin}${p0}/models`, urls);
+        add(`${origin}/v1/models`, urls);
+        add(`${origin}${p0}/models`, urls);
+        add(`${origin}/models`, urls);
+    }
+
+    const startedAt = Date.now();
+    let lastErr = "";
+    for (const url of urls) {
+        try {
+            const fx = await fetchWithCorsProxyFallback(url, { method: "GET", headers });
+            const r = fx.response;
+            if (!r.ok) {
+                const txt = await r.text().catch(() => "");
+                lastErr = `API Error ${r.status}: ${String(txt || "").slice(0, 220)}`;
+                continue;
+            }
+            const data = await r.json().catch(() => null);
+            const arr = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : (Array.isArray(data?.models) ? data.models : null));
+            if (!Array.isArray(arr)) {
+                lastErr = "Invalid models response.";
+                continue;
+            }
+            const out = [];
+            const seen = new Set();
+            for (const m of arr) {
+                const id = String(m?.id || m?.name || m?.model || "").trim();
+                if (!id || seen.has(id)) continue;
+                seen.add(id);
+                const label = String(m?.name || m?.display_name || m?.label || id).trim();
+                out.push({ id, label });
+            }
+            out.sort((a, b) => String(a.label).localeCompare(String(b.label)));
+            const ms = Date.now() - startedAt;
+            try { window.UIE_lastTurboModels = { ok: true, url, ms, count: out.length, via: fx.via, requestUrl: fx.requestUrl }; } catch (_) {}
+            return { ok: true, models: out, ms, url };
+        } catch (e) {
+            lastErr = String(e?.message || e || "Model list failed").slice(0, 220);
+            continue;
+        }
+    }
+    const ms = Date.now() - startedAt;
+    try { window.UIE_lastTurboModels = { ok: false, url: urls[0] || "", ms, error: lastErr }; } catch (_) {}
+    return { ok: false, error: lastErr || "Model list failed.", models: [] };
+}
+
 export async function generateContent(prompt, type) {
     const s = getSettings();
     const turboEnabled = !!(s.turbo && s.turbo.enabled);

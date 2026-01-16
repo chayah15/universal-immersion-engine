@@ -110,6 +110,98 @@ export function initInteractions() {
         }
     };
 
+    const renderTurboModels = (models, selected = "") => {
+        try {
+            const sel = document.getElementById("uie-turbo-model-select");
+            if (!sel) return;
+            const cur = String(selected || "");
+            sel.innerHTML = "";
+            const opt0 = document.createElement("option");
+            opt0.value = "";
+            opt0.textContent = models && models.length ? "(Select a model)" : "(Refresh to load models)";
+            sel.appendChild(opt0);
+            const optC = document.createElement("option");
+            optC.value = "__custom__";
+            optC.textContent = "Custom…";
+            sel.appendChild(optC);
+
+            if (Array.isArray(models) && models.length) {
+                const g = document.createElement("optgroup");
+                g.label = "Available Models";
+                for (const m of models.slice(0, 800)) {
+                    const id = String(m?.id || "").trim();
+                    if (!id) continue;
+                    const label = String(m?.label || id).trim();
+                    const o = document.createElement("option");
+                    o.value = id;
+                    o.textContent = label.slice(0, 140);
+                    g.appendChild(o);
+                }
+                sel.appendChild(g);
+            }
+
+            if (cur) {
+                const has = Array.from(sel.options).some(o => String(o.value) === cur);
+                sel.value = has ? cur : "__custom__";
+            }
+        } catch (_) {}
+    };
+
+    const detectImageProvider = (s2) => {
+        const url = String(s2?.image?.url || "").trim();
+        const wf = String(s2?.image?.comfy?.workflow || "").trim();
+        if (/\/sdapi\/v1\/txt2img\s*$/i.test(url)) return "sdwebui";
+        if (/\/v1\/images\/generations\s*$/i.test(url) || /\/images\/generations\s*$/i.test(url) || !url) return "openai";
+        if (/\/prompt\s*$/i.test(url) || /:(8188|8189)(\/|$)/i.test(url) || wf) return "comfy";
+        return "custom";
+    };
+
+    const showImageBlocks = (provider) => {
+        const p = String(provider || "openai");
+        $("#uie-img-openai-block").toggle(p === "openai" || p === "custom");
+        $("#uie-img-comfy-block").toggle(p === "comfy");
+        $("#uie-img-sdwebui-block").toggle(p === "sdwebui");
+        $("#uie-img-advanced").toggle(p === "custom");
+    };
+
+    const renderComfyCkpts = (list, selected = "") => {
+        try {
+            const sel = document.getElementById("uie-img-comfy-ckpt");
+            if (!sel) return;
+            const cur = String(selected || "");
+            sel.innerHTML = "";
+            const opt0 = document.createElement("option");
+            opt0.value = "";
+            opt0.textContent = list && list.length ? "(Select a checkpoint)" : "(Click refresh to detect)";
+            sel.appendChild(opt0);
+            const g = document.createElement("optgroup");
+            g.label = "Checkpoints";
+            if (Array.isArray(list)) {
+                for (const x of list.slice(0, 500)) {
+                    const v = String(x || "").trim();
+                    if (!v) continue;
+                    const o = document.createElement("option");
+                    o.value = v;
+                    o.textContent = v.slice(0, 120);
+                    g.appendChild(o);
+                }
+            }
+            sel.appendChild(g);
+            if (cur) {
+                const has = Array.from(sel.options).some(o => String(o.value) === cur);
+                if (has) sel.value = cur;
+                else {
+                    const o = document.createElement("option");
+                    o.value = cur;
+                    o.textContent = cur.slice(0, 120);
+                    o.setAttribute("data-uie-missing", "1");
+                    sel.insertBefore(o, sel.firstChild?.nextSibling || null);
+                    sel.value = cur;
+                }
+            }
+        } catch (_) {}
+    };
+
     const refreshProfileSelect = (scope, s2) => {
         try {
             const sel = scope?.querySelector?.("#uie-profile-select");
@@ -293,16 +385,76 @@ export function initInteractions() {
         if (turboModel) turboModel.value = String(s2.turbo?.model || "");
         const turboKey = scope.querySelector("#uie-turbo-key");
         if (turboKey) turboKey.value = String(s2.turbo?.key || "");
+        try {
+            const sel = scope.querySelector("#uie-turbo-model-select");
+            if (sel) {
+                const models = Array.isArray(window.UIE_TURBO_MODELS) ? window.UIE_TURBO_MODELS : [];
+                renderTurboModels(models, String(s2.turbo?.model || ""));
+                const urlNow = String(s2.turbo?.url || "").trim();
+                const shouldTry =
+                    urlNow &&
+                    window.UIE_TURBO_MODELS_TRIED !== true &&
+                    (!models.length);
+                if (shouldTry) {
+                    window.UIE_TURBO_MODELS_TRIED = true;
+                    setTimeout(async () => {
+                        try {
+                            const mod = await import("./apiClient.js");
+                            const r = await mod.listTurboModels();
+                            if (r?.ok && Array.isArray(r.models)) {
+                                window.UIE_TURBO_MODELS = r.models;
+                                renderTurboModels(r.models, String(getSettings()?.turbo?.model || ""));
+                            }
+                        } catch (_) {}
+                    }, 0);
+                }
+            }
+        } catch (_) {}
 
         try {
             const imgEnable = scope.querySelector("#uie-img-enable");
             if (imgEnable) imgEnable.checked = s2.image?.enabled === true;
+            const provider = detectImageProvider(s2);
+            const provSel = scope.querySelector("#uie-img-provider");
+            if (provSel) provSel.value = provider;
+
+            const url = String(s2.image?.url || "");
+            const key = String(s2.image?.key || "");
+            const model = String(s2.image?.model || "");
+
             const imgUrl = scope.querySelector("#uie-img-url");
-            if (imgUrl) imgUrl.value = String(s2.image?.url || "");
+            if (imgUrl) imgUrl.value = url;
             const imgKey = scope.querySelector("#uie-img-key");
-            if (imgKey) imgKey.value = String(s2.image?.key || "");
+            if (imgKey) imgKey.value = key;
             const imgModel = scope.querySelector("#uie-img-model");
-            if (imgModel) imgModel.value = String(s2.image?.model || "");
+            if (imgModel) imgModel.value = model;
+
+            const imgModelSel = scope.querySelector("#uie-img-model-select");
+            if (imgModelSel) {
+                const has = Array.from(imgModelSel.options).some(o => String(o.value) === model);
+                imgModelSel.value = has ? model : "__custom__";
+            }
+
+            const comfyBase = scope.querySelector("#uie-img-comfy-base");
+            if (comfyBase) comfyBase.value = url ? String(url).replace(/\/prompt\s*$/i, "").replace(/\/+$/g, "") : "http://127.0.0.1:8188";
+            const neg = scope.querySelector("#uie-img-negative");
+            if (neg) neg.value = String(s2.image?.negativePrompt || "");
+            const q = scope.querySelector("#uie-img-comfy-quality");
+            if (q) q.value = String(s2.image?.comfy?.quality || "balanced");
+            const sd = scope.querySelector("#uie-img-sdwebui-url");
+            if (sd) sd.value = url || "http://127.0.0.1:7860/sdapi/v1/txt2img";
+
+            const advUrl = scope.querySelector("#uie-img-url-adv");
+            if (advUrl) advUrl.value = url;
+            const advKey = scope.querySelector("#uie-img-key-adv");
+            if (advKey) advKey.value = key;
+            const advModel = scope.querySelector("#uie-img-model-adv");
+            if (advModel) advModel.value = model;
+
+            const ckpt = String(s2.image?.comfy?.checkpoint || "");
+            const ckpts = Array.isArray(window.UIE_COMFY_CKPTS) ? window.UIE_COMFY_CKPTS : [];
+            renderComfyCkpts(ckpts, ckpt);
+
             const wf = scope.querySelector("#uie-img-comfy-workflow");
             if (wf) wf.value = String(s2.image?.comfy?.workflow || "");
             const pn = scope.querySelector("#uie-img-comfy-posnode");
@@ -320,6 +472,7 @@ export function initInteractions() {
             setImg("#uie-img-msg", "msg");
             setImg("#uie-img-party", "party");
             setImg("#uie-img-items", "items");
+            showImageBlocks(provider);
         } catch (_) {}
 
         const ai = s2.ai || {};
@@ -513,6 +666,7 @@ export function initInteractions() {
             const s2 = getSettings();
             if (!s2.turbo || typeof s2.turbo !== "object") s2.turbo = {};
             s2.turbo.url = String($(this).val() || "").trim();
+            try { window.UIE_TURBO_MODELS = []; window.UIE_TURBO_MODELS_TRIED = false; } catch (_) {}
             saveSettings();
         });
     $(document)
@@ -545,10 +699,54 @@ export function initInteractions() {
             if (!s2.turbo || typeof s2.turbo !== "object") s2.turbo = {};
             s2.turbo.model = v;
             try {
+                const sel = document.getElementById("uie-turbo-model-select");
+                if (sel) {
+                    const has = Array.from(sel.options).some(o => String(o.value) === v);
+                    sel.value = has ? v : "__custom__";
+                }
+            } catch (_) {}
+            try {
                 clearTimeout(window.UIE_turboSaveTimer);
                 window.UIE_turboSaveTimer = setTimeout(() => { try { saveSettings(); } catch (_) {} }, 250);
             } catch (_) {
                 saveSettings();
+            }
+        });
+
+    $(document)
+        .off("change.uieTurboModelSelect", "#uie-turbo-model-select")
+        .on("change.uieTurboModelSelect", "#uie-turbo-model-select", function () {
+            const val = String($(this).val() || "");
+            if (val === "__custom__" || !val) return;
+            $("#uie-turbo-model").val(val);
+            const s2 = getSettings();
+            if (!s2.turbo || typeof s2.turbo !== "object") s2.turbo = {};
+            s2.turbo.model = val;
+            saveSettings();
+        });
+
+    $(document)
+        .off("click.uieTurboModelsRefresh", "#uie-turbo-model-refresh")
+        .on("click.uieTurboModelsRefresh", "#uie-turbo-model-refresh", async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const btn = $(this);
+            btn.prop("disabled", true);
+            try {
+                const mod = await import("./apiClient.js");
+                const r = await mod.listTurboModels();
+                if (r?.ok && Array.isArray(r.models)) {
+                    window.UIE_TURBO_MODELS = r.models;
+                    renderTurboModels(r.models, String(getSettings()?.turbo?.model || ""));
+                    try { window.toastr?.success?.(`Loaded ${r.models.length} models.`); } catch (_) {}
+                } else {
+                    const msg = String(r?.error || "Model list failed.");
+                    try { window.toastr?.error?.(msg); } catch (_) {}
+                }
+            } catch (err) {
+                try { window.toastr?.error?.(String(err?.message || err || "Model list failed.")); } catch (_) {}
+            } finally {
+                btn.prop("disabled", false);
             }
         });
 
@@ -569,7 +767,9 @@ export function initInteractions() {
                 } else {
                     const msg = String(r?.error || "Turbo failed.");
                     const hint = /failed to fetch|cors|network/i.test(msg) ? " (Browser blocked request — try SillyTavern server proxy or a local gateway.)" : "";
-                    try { window.toastr?.error?.(`Turbo FAIL: ${msg}${hint}`); } catch (_) {}
+                    const lt = window.UIE_lastTurbo || {};
+                    const extra = lt?.requestUrl ? ` | tried: ${String(lt.requestUrl).slice(0, 140)} | via: ${String(lt.via || "direct")} | status: ${String(lt.status || 0)}` : "";
+                    try { window.toastr?.error?.(`Turbo FAIL: ${msg}${hint}${extra}`); } catch (_) {}
                 }
             } catch (err) {
                 try { window.toastr?.error?.(`Turbo FAIL: ${String(err?.message || err || "Unknown error")}`); } catch (_) {}
@@ -609,28 +809,63 @@ export function initInteractions() {
             s2.image.enabled = $(this).is(":checked");
             saveSettings();
         });
+
     $(document)
-        .off("change.uieImgUrl", "#uie-img-url")
-        .on("change.uieImgUrl", "#uie-img-url", function () {
+        .off("change.uieImgProvider", "#uie-img-provider")
+        .on("change.uieImgProvider", "#uie-img-provider", function () {
+            const p = String($(this).val() || "openai");
+            const s2 = getSettings();
+            if (!s2.image || typeof s2.image !== "object") s2.image = {};
+            if (!s2.image.comfy || typeof s2.image.comfy !== "object") s2.image.comfy = {};
+            if (p === "openai") {
+                s2.image.url = "https://api.openai.com/v1/images/generations";
+                if (!s2.image.model) s2.image.model = "dall-e-3";
+            } else if (p === "comfy") {
+                s2.image.url = "http://127.0.0.1:8188";
+                if (!s2.image.comfy.quality) s2.image.comfy.quality = "balanced";
+            } else if (p === "sdwebui") {
+                s2.image.url = "http://127.0.0.1:7860/sdapi/v1/txt2img";
+            }
+            saveSettings();
+            try { refreshSettingsDrawer(); } catch (_) {}
+        });
+
+    $(document)
+        .off("change.uieImgUrl", "#uie-img-url, #uie-img-url-adv")
+        .on("change.uieImgUrl", "#uie-img-url, #uie-img-url-adv", function () {
             const s2 = getSettings();
             if (!s2.image || typeof s2.image !== "object") s2.image = {};
             s2.image.url = String($(this).val() || "").trim();
+            $("#uie-img-url").val(s2.image.url);
+            $("#uie-img-url-adv").val(s2.image.url);
             saveSettings();
+            try { $("#uie-img-provider").val(detectImageProvider(s2)); showImageBlocks(detectImageProvider(s2)); } catch (_) {}
         });
     $(document)
-        .off("change.uieImgKey", "#uie-img-key")
-        .on("change.uieImgKey", "#uie-img-key", function () {
+        .off("change.uieImgKey", "#uie-img-key, #uie-img-key-adv")
+        .on("change.uieImgKey", "#uie-img-key, #uie-img-key-adv", function () {
             const s2 = getSettings();
             if (!s2.image || typeof s2.image !== "object") s2.image = {};
             s2.image.key = String($(this).val() || "").trim();
+            $("#uie-img-key").val(s2.image.key);
+            $("#uie-img-key-adv").val(s2.image.key);
             saveSettings();
         });
     $(document)
-        .off("change.uieImgModel", "#uie-img-model")
-        .on("change.uieImgModel", "#uie-img-model", function () {
+        .off("change.uieImgModel", "#uie-img-model, #uie-img-model-adv")
+        .on("change.uieImgModel", "#uie-img-model, #uie-img-model-adv", function () {
             const s2 = getSettings();
             if (!s2.image || typeof s2.image !== "object") s2.image = {};
             s2.image.model = String($(this).val() || "").trim();
+            $("#uie-img-model").val(s2.image.model);
+            $("#uie-img-model-adv").val(s2.image.model);
+            try {
+                const sel = document.getElementById("uie-img-model-select");
+                if (sel) {
+                    const has = Array.from(sel.options).some(o => String(o.value) === s2.image.model);
+                    sel.value = has ? s2.image.model : "__custom__";
+                }
+            } catch (_) {}
             saveSettings();
         });
 
@@ -645,6 +880,190 @@ export function initInteractions() {
             s2.image.comfy.negativeNodeId = String($("#uie-img-comfy-negnode").val() || "").trim();
             s2.image.comfy.outputNodeId = String($("#uie-img-comfy-outnode").val() || "").trim();
             saveSettings();
+        });
+
+    $(document)
+        .off("change.uieImgModelSelect", "#uie-img-model-select")
+        .on("change.uieImgModelSelect", "#uie-img-model-select", function () {
+            const v = String($(this).val() || "");
+            if (!v || v === "__custom__") return;
+            $("#uie-img-model").val(v);
+            $("#uie-img-model-adv").val(v);
+            const s2 = getSettings();
+            if (!s2.image || typeof s2.image !== "object") s2.image = {};
+            s2.image.model = v;
+            saveSettings();
+        });
+
+    $(document)
+        .off("input.uieImgComfyBase", "#uie-img-comfy-base")
+        .on("input.uieImgComfyBase", "#uie-img-comfy-base", function () {
+            const base = String($(this).val() || "").trim().replace(/\/prompt\s*$/i, "").replace(/\/+$/g, "");
+            const s2 = getSettings();
+            if (!s2.image || typeof s2.image !== "object") s2.image = {};
+            s2.image.url = base;
+            $("#uie-img-url").val(base);
+            $("#uie-img-url-adv").val(base);
+            saveSettings();
+        });
+
+    $(document)
+        .off("change.uieImgSdWebUiUrl", "#uie-img-sdwebui-url")
+        .on("change.uieImgSdWebUiUrl", "#uie-img-sdwebui-url", function () {
+            const v = String($(this).val() || "").trim();
+            const s2 = getSettings();
+            if (!s2.image || typeof s2.image !== "object") s2.image = {};
+            s2.image.url = v;
+            $("#uie-img-url").val(v);
+            $("#uie-img-url-adv").val(v);
+            saveSettings();
+        });
+
+    $(document)
+        .off("input.uieImgNegative", "#uie-img-negative")
+        .on("input.uieImgNegative", "#uie-img-negative", function () {
+            const v = String($(this).val() || "").trim().slice(0, 500);
+            const s2 = getSettings();
+            if (!s2.image || typeof s2.image !== "object") s2.image = {};
+            s2.image.negativePrompt = v;
+            saveSettings();
+        });
+
+    $(document)
+        .off("change.uieImgComfyQuality", "#uie-img-comfy-quality")
+        .on("change.uieImgComfyQuality", "#uie-img-comfy-quality", function () {
+            const v = String($(this).val() || "balanced");
+            const s2 = getSettings();
+            if (!s2.image || typeof s2.image !== "object") s2.image = {};
+            if (!s2.image.comfy || typeof s2.image.comfy !== "object") s2.image.comfy = {};
+            s2.image.comfy.quality = v;
+            saveSettings();
+        });
+
+    $(document)
+        .off("change.uieImgComfyCkpt", "#uie-img-comfy-ckpt")
+        .on("change.uieImgComfyCkpt", "#uie-img-comfy-ckpt", function () {
+            const v = String($(this).val() || "").trim();
+            const s2 = getSettings();
+            if (!s2.image || typeof s2.image !== "object") s2.image = {};
+            if (!s2.image.comfy || typeof s2.image.comfy !== "object") s2.image.comfy = {};
+            s2.image.comfy.checkpoint = v;
+            saveSettings();
+        });
+
+    $(document)
+        .off("click.uieImgComfyCkptRefresh", "#uie-img-comfy-ckpt-refresh")
+        .on("click.uieImgComfyCkptRefresh", "#uie-img-comfy-ckpt-refresh", async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const btn = $(this);
+            btn.prop("disabled", true);
+            try {
+                const s2 = getSettings();
+                const base = String($("#uie-img-comfy-base").val() || s2?.image?.url || "http://127.0.0.1:8188").trim().replace(/\/prompt\s*$/i, "").replace(/\/+$/g, "");
+                const url = `${base}/object_info`;
+                const r = await fetch(url, { method: "GET" });
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                const j = await r.json().catch(() => null);
+                const list = (() => {
+                    const tryPick = (obj) => {
+                        const node = obj?.CheckpointLoaderSimple || obj?.checkpointloadersimple || null;
+                        const req = node?.input?.required || node?.input?.Required || null;
+                        const ck = req?.ckpt_name || req?.checkpoint || null;
+                        const arr = Array.isArray(ck) ? ck : (Array.isArray(ck?.[0]) ? ck[0] : (Array.isArray(ck?.values) ? ck.values : null));
+                        if (Array.isArray(arr)) return arr.map(x => String(x || "").trim()).filter(Boolean);
+                        return null;
+                    };
+                    const a = tryPick(j);
+                    if (a && a.length) return a;
+                    if (j && typeof j === "object") {
+                        for (const v of Object.values(j)) {
+                            const a2 = tryPick({ CheckpointLoaderSimple: v });
+                            if (a2 && a2.length) return a2;
+                        }
+                    }
+                    return [];
+                })();
+                window.UIE_COMFY_CKPTS = Array.from(new Set(list)).sort((a, b) => String(a).localeCompare(String(b)));
+                const cur = String(getSettings()?.image?.comfy?.checkpoint || "");
+                renderComfyCkpts(window.UIE_COMFY_CKPTS, cur);
+                try { window.toastr?.success?.(`Detected ${window.UIE_COMFY_CKPTS.length} checkpoints.`); } catch (_) {}
+            } catch (err) {
+                try { window.toastr?.error?.(`ComfyUI detect failed: ${String(err?.message || err || "Error")}`); } catch (_) {}
+            } finally {
+                btn.prop("disabled", false);
+            }
+        });
+
+    $(document)
+        .off("click.uieImgComfyApply", "#uie-img-comfy-apply")
+        .on("click.uieImgComfyApply", "#uie-img-comfy-apply", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const s2 = getSettings();
+            if (!s2.image || typeof s2.image !== "object") s2.image = {};
+            if (!s2.image.comfy || typeof s2.image.comfy !== "object") s2.image.comfy = {};
+            const base = String($("#uie-img-comfy-base").val() || "http://127.0.0.1:8188").trim().replace(/\/prompt\s*$/i, "").replace(/\/+$/g, "");
+            const ckpt = String($("#uie-img-comfy-ckpt").val() || s2.image.comfy.checkpoint || "").trim();
+            if (!ckpt) {
+                try { window.toastr?.error?.("Pick a checkpoint (refresh first)."); } catch (_) {}
+                return;
+            }
+            const q = String($("#uie-img-comfy-quality").val() || "balanced");
+            const sizes = q === "fast" ? { w: 512, h: 512, steps: 16 } : q === "hq" ? { w: 1024, h: 1024, steps: 32 } : { w: 768, h: 768, steps: 24 };
+            const wf = {
+                "3": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "{{checkpoint}}" } },
+                "4": { class_type: "CLIPTextEncode", inputs: { text: "{{prompt}}", clip: ["3", 1] } },
+                "5": { class_type: "CLIPTextEncode", inputs: { text: "{{negative_prompt}}", clip: ["3", 1] } },
+                "6": { class_type: "EmptyLatentImage", inputs: { width: sizes.w, height: sizes.h, batch_size: 1 } },
+                "7": { class_type: "KSampler", inputs: { seed: 0, steps: sizes.steps, cfg: 7, sampler_name: "euler", scheduler: "normal", denoise: 1, model: ["3", 0], positive: ["4", 0], negative: ["5", 0], latent_image: ["6", 0] } },
+                "8": { class_type: "VAEDecode", inputs: { samples: ["7", 0], vae: ["3", 2] } },
+                "9": { class_type: "SaveImage", inputs: { filename_prefix: "uie", images: ["8", 0] } }
+            };
+            s2.image.url = base;
+            s2.image.comfy.checkpoint = ckpt;
+            s2.image.comfy.quality = q;
+            s2.image.comfy.workflow = JSON.stringify(wf);
+            s2.image.comfy.positiveNodeId = "";
+            s2.image.comfy.negativeNodeId = "";
+            s2.image.comfy.outputNodeId = "9";
+            saveSettings();
+            $("#uie-img-url").val(base);
+            $("#uie-img-url-adv").val(base);
+            $("#uie-img-comfy-workflow").val(s2.image.comfy.workflow);
+            $("#uie-img-comfy-posnode").val("");
+            $("#uie-img-comfy-negnode").val("");
+            $("#uie-img-comfy-outnode").val("9");
+            try { window.toastr?.success?.("ComfyUI Easy Setup applied."); } catch (_) {}
+        });
+
+    $(document)
+        .off("click.uieImgTest", "#uie-img-test")
+        .on("click.uieImgTest", "#uie-img-test", async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const btn = $(this);
+            const prev = String(btn.text() || "");
+            btn.text("Testing...");
+            btn.prop("disabled", true);
+            try {
+                const mod = await import("./imageGen.js");
+                const img = await mod.generateImageAPI("[UIE_LOCKED] A clear photo of a red apple on a wooden table.");
+                if (img) {
+                    const li = window.UIE_lastImage || {};
+                    const extra = li?.endpoint ? ` (${String(li.mode || "api")} ${Number(li.ms || 0)}ms)` : "";
+                    try { window.toastr?.success?.(`Image OK${extra}`); } catch (_) {}
+                } else {
+                    const li = window.UIE_lastImage || {};
+                    const extra = li?.endpoint ? ` | ${String(li.mode || "api")} | ${String(li.endpoint).slice(0, 120)} | ${String(li.status || 0)} | ${String(li.error || "").slice(0, 160)}` : "";
+                    try { window.toastr?.error?.(`Image FAIL (check settings)${extra}`); } catch (_) {}
+                }
+            } catch (err) {
+                try { window.toastr?.error?.(`Image FAIL: ${String(err?.message || err || "Error")}`); } catch (_) {}
+            } finally {
+                btn.text(prev || "Test Image");
+                btn.prop("disabled", false);
+            }
         });
 
     $(document)
@@ -679,6 +1098,12 @@ export function initInteractions() {
             url: String(s2.image.url || ""),
             key: String(s2.image.key || ""),
             model: String(s2.image.model || ""),
+            negativePrompt: String(s2.image.negativePrompt || ""),
+            comfy: s2.image.comfy && typeof s2.image.comfy === "object" ? {
+                workflow: String(s2.image.comfy.workflow || ""),
+                checkpoint: String(s2.image.comfy.checkpoint || ""),
+                quality: String(s2.image.comfy.quality || "balanced"),
+            } : null,
         } : null,
     });
 
@@ -751,6 +1176,13 @@ export function initInteractions() {
                     s2.image.url = String(p.image.url || "");
                     s2.image.key = String(p.image.key || "");
                     s2.image.model = String(p.image.model || "");
+                    s2.image.negativePrompt = String(p.image.negativePrompt || "");
+                    if (p.image.comfy && typeof p.image.comfy === "object") {
+                        if (!s2.image.comfy || typeof s2.image.comfy !== "object") s2.image.comfy = {};
+                        s2.image.comfy.workflow = String(p.image.comfy.workflow || "");
+                        s2.image.comfy.checkpoint = String(p.image.comfy.checkpoint || "");
+                        s2.image.comfy.quality = String(p.image.comfy.quality || "balanced");
+                    }
                 }
                 s2.connections.activeProfileId = sel;
                 saveSettings();

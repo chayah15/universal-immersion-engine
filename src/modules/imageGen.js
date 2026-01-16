@@ -68,6 +68,7 @@ export async function generateImageAPI(prompt) {
     const endpoint = String(s.image.url || "https://api.openai.com/v1/images/generations").trim();
     const model = String(s.image.model || "dall-e-3").trim();
     const apiKey = String(s.image.key || "").trim();
+    const negText = String(s.image.negativePrompt || "").trim();
     const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(endpoint);
     const isSdWebUi = /\/sdapi\/v1\/txt2img\s*$/i.test(endpoint);
     const isComfy = (() => {
@@ -88,6 +89,7 @@ export async function generateImageAPI(prompt) {
     if (window.toastr) toastr.info("Generating Image...", "AI Fabricator");
 
     try {
+        const startedAt = Date.now();
         if (isComfy) {
             const wfRaw = String(s.image?.comfy?.workflow || "").trim();
             if (!wfRaw) {
@@ -98,7 +100,10 @@ export async function generateImageAPI(prompt) {
             const posId = String(s.image?.comfy?.positiveNodeId || "").trim();
             const negId = String(s.image?.comfy?.negativeNodeId || "").trim();
             const outId = String(s.image?.comfy?.outputNodeId || "").trim();
-            return await generateComfyUI({ endpoint, workflowRaw: wfRaw, promptText: finalPrompt, positiveNodeId: posId, negativeNodeId: negId, outputNodeId: outId });
+            const ckpt = String(s.image?.comfy?.checkpoint || "").trim();
+            const out = await generateComfyUI({ endpoint, workflowRaw: wfRaw, promptText: finalPrompt, negativePrompt: negText, checkpoint: ckpt, positiveNodeId: posId, negativeNodeId: negId, outputNodeId: outId });
+            try { window.UIE_lastImage = { ok: !!out, ms: Date.now() - startedAt, endpoint, mode: "comfy" }; } catch (_) {}
+            return out;
         }
 
         if (isSdWebUi) {
@@ -107,6 +112,7 @@ export async function generateImageAPI(prompt) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     prompt: String(finalPrompt || "").slice(0, 4000),
+                    negative_prompt: String(negText || "").slice(0, 2000),
                     steps: 24,
                     cfg_scale: 7,
                     width: 768,
@@ -118,12 +124,18 @@ export async function generateImageAPI(prompt) {
                 const err = await res.text();
                 console.error("Image Gen Error:", err);
                 if (window.toastr) toastr.error("Image Generation Failed");
+                try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: res.status, error: String(err || "").slice(0, 280) }; } catch (_) {}
                 return null;
             }
             const data = await res.json();
             const img = Array.isArray(data?.images) ? String(data.images[0] || "") : "";
-            if (!img) return null;
-            return img.startsWith("data:image") ? img : `data:image/png;base64,${img}`;
+            if (!img) {
+                try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: 200, error: "No image returned." }; } catch (_) {}
+                return null;
+            }
+            const out = img.startsWith("data:image") ? img : `data:image/png;base64,${img}`;
+            try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: 200 }; } catch (_) {}
+            return out;
         }
 
         const headers = { "Content-Type": "application/json" };
@@ -144,25 +156,29 @@ export async function generateImageAPI(prompt) {
             const err = await res.text();
             console.error("Image Gen Error:", err);
             if (window.toastr) toastr.error("Image Generation Failed");
+            try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "openai", status: res.status, error: String(err || "").slice(0, 280) }; } catch (_) {}
             return null;
         }
 
         const data = await res.json();
         // OpenAI format: data: [{ url: "..." }]
         if (data.data && data.data.length > 0) {
-            return data.data[0].url;
+            const out = data.data[0].url;
+            try { window.UIE_lastImage = { ok: !!out, ms: Date.now() - startedAt, endpoint, mode: "openai", status: 200 }; } catch (_) {}
+            return out;
         }
-        
+        try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "openai", status: 200, error: "No data.url returned." }; } catch (_) {}
         return null;
 
     } catch (e) {
         console.error("Image Gen Exception:", e);
         if (window.toastr) toastr.error("Image Gen Error: " + e.message);
+        try { window.UIE_lastImage = { ok: false, ms: 0, endpoint, mode: isComfy ? "comfy" : isSdWebUi ? "sdwebui" : "openai", status: 0, error: String(e?.message || e || "").slice(0, 280) }; } catch (_) {}
         return null;
     }
 }
 
-async function generateComfyUI({ endpoint, workflowRaw, promptText, positiveNodeId, negativeNodeId, outputNodeId }) {
+async function generateComfyUI({ endpoint, workflowRaw, promptText, negativePrompt, checkpoint, positiveNodeId, negativeNodeId, outputNodeId }) {
     const normalizeBase = (u) => String(u || "").trim().replace(/\/+$/g, "").replace(/\/prompt$/i, "");
     const base = normalizeBase(endpoint);
     const promptUrl = `${base}/prompt`;
@@ -179,7 +195,8 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, positiveNode
         if (typeof v === "string") {
             return v
                 .replace(/\{\{\s*(prompt|positive_prompt|positive)\s*\}\}/gi, String(promptText || ""))
-                .replace(/\{\{\s*(negative_prompt|negative)\s*\}\}/gi, "");
+                .replace(/\{\{\s*(negative_prompt|negative)\s*\}\}/gi, String(negativePrompt || ""))
+                .replace(/\{\{\s*(checkpoint|ckpt|model)\s*\}\}/gi, String(checkpoint || ""));
         }
         if (Array.isArray(v)) return v.map(deepReplace);
         if (v && typeof v === "object") {
@@ -206,7 +223,7 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, positiveNode
 
         let did = false;
         if (positiveNodeId) did = setText(positiveNodeId, promptText) || did;
-        if (negativeNodeId) did = setText(negativeNodeId, "") || did;
+        if (negativeNodeId) did = setText(negativeNodeId, negativePrompt) || did;
         if (did) return g;
 
         const clipNodes = Object.entries(g).filter(([_, n]) => {
@@ -218,7 +235,7 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, positiveNode
             setText(id1, promptText);
             if (clipNodes.length > 1) {
                 const [id2] = clipNodes[1];
-                setText(id2, "");
+                setText(id2, negativePrompt);
             }
         }
         return g;

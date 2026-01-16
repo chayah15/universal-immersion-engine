@@ -58,27 +58,95 @@
                 <div class="uie-control-group"><label style="font-size:0.8em;">Endpoint</label><input type="text" id="uie-turbo-url" placeholder="https://openrouter.ai/api/v1/chat/completions (or http://127.0.0.1:1234/v1 , or https://integrate.api.nvidia.com/v1)" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
                 <div style="font-size:0.75em; color:#888; margin-top:6px;">Local endpoints (localhost/127.0.0.1) are supported; API Key can be left blank if your local server does not require auth. If you see “Failed to fetch”, enable SillyTavern's CORS proxy (enableCorsProxy) or use a local gateway.</div>
                 <div class="uie-control-group"><label style="font-size:0.8em;">API Key</label><input type="password" id="uie-turbo-key" placeholder="sk-..." style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
-                <div class="uie-control-group"><label style="font-size:0.8em;">Model ID</label><input type="text" id="uie-turbo-model" placeholder="google/gemini-2.0-flash-exp" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
+                <div class="uie-control-group" style="margin-top:8px;">
+                    <label style="font-size:0.8em;">Model</label>
+                    <div style="display:flex; gap:6px;">
+                        <select id="uie-turbo-model-select" style="flex:1; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            <option value="">(Refresh to load models)</option>
+                            <option value="__custom__">Custom…</option>
+                        </select>
+                        <button id="uie-turbo-model-refresh" title="Refresh Models" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;">↻</button>
+                    </div>
+                </div>
+                <div class="uie-control-group"><label style="font-size:0.8em;">Custom Model ID</label><input type="text" id="uie-turbo-model" placeholder="google/gemini-2.0-flash-exp" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
                 <button id="uie-turbo-test" style="margin-top:10px; width:100%; background:#333; border:1px solid #555; color:#fff; cursor:pointer;">Test Connection</button>
                 
                 <hr style="border-color:#333; margin:15px 0;">
                 <div style="font-weight:bold; color:#ccc; margin-bottom:8px; font-size:0.9em;">Image Generation API</div>
                 <div class="uie-control-group"><label style="font-size:0.8em;">Enable Images</label><input type="checkbox" id="uie-img-enable"></div>
-                <div class="uie-control-group"><label style="font-size:0.8em;">Endpoint</label><input type="text" id="uie-img-url" placeholder="https://api.openai.com/v1/images/generations" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
-                <div class="uie-control-group"><label style="font-size:0.8em;">API Key</label><input type="password" id="uie-img-key" placeholder="sk-..." style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
-                <div class="uie-control-group"><label style="font-size:0.8em;">Model</label><input type="text" id="uie-img-model" placeholder="dall-e-3" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
-                <div style="font-size:0.75em; color:#888; margin-top:6px;">
-                    ComfyUI: set Endpoint to your Comfy base (e.g., http://127.0.0.1:8188) or /prompt, then paste a workflow JSON below.
+                <div class="uie-control-group" style="margin-top:6px;">
+                    <label style="font-size:0.8em;">Provider</label>
+                    <select id="uie-img-provider" style="width:100%; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                        <option value="openai">OpenAI-compatible (DALL·E / gpt-image-1)</option>
+                        <option value="comfy">ComfyUI (Local)</option>
+                        <option value="sdwebui">SD WebUI (Local)</option>
+                        <option value="custom">Custom / Advanced</option>
+                    </select>
                 </div>
-                <div class="uie-control-group" style="margin-top:10px;">
-                    <label style="font-size:0.8em;">ComfyUI Workflow JSON</label>
-                    <textarea id="uie-img-comfy-workflow" placeholder='Paste ComfyUI API workflow JSON here. Use {{prompt}} and {{negative_prompt}} placeholders, or specify node IDs below.' style="width:100%; min-height:120px; background:#222; border:1px solid #444; color:#fff; padding:8px; border-radius:8px; resize:vertical;"></textarea>
+
+                <div id="uie-img-openai-block" style="margin-top:8px;">
+                    <div class="uie-control-group"><label style="font-size:0.8em;">Endpoint</label><input type="text" id="uie-img-url" placeholder="https://api.openai.com/v1/images/generations" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
+                    <div class="uie-control-group"><label style="font-size:0.8em;">API Key</label><input type="password" id="uie-img-key" placeholder="sk-..." style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
+                    <div class="uie-control-group" style="margin-top:8px;">
+                        <label style="font-size:0.8em;">Model</label>
+                        <select id="uie-img-model-select" style="width:100%; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                            <option value="dall-e-3">dall-e-3</option>
+                            <option value="gpt-image-1">gpt-image-1</option>
+                            <option value="dall-e-2">dall-e-2</option>
+                            <option value="__custom__">Custom…</option>
+                        </select>
+                    </div>
+                    <div class="uie-control-group"><label style="font-size:0.8em;">Custom Model ID</label><input type="text" id="uie-img-model" placeholder="dall-e-3" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
                 </div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px; margin-top:8px;">
-                    <input type="text" id="uie-img-comfy-posnode" placeholder="Positive node ID" style="background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
-                    <input type="text" id="uie-img-comfy-negnode" placeholder="Negative node ID" style="background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
-                    <input type="text" id="uie-img-comfy-outnode" placeholder="Output node ID (optional)" style="background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+
+                <div id="uie-img-comfy-block" style="display:none; margin-top:8px;">
+                    <div style="font-size:0.75em; color:#888; margin-bottom:6px;">ComfyUI Easy Setup: set your local URL, pick a checkpoint, click Apply.</div>
+                    <div class="uie-control-group"><label style="font-size:0.8em;">ComfyUI URL</label><input type="text" id="uie-img-comfy-base" placeholder="http://127.0.0.1:8188" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
+                    <div class="uie-control-group" style="margin-top:8px;">
+                        <label style="font-size:0.8em;">Checkpoint</label>
+                        <div style="display:flex; gap:6px;">
+                            <select id="uie-img-comfy-ckpt" style="flex:1; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                                <option value="">(Click refresh to detect)</option>
+                            </select>
+                            <button id="uie-img-comfy-ckpt-refresh" title="Detect Checkpoints" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;">↻</button>
+                        </div>
+                    </div>
+                    <div class="uie-control-group" style="margin-top:8px;">
+                        <label style="font-size:0.8em;">Quality</label>
+                        <select id="uie-img-comfy-quality" style="width:100%; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                            <option value="fast">Fast (512, 16 steps)</option>
+                            <option value="balanced" selected>Balanced (768, 24 steps)</option>
+                            <option value="hq">HQ (1024, 32 steps)</option>
+                        </select>
+                    </div>
+                    <div class="uie-control-group"><label style="font-size:0.8em;">Negative Prompt (optional)</label><input type="text" id="uie-img-negative" placeholder="blurry, low quality" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
+                    <button id="uie-img-comfy-apply" style="margin-top:8px; width:100%; background:#333; border:1px solid #555; color:#fff; cursor:pointer;">Apply ComfyUI Easy Setup</button>
                 </div>
+
+                <div id="uie-img-sdwebui-block" style="display:none; margin-top:8px;">
+                    <div style="font-size:0.75em; color:#888; margin-bottom:6px;">SD WebUI: use the txt2img API URL (no key needed for local).</div>
+                    <div class="uie-control-group"><label style="font-size:0.8em;">SD WebUI txt2img URL</label><input type="text" id="uie-img-sdwebui-url" placeholder="http://127.0.0.1:7860/sdapi/v1/txt2img" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
+                </div>
+
+                <details id="uie-img-advanced" style="margin-top:10px;">
+                    <summary style="cursor:pointer; color:#bbb; font-weight:900;">Advanced (optional)</summary>
+                    <div style="margin-top:8px;">
+                        <div class="uie-control-group"><label style="font-size:0.8em;">Endpoint</label><input type="text" id="uie-img-url-adv" placeholder="(auto)" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
+                        <div class="uie-control-group"><label style="font-size:0.8em;">API Key</label><input type="password" id="uie-img-key-adv" placeholder="(auto)" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
+                        <div class="uie-control-group"><label style="font-size:0.8em;">Model</label><input type="text" id="uie-img-model-adv" placeholder="(auto)" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
+                        <div class="uie-control-group" style="margin-top:10px;">
+                            <label style="font-size:0.8em;">ComfyUI Workflow JSON</label>
+                            <textarea id="uie-img-comfy-workflow" placeholder='Paste ComfyUI API workflow JSON here. Use {{prompt}}, {{negative_prompt}}, and {{checkpoint}} placeholders.' style="width:100%; min-height:120px; background:#222; border:1px solid #444; color:#fff; padding:8px; border-radius:8px; resize:vertical;"></textarea>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px; margin-top:8px;">
+                            <input type="text" id="uie-img-comfy-posnode" placeholder="Positive node ID" style="background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            <input type="text" id="uie-img-comfy-negnode" placeholder="Negative node ID" style="background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            <input type="text" id="uie-img-comfy-outnode" placeholder="Output node ID (optional)" style="background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                        </div>
+                    </div>
+                </details>
+
+                <button id="uie-img-test" style="margin-top:10px; width:100%; background:rgba(241,196,15,0.14); border:1px solid rgba(241,196,15,0.4); color:#f1c40f; cursor:pointer;">Test Image</button>
                 
                 <div style="margin-top:10px; font-size:0.8em; color:#888;">Features (Toggle per feature):</div>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:5px;">
