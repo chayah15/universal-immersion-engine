@@ -1,0 +1,81 @@
+<style>
+  #uie-party-window{ top: 80px; left: 80px; transform:none; }
+  #uie-party-window{ position: fixed; isolation:isolate; }
+  #uie-party-tabs{ overflow-x:auto; overflow-y:hidden; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  #uie-party-tabs::-webkit-scrollbar{ width:0; height:0; }
+  #uie-party-tabs .uie-party-tab{ flex:0 0 auto !important; min-width: 92px !important; }
+  #uie-party-window button,
+  #uie-party-window input,
+  #uie-party-window select,
+  #uie-party-window textarea{ border-radius:6px !important; }
+  #uie-party-window .party-row,
+  #uie-party-window .party-skill,
+  #uie-party-window .party-fx{ border-radius:6px !important; box-shadow:none !important; }
+  #uie-party-window .party-skill > div:first-child{ border-radius:6px !important; }
+  @media (max-width: 700px), (pointer: coarse) {
+    #uie-party-window {
+      position: fixed !important;
+      inset: 0 !important;
+      transform: none !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      max-width: 100vw !important;
+      max-height: 100vh !important;
+      border-radius: 0 !important;
+      background: rgba(10,12,16,0.98) !important;
+      backdrop-filter: none !important;
+    }
+    #uie-party-member-modal{ position:fixed !important; inset:0 !important; }
+    #uie-party-member-modal > div{ position:absolute !important; inset:0 !important; border-radius:0 !important; }
+    #uie-party-member-content{ font-size: 13px; }
+  }
+</style>
+<div id="uie-party-window" class="uie-window" style="display:none; width: 560px; height: 760px; background: linear-gradient(180deg, rgba(20,25,40,0.88), rgba(10,12,16,0.88)); backdrop-filter: blur(8px); flex-direction:column; border:1px solid rgba(203,163,92,0.45);">
+    <div class="uie-header" style="border-bottom: 1px solid #cba35c; padding: 10px; background: linear-gradient(90deg, #1b202b, #0e121a);">
+        <div class="uie-info">
+            <h2 style="margin:0; font-family:serif; color:#cba35c; letter-spacing:1px;">PARTY</h2>
+            <div style="font-size:0.75em; color:#aaa;">
+                <span id="uie-party-name">My Party</span>
+                <span style="opacity:0.6;">•</span>
+                Leader: <span id="uie-party-leader">—</span>
+            </div>
+        </div>
+        <div class="uie-controls">
+            <i class="fa-solid fa-pen-to-square" id="uie-party-bg-edit" title="Change Background" style="cursor:pointer; color:#cba35c; margin-right:10px;"></i>
+            <i class="fa-solid fa-file-export" id="uie-party-export" title="Export" style="cursor:pointer; color:#cba35c; margin-right:10px;"></i>
+            <i class="fa-solid fa-file-import" id="uie-party-import" title="Import" style="cursor:pointer; color:#cba35c; margin-right:10px;"></i>
+            <i class="fa-solid fa-xmark uie-close-btn" id="uie-party-close"></i>
+        </div>
+    </div>
+
+    <div id="uie-party-tabs" style="padding:10px; border-bottom:1px solid rgba(255,255,255,0.10); display:flex; gap:6px; flex-wrap:nowrap;">
+        <button class="uie-party-tab" data-tab="roster" style="flex:1; min-width:80px; height:34px; border-radius:10px; border:1px solid rgba(225,193,122,0.35); background:rgba(241,196,15,0.08); color:#f1c40f; font-weight:900; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.3);">Roster</button>
+        <button class="uie-party-tab" data-tab="sheet" style="flex:1; min-width:80px; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.04); color:#ccc; font-weight:900; cursor:pointer;">Member</button>
+        <button class="uie-party-tab" data-tab="gear" style="flex:1; min-width:80px; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.04); color:#ccc; font-weight:900; cursor:pointer;">Equip</button>
+        <button class="uie-party-tab" data-tab="tactics" style="flex:1; min-width:80px; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.04); color:#ccc; font-weight:900; cursor:pointer;">Tactics</button>
+        <button class="uie-party-tab" data-tab="formation" style="flex:1; min-width:80px; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.04); color:#ccc; font-weight:900; cursor:pointer;">Formation</button>
+        <button class="uie-party-tab" data-tab="inventory" style="flex:1; min-width:80px; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.04); color:#ccc; font-weight:900; cursor:pointer;">Inventory</button>
+    </div>
+
+    <div style="padding:10px; border-bottom:1px solid #222; display:flex; gap:10px; align-items:center;">
+        <input id="uie-party-name-input" type="text" placeholder="Party name..." style="flex:1; background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.10); color:#cba35c; padding:10px; border-radius:12px;">
+        <button id="uie-party-save-meta" style="height:42px; padding:0 12px; border-radius:12px; border:1px solid rgba(241,196,15,0.25); background:rgba(241,196,15,0.12); color:#f1c40f; font-weight:900; cursor:pointer;">Save</button>
+    </div>
+
+    <div id="uie-party-body" style="flex:1; min-height:0; overflow:auto; padding:10px;"></div>
+
+    <div id="uie-party-member-modal" style="display:none; position:absolute; inset:0; z-index:2147483651; background:transparent;">
+        <div id="uie-party-member-card" style="position:absolute; inset:10px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,10,8,0.96); color:#fff; overflow:hidden; display:flex; flex-direction:column;">
+            <div class="uie-party-member-header" style="display:flex; align-items:center; gap:10px; padding:12px; border-bottom:1px solid rgba(255,255,255,0.10);">
+                <div id="uie-party-member-title" style="font-weight:900; letter-spacing:0.4px;">Member</div>
+                <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+                    <div id="uie-party-member-bg-edit" title="Change Background" style="width:34px; height:34px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); display:grid; place-items:center; cursor:pointer;"><i class="fa-solid fa-image"></i></div>
+                    <div id="uie-party-member-close" title="Close" style="width:34px; height:34px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); display:grid; place-items:center; cursor:pointer;">×</div>
+                </div>
+            </div>
+            <div id="uie-party-member-content" style="flex:1; min-height:0; overflow:auto; padding:12px;"></div>
+        </div>
+    </div>
+
+    <input type="file" id="uie-party-file" accept="image/*" style="display:none;">
+</div>

@@ -1,0 +1,383 @@
+import { getSettings, saveSettings } from "./core.js";
+import { generateContent } from "./apiClient.js";
+
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+function ymd(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function monthKey(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; }
+function parseMonthCursor(cur) {
+  const m = String(cur || "").match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mm = Number(m[2]) - 1;
+  if (!Number.isFinite(y) || !Number.isFinite(mm)) return null;
+  return new Date(y, mm, 1);
+}
+
+function getChatSnippet() {
+  let raw = "";
+  $(".chat-msg-txt").slice(-18).each(function () { raw += $(this).text() + "\n"; });
+  return raw.trim().slice(0, 2200);
+}
+
+function ensureCalendar(s) {
+  if (!s.calendar) s.calendar = { events: {}, cursor: "" };
+  if (!s.calendar.events || typeof s.calendar.events !== "object") s.calendar.events = {};
+  if (typeof s.calendar.cursor !== "string") s.calendar.cursor = "";
+
+  if (s.calendar._phoneMerged !== true && s.phone?.calendar?.events && typeof s.phone.calendar.events === "object") {
+    for (const k of Object.keys(s.phone.calendar.events)) {
+      if (!Array.isArray(s.calendar.events[k])) s.calendar.events[k] = [];
+      const list = s.phone.calendar.events[k];
+      if (!Array.isArray(list)) continue;
+      list.forEach(e => {
+        const title = String(e?.title || "").trim();
+        if (!title) return;
+        const exists = s.calendar.events[k].some(x => String(x?.title || "") === title);
+        if (exists) return;
+        s.calendar.events[k].push({ title: title.slice(0, 80), notes: String(e?.notes || "").slice(0, 500), ts: Number(e?.ts || Date.now()) });
+      });
+    }
+    s.calendar._phoneMerged = true;
+  }
+}
+
+// === EXPORT / IMPORT ===
+function exportCalendar() {
+  const s = getSettings();
+  ensureCalendar(s);
+  const json = JSON.stringify(s.calendar.events, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `uie_calendar_${ymd(new Date())}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importCalendar(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (typeof data !== "object" || Array.isArray(data)) throw new Error("Invalid format");
+      const s = getSettings();
+      ensureCalendar(s);
+      // Merge strategy: Keep existing, add new if unique
+      for (const k of Object.keys(data)) {
+        if (!Array.isArray(data[k])) continue;
+        if (!s.calendar.events[k]) s.calendar.events[k] = [];
+        for (const ev of data[k]) {
+          const title = String(ev?.title || "").trim();
+          if (!title) continue;
+          const exists = s.calendar.events[k].some(x => String(x?.title || "") === title);
+          if (!exists) {
+            s.calendar.events[k].push({ 
+              title: title.slice(0, 80), 
+              notes: String(ev?.notes || "").slice(0, 500), 
+              ts: Number(ev?.ts || Date.now()) 
+            });
+          }
+        }
+      }
+      saveSettings();
+      renderCalendar();
+      if (window.toastr) toastr.success("Calendar imported successfully.");
+    } catch (err) {
+      console.error(err);
+      if (window.toastr) toastr.error("Failed to import calendar: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function calendarGenerateFromDescription(desc) {
+  const s = getSettings();
+  ensureCalendar(s);
+  const prompt = `
+Return JSON only: {"events":[{"date":"YYYY-MM-DD","time":"","title":"","notes":""}]}
+Rules:
+- This is a fantasy/RP calendar; do not apply real-world timezone logic
+- 1-12 events max
+- "time" is optional (examples: "morning", "14:00", "midnight")
+- Use future dates when possible; if a birthday is known, set next occurrence
+- No narration, no markdown
+User description: ${desc}
+`;
+  const res = await generateContent(prompt.slice(0, 6000), "System Check");
+  if (!res) return;
+  let obj = null;
+  try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
+  const arr = Array.isArray(obj?.events) ? obj.events : [];
+  for (const e of arr) {
+    const date = String(e?.date || "").trim();
+    const time = String(e?.time || "").trim().slice(0, 40);
+    const title = String(e?.title || "").trim();
+    if (!date || !title) continue;
+    if (!s.calendar.events[date]) s.calendar.events[date] = [];
+    s.calendar.events[date].push({ title: title.slice(0, 80), time, notes: String(e?.notes || "").slice(0, 500), ts: Date.now() });
+  }
+  saveSettings();
+  renderCalendar();
+}
+
+async function calendarScanChatLog() {
+  const s = getSettings();
+  ensureCalendar(s);
+  const chat = getChatSnippet();
+  const prompt = `
+Return JSON only: {"events":[{"date":"YYYY-MM-DD","time":"","title":"","notes":""}]}
+Rules:
+- Extract explicit/implicit calendar events mentioned in chat (birthdays, meetings, holidays, deadlines)
+- This is a fantasy/RP calendar; do not apply real-world timezone logic
+- If the date is missing, infer a best-effort date relative to the current month, else skip it
+- "time" is optional (examples: "morning", "14:00", "midnight")
+- No narration, no markdown
+CHAT:
+${chat}
+`;
+  const res = await generateContent(prompt.slice(0, 6000), "System Check");
+  if (!res) return;
+  let obj = null;
+  try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
+  const arr = Array.isArray(obj?.events) ? obj.events : [];
+  for (const e of arr) {
+    const date = String(e?.date || "").trim();
+    const time = String(e?.time || "").trim().slice(0, 40);
+    const title = String(e?.title || "").trim();
+    if (!date || !title) continue;
+    if (!s.calendar.events[date]) s.calendar.events[date] = [];
+    const exists = s.calendar.events[date].some(x => String(x?.title || "") === title);
+    if (exists) continue;
+    s.calendar.events[date].push({ title: title.slice(0, 80), time, notes: String(e?.notes || "").slice(0, 500), ts: Date.now() });
+  }
+  saveSettings();
+  renderCalendar();
+}
+
+function renderCalModalList() {
+  const s = getSettings();
+  ensureCalendar(s);
+  const dateKey = String($("#cal-modal").data("date") || "");
+  const list = $("#cal-modal-list");
+  if (!list.length) return;
+  list.empty();
+  const ev = Array.isArray(s.calendar.events[dateKey]) ? s.calendar.events[dateKey] : [];
+  if (!ev.length) {
+    list.html(`<div style="opacity:0.75; padding:10px 12px; border-radius:14px; border:1px dashed rgba(255,255,255,0.12); text-align:center;">No events.</div>`);
+    return;
+  }
+  ev.forEach((e, i) => {
+    const t = String(e?.time || "").trim();
+    list.append(`
+      <div style="padding:10px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); display:flex; gap:10px; align-items:flex-start;">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:900;">${t ? `<span style="opacity:0.8;">${esc(t)}</span> ` : ""}${esc(e.title || "Event")}</div>
+          ${e.notes ? `<div style="opacity:0.75; font-size:12px; margin-top:4px; white-space:pre-wrap;">${esc(e.notes)}</div>` : ""}
+        </div>
+        <button class="cal-del" data-idx="${i}" style="height:34px; width:38px; border-radius:6px; border:1px solid rgba(243,139,168,0.35); background:rgba(0,0,0,0.25); color:#f38ba8; font-weight:900;">×</button>
+      </div>
+    `);
+  });
+}
+
+function openCalModal(dateKey, anchorEl) {
+  $("#cal-modal-title").text(dateKey);
+  const $modal = $("#cal-modal");
+  $modal.css("display", "block").data("date", dateKey);
+  renderCalModalList();
+
+  const win = document.getElementById("uie-calendar-window");
+  const card = document.getElementById("cal-modal-card");
+  if (!win || !card) return;
+
+  const winRect = win.getBoundingClientRect();
+  const anchorRect = anchorEl?.getBoundingClientRect ? anchorEl.getBoundingClientRect() : winRect;
+
+  card.style.visibility = "hidden";
+  card.style.left = "10px";
+  card.style.top = "10px";
+
+  requestAnimationFrame(() => {
+    const cardRect = card.getBoundingClientRect();
+    const pad = 10;
+    let left = Math.round(anchorRect.left - winRect.left);
+    let top = Math.round(anchorRect.bottom - winRect.top + 8);
+
+    const maxLeft = Math.max(pad, Math.floor(winRect.width - cardRect.width - pad));
+    const maxTop = Math.max(pad, Math.floor(winRect.height - cardRect.height - pad));
+
+    left = Math.max(pad, Math.min(left, maxLeft));
+    top = Math.max(pad, Math.min(top, maxTop));
+
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+    card.style.visibility = "visible";
+  });
+}
+
+export function renderCalendar() {
+  const s = getSettings();
+  ensureCalendar(s);
+
+  try {
+    const loc = String(s?.worldState?.location || "In-world").trim() || "In-world";
+    const time = String(s?.worldState?.time || "").trim();
+    $("#cal-tz").text(time ? `${loc} • ${time}` : loc);
+  } catch (_) {
+    $("#cal-tz").text("In-world");
+  }
+
+  let cursor = parseMonthCursor(s.calendar.cursor);
+  if (!cursor) cursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  s.calendar.cursor = monthKey(cursor);
+
+  const title = cursor.toLocaleString(undefined, { month: "long", year: "numeric" });
+  $("#cal-title").text(title);
+
+  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const startDay = first.getDay();
+  const daysInMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+  const grid = $("#cal-grid");
+  if (!grid.length) return;
+  grid.empty();
+
+  const todayKey = ymd(new Date());
+  for (let i = 0; i < startDay; i++) {
+    grid.append(`<div style="height:58px; border-radius:6px; border:1px solid rgba(255,255,255,0.05); background:rgba(255,255,255,0.02); opacity:0.3;"></div>`);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dt = new Date(cursor.getFullYear(), cursor.getMonth(), d);
+    const key = ymd(dt);
+    const ev = Array.isArray(s.calendar.events[key]) ? s.calendar.events[key] : [];
+    const isToday = key === todayKey;
+    const dots = ev.slice(0, 3).map(() => `<span style="width:6px;height:6px;border-radius:2px;background:#f1c40f;display:inline-block;"></span>`).join("");
+    grid.append(`
+      <div class="cal-day" data-date="${key}" style="height:58px; border-radius:6px; border:1px solid rgba(255,255,255,0.10); background:${isToday ? "rgba(255,59,48,0.20)" : "rgba(0,0,0,0.18)"}; padding:8px; display:flex; flex-direction:column; gap:6px; cursor:pointer;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-weight:900; opacity:${isToday ? "1" : "0.9"};">${d}</div>
+          <div style="display:flex; gap:4px;">${dots}</div>
+        </div>
+        <div style="font-size:11px; opacity:0.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ev[0] ? esc(ev[0].title || "") : ""}</div>
+      </div>
+    `);
+  }
+}
+
+export function initCalendar() {
+  $(document).off("click.uieCal change.uieCal");
+
+  $(document).on("click.uieCal", "#cal-prev", function(e){
+    e.preventDefault(); e.stopPropagation();
+    const s = getSettings(); ensureCalendar(s);
+    const cur = parseMonthCursor(s.calendar.cursor) || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    s.calendar.cursor = monthKey(new Date(cur.getFullYear(), cur.getMonth() - 1, 1));
+    saveSettings();
+    renderCalendar();
+  });
+
+  $(document).on("click.uieCal", "#cal-next", function(e){
+    e.preventDefault(); e.stopPropagation();
+    const s = getSettings(); ensureCalendar(s);
+    const cur = parseMonthCursor(s.calendar.cursor) || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    s.calendar.cursor = monthKey(new Date(cur.getFullYear(), cur.getMonth() + 1, 1));
+    saveSettings();
+    renderCalendar();
+  });
+
+  $(document).on("click.uieCal", "#cal-refresh", async function(e){
+    e.preventDefault(); e.stopPropagation();
+    const btn = $("#cal-refresh");
+    btn.prop("disabled", true);
+    try { await calendarScanChatLog(); } finally { btn.prop("disabled", false); }
+  });
+
+  $(document).on("click.uieCal", "#cal-sparkle", async function(e){
+    e.preventDefault(); e.stopPropagation();
+    const desc = (prompt("Describe the dates/events you want to add to the calendar:") || "").trim();
+    if(!desc) return;
+    const btn = $("#cal-sparkle");
+    btn.prop("disabled", true);
+    try { await calendarGenerateFromDescription(desc); } finally { btn.prop("disabled", false); }
+  });
+
+  $(document).on("click.uieCal", "#cal-grid .cal-day", function(e){
+    e.preventDefault(); e.stopPropagation();
+    openCalModal(String($(this).data("date") || ""), this);
+  });
+
+  $(document).on("click.uieCal", "#cal-modal-close", function(e){
+    e.preventDefault(); e.stopPropagation();
+    $("#cal-modal").hide();
+  });
+
+  $(document).on("click.uieCal", "#cal-add", function(e){
+    e.preventDefault(); e.stopPropagation();
+    const dateKey = String($("#cal-modal").data("date") || "");
+    if(!dateKey) return;
+    const title = String($("#cal-new-title").val() || "").trim();
+    const time = String($("#cal-new-time").val() || "").trim().slice(0, 40);
+    const notes = String($("#cal-new-notes").val() || "").trim();
+    if(!title) return;
+    const s = getSettings(); ensureCalendar(s);
+    if(!s.calendar.events[dateKey]) s.calendar.events[dateKey] = [];
+    s.calendar.events[dateKey].push({ title: title.slice(0,80), time, notes: notes.slice(0,500), ts: Date.now() });
+    saveSettings();
+    $("#cal-new-title").val("");
+    $("#cal-new-time").val("");
+    $("#cal-new-notes").val("");
+    renderCalModalList();
+    renderCalendar();
+  });
+
+  $(document).on("click.uieCal", "#cal-modal-list .cal-del", function(e){
+    e.preventDefault(); e.stopPropagation();
+    const idx = Number($(this).data("idx"));
+    const dateKey = String($("#cal-modal").data("date") || "");
+    const s = getSettings(); ensureCalendar(s);
+    const ev = s.calendar.events[dateKey];
+    if (!Array.isArray(ev)) return;
+    if (idx >= 0 && idx < ev.length) {
+      ev.splice(idx, 1);
+      if (!ev.length) delete s.calendar.events[dateKey];
+      saveSettings();
+      renderCalModalList();
+      renderCalendar();
+    }
+  });
+
+  // Export/Import UI bindings
+  $(document).on("click.uieCal", "#cal-export", function(e) {
+    e.preventDefault(); e.stopPropagation();
+    exportCalendar();
+  });
+
+  $(document).on("click.uieCal", "#cal-import", function(e) {
+    e.preventDefault(); e.stopPropagation();
+    $("#cal-import-file").click();
+  });
+
+  $(document).on("change.uieCal", "#cal-import-file", function(e) {
+    if (this.files && this.files[0]) {
+      importCalendar(this.files[0]);
+      $(this).val(""); // Reset
+    }
+  });
+}
+
+export function openCalendar() {
+  initCalendar();
+  renderCalendar();
+}

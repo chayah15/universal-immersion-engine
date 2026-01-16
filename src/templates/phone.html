@@ -1,0 +1,541 @@
+<div id="uie-phone-window" class="uie-phone" style="display:none;">
+    <style id="uie-phone-custom-css"></style>
+    <style>
+        #uie-phone-window .phone-app-header { 
+            padding: 8px 10px !important; 
+            min-height: 44px !important;
+            height: auto !important;
+            border-bottom: 1px solid rgba(255,255,255,0.15) !important; 
+            background: rgba(20, 25, 40, 0.86) !important; 
+            backdrop-filter: blur(10px);
+            color: #fff;
+            display: flex; 
+            align-items: center; 
+            gap: 10px;
+        }
+        #uie-phone-window .phone-app-header > span { 
+            font-weight: 700; 
+            font-size: 0.80em !important;
+            flex: 1; 
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #uie-phone-window .phone-app-content { padding-top: 6px; }
+        #uie-phone-window .phone-back-btn { padding: 0 4px !important; border-radius: 8px !important; }
+        #uie-phone-window .phone-app-header i { font-size: 12px !important; }
+        #uie-phone-window .phone-app-window { backdrop-filter: blur(8px); }
+        #uie-phone-window #p-browser-content { background: transparent !important; }
+        #uie-phone-window #p-browser-home,
+        #uie-phone-window #p-browser-refresh { display: none !important; }
+        #uie-phone-window .phone-back-btn{
+            display: grid !important;
+            place-items: center !important;
+            width: 22px !important;
+            height: 22px !important;
+            padding: 0 !important;
+            margin-top: 4px !important;
+            border-radius: 8px !important;
+            background: rgba(0,0,0,0.45) !important;
+            color: rgba(255,255,255,0.95) !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.65) !important;
+            border: 1px solid rgba(255,255,255,0.12) !important;
+            cursor: pointer !important;
+            pointer-events: auto !important;
+            flex: 0 0 auto !important;
+        }
+        #uie-phone-window .phone-back-btn,
+        #uie-phone-window .phone-back-btn i{ color: rgba(255,255,255,0.95) !important; }
+        #uie-phone-window .phone-back-btn i{ color: rgba(255,255,255,0.95) !important; }
+        #uie-phone-window .phone-back-btn:active{ transform: translateY(1px); }
+        #uie-phone-window .phone-app-header{ color: rgba(255,255,255,0.95) !important; }
+        #uie-phone-window #contact-add-manual{
+            margin-right: 34px !important;
+            margin-top: 4px !important;
+            padding: 10px !important;
+        }
+        #uie-phone-window #msg-new-number{
+            position: relative;
+            top: 2px;
+            left: 2px;
+        }
+        #uie-phone-window .p-browser-bar{
+            display:flex;
+            gap:8px;
+            align-items:center;
+            padding:8px 10px;
+            flex-wrap:wrap;
+        }
+        #uie-phone-window #p-browser-url{
+            flex: 1 1 240px;
+            min-width: 0;
+            height: 34px;
+            max-height: 70px;
+            overflow:auto;
+            resize: none;
+            border-radius: 12px;
+            padding: 6px 10px;
+            line-height: 1.25;
+        }
+        #uie-phone-window #p-browser-back,
+        #uie-phone-window #p-browser-fwd,
+        #uie-phone-window #p-browser-go,
+        #uie-phone-window #p-browser-save{
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            flex: 0 0 auto;
+            display:grid;
+            place-items:center;
+        }
+
+        #uie-phone-homescreen{ overflow: hidden !important; }
+        #uie-phone-window .phone-grid-scroll{
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 110px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        #uie-phone-window .phone-grid-scroll::-webkit-scrollbar{ width: 0; height: 0; }
+
+        @media (max-width: 700px), (pointer: coarse) {
+            #uie-phone-window.uie-phone {
+                top: 12vh !important;
+                left: 50% !important;
+                right: auto !important;
+                transform: translateX(-50%) !important;
+                width: min(280px, 92vw) !important;
+                height: min(550px, 82vh) !important;
+                max-width: 92vw !important;
+                max-height: 82vh !important;
+                border-width: 4px !important;
+                box-sizing: border-box !important;
+            }
+        }
+        
+        /* Line Clamp Fix (Modular) */
+        .browser-bm-title {
+            display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1;
+            -webkit-box-orient: vertical; overflow: hidden;
+            white-space: normal;
+        }
+    </style>
+    
+    <div class="phone-status-bar">
+        <span class="uie-phone-clock">12:00</span>
+        <span><i class="fa-solid fa-wifi"></i> 5G</span>
+    </div>
+    
+    <div id="uie-phone-lockscreen" class="phone-screen">
+        <style>
+            #uie-phone-lockscreen{
+                display:flex;
+                flex-direction:column;
+                align-items:center;
+                justify-content:center;
+                text-align:center;
+                padding: 20px;
+                box-sizing: border-box;
+            }
+        </style>
+        <h1 class="uie-phone-clock-lg" style="font-size:3.5em; margin:0; font-weight:100; color:white; display:flex; align-items:baseline; justify-content:center; gap:10px;">
+            <span class="uie-phone-clock-time-lg">12:00</span>
+            <span class="uie-phone-clock-ampm-lg" style="font-size:0.28em; font-weight:800; opacity:0.9; letter-spacing:0.12em;">PM</span>
+        </h1>
+        <div class="uie-phone-date" style="font-size:0.95em; color:#ddd; margin-top:6px; margin-bottom:18px;">—</div>
+        <div style="font-size:0.9em; color:#ccc; margin-bottom:20px;">Swipe to Unlock</div>
+        <input type="password" id="uie-phone-pin" class="p-pin-input" placeholder="PIN" maxlength="4" style="display:none;">
+        <button id="uie-phone-unlock-btn" style="margin-top:20px; padding:12px 30px; background:rgba(255,255,255,0.2); border:none; color:white; border-radius:25px; font-weight:bold; cursor:pointer; pointer-events:auto;">Unlock</button>
+        <div id="uie-lock-msg" style="color:#e74c3c; font-size:0.8em; margin-top:10px; height:1em;"></div>
+    </div>
+
+    <div id="uie-phone-homescreen" class="phone-screen" style="display:none;">
+        <i class="fa-solid fa-lock" id="uie-phone-lock-btn"></i>
+        <div class="phone-grid-scroll">
+            <div class="phone-grid" id="uie-phone-grid">
+                <div class="phone-app-icon" id="app-msg" style="background:#2ecc71;"><i class="fa-solid fa-comment"></i></div>
+                <div class="phone-app-icon" id="app-browser" style="background:#3498db;"><i class="fa-solid fa-earth-americas"></i></div>
+                <div class="phone-app-icon" id="app-contacts" style="background:#8e44ad;"><i class="fa-solid fa-address-book"></i></div>
+                <div class="phone-app-icon" id="app-store" style="background:#007aff;"><i class="fa-solid fa-bag-shopping"></i></div>
+                <div class="phone-app-icon" id="app-settings" style="background:#95a5a6;"><i class="fa-solid fa-gear"></i></div>
+                <div class="phone-app-icon" id="app-books" style="background:#c97c2b;"><i class="fa-solid fa-book"></i></div>
+                <div class="phone-app-icon" id="app-calc" style="background:#1abc9c;"><i class="fa-solid fa-calculator"></i></div>
+                <div class="phone-app-icon" id="app-cookies" style="background:#e67e22;"><i class="fa-solid fa-cookie-bite"></i></div>
+            </div>
+        </div>
+        <div style="position:absolute; bottom:20px; width:100%; display:flex; justify-content:center; gap:15px; padding:15px; background:rgba(255,255,255,0.2); border-radius:20px; width:90%; left:5%;">
+            <div class="phone-app-icon" id="dock-btn-phone" style="background:#2c3e50; width:40px; height:40px;"><i class="fa-solid fa-phone"></i></div>
+            <div class="phone-app-icon" id="dock-btn-msg" style="background:#2c3e50; width:40px; height:40px;"><i class="fa-solid fa-comment-dots"></i></div>
+            <div class="phone-app-icon" id="dock-btn-browser" style="background:#2c3e50; width:40px; height:40px;"><i class="fa-solid fa-compass"></i></div>
+        </div>
+    </div>
+
+    <div id="uie-app-settings-view" class="phone-app-window">
+        <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span>Settings</span></div>
+        <div class="phone-app-content">
+            <div class="p-setting-row">
+                <label class="p-setting-label">Wallpaper</label>
+                <label class="p-file-upload">
+                    <i class="fa-solid fa-image"></i>
+                    <span id="p-bg-filename">Choose...</span>
+                    <input type="file" id="p-set-bg-file" accept="image/*" style="display:none;">
+                </label>
+            </div>
+            <div class="p-setting-row">
+                <label class="p-setting-label">Lock Screen</label>
+                <label class="p-file-upload">
+                    <i class="fa-solid fa-mobile-screen"></i>
+                    <span id="p-lock-filename">Choose...</span>
+                    <input type="file" id="p-set-lock-file" accept="image/*" style="display:none;">
+                </label>
+            </div>
+            <div class="p-setting-row"><label class="p-setting-label">PIN</label><input type="text" id="p-set-pin" class="p-setting-input"></div>
+            <div class="p-setting-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <label class="p-setting-label" style="margin:0;">Incoming Calls</label>
+                <input type="checkbox" id="p-allow-calls">
+            </div>
+            <div class="p-setting-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <label class="p-setting-label" style="margin:0;">Incoming Texts</label>
+                <input type="checkbox" id="p-allow-texts">
+            </div>
+            <div class="p-setting-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <label class="p-setting-label" style="margin:0;">Bubble Color (You)</label>
+                <input type="color" id="p-bubble-sent" value="#f1c40f">
+            </div>
+            <div class="p-setting-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <label class="p-setting-label" style="margin:0;">Bubble Color (Them)</label>
+                <input type="color" id="p-bubble-recv" value="#111111">
+            </div>
+            <button id="p-save-btn" class="p-save-btn">Save Changes</button>
+        </div>
+    </div>
+
+    <div id="uie-app-store-view" class="phone-app-window">
+        <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span>App Store</span></div>
+        <div class="phone-app-content" style="padding:0;">
+            <div style="padding:12px; background:linear-gradient(180deg,#0b101c,#0b101c); border-bottom:1px solid rgba(255,255,255,0.10); color:#fff;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div style="width:40px; height:40px; border-radius:14px; background:rgba(255,255,255,0.06); display:grid; place-items:center; border:1px solid rgba(255,255,255,0.10);"><i class="fa-solid fa-cube" style="color:#fff;"></i></div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight:900; letter-spacing:0.4px;">App Builder</div>
+                        <div style="opacity:0.7; font-size:12px;">Generate → Preview → Install</div>
+                    </div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
+                    <input type="text" id="store-app-name" placeholder="Name" style="height:38px; padding:0 12px; border:1px solid rgba(255,255,255,0.12); border-radius:14px; background:rgba(0,0,0,0.25); color:#fff;">
+                    <textarea id="store-app-desc" rows="2" placeholder="Description..." style="padding:10px 12px; border:1px solid rgba(255,255,255,0.12); border-radius:14px; background:rgba(0,0,0,0.25); color:#fff; resize:none;"></textarea>
+                    <select id="store-app-template" style="height:38px; padding:0 12px; border:1px solid rgba(255,255,255,0.12); border-radius:14px; background:rgba(0,0,0,0.25); color:#fff;">
+                        <option value="tool">Tool / Dashboard</option>
+                        <option value="shop">Shop / Catalog</option>
+                        <option value="notes">Notes / Journal</option>
+                        <option value="quest">Quest Tracker</option>
+                    </select>
+                    <div style="display:flex; gap:8px;">
+                        <button id="store-gen-btn" style="flex:1; height:38px; background:#fff; color:#000; border:none; border-radius:14px; font-weight:900; cursor:pointer;">Generate</button>
+                        <button id="store-preview-btn" style="flex:1; height:38px; background:rgba(255,255,255,0.06); color:#fff; border:1px solid rgba(255,255,255,0.12); border-radius:14px; font-weight:900; cursor:pointer;">Preview</button>
+                    </div>
+                    <button id="store-create-btn" style="height:38px; background:#2ecc71; color:#000; border:none; border-radius:14px; font-weight:900; cursor:pointer;">Install Draft</button>
+                </div>
+                <div id="store-draft-status" style="margin-top:8px; font-size:12px; color:rgba(255,255,255,0.7);">No draft yet.</div>
+            </div>
+            <div style="padding:12px; background:#0b101c; color:#fff;"><div style="font-weight:900; margin-bottom:10px;">My Apps</div><div id="store-installed-list"></div></div>
+        </div>
+    </div>
+
+    
+
+    <div id="uie-app-msg-view" class="phone-app-window">
+        <div class="phone-app-header">
+            <i class="fa-solid fa-chevron-left phone-back-btn"></i>
+            <i class="fa-solid fa-user-slash" id="msg-block" title="Block / Unblock contact" style="padding:10px; opacity:0.85; cursor:pointer;"></i>
+            <i class="fa-solid fa-trash" id="msg-del-thread" title="Delete" style="padding:10px; opacity:0.85; cursor:pointer;"></i>
+            <i class="fa-solid fa-plus" id="msg-new-number" title="Text a number" style="padding:10px; opacity:0.85; cursor:pointer;"></i>
+            <span id="msg-contact-name">Messages</span>
+        </div>
+        <div class="phone-app-content p-msg-list" id="msg-container"></div>
+        <div class="p-input-area">
+            <button id="msg-attach-btn" title="Send image" style="width:42px; height:40px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; display:grid; place-items:center; cursor:pointer;"><i class="fa-solid fa-paperclip"></i></button>
+            <button id="msg-sticker-btn" title="Stickers" style="width:42px; height:40px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; display:grid; place-items:center; cursor:pointer;"><i class="fa-regular fa-face-smile"></i></button>
+            <textarea id="msg-input" rows="1" placeholder="Message..." style="flex:1; min-width:0; padding:10px 14px; border-radius:18px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; resize:none; overflow:auto; max-height:120px;"></textarea>
+            <button id="msg-send-btn" style="background:#007aff; color:white; border:none; border-radius:999px; width:44px; height:40px; cursor:pointer; display:grid; place-items:center;"><i class="fa-solid fa-arrow-up"></i></button>
+            <input type="file" id="msg-attach-file" accept="image/*" style="display:none;">
+        </div>
+    </div>
+
+    <div id="uie-app-dial-view" class="phone-app-window">
+        <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span>Phone</span></div>
+        <div class="phone-app-content" style="padding:14px; display:flex; flex-direction:column; gap:12px;">
+            <div id="dial-display" style="height:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; letter-spacing:1px; font-size:1.05em;">—</div>
+            <div id="dial-pad" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
+                <button class="dial-btn" data-digit="1" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">1</button>
+                <button class="dial-btn" data-digit="2" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">2</button>
+                <button class="dial-btn" data-digit="3" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">3</button>
+                <button class="dial-btn" data-digit="4" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">4</button>
+                <button class="dial-btn" data-digit="5" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">5</button>
+                <button class="dial-btn" data-digit="6" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">6</button>
+                <button class="dial-btn" data-digit="7" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">7</button>
+                <button class="dial-btn" data-digit="8" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">8</button>
+                <button class="dial-btn" data-digit="9" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">9</button>
+                <button class="dial-btn" data-digit="*" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">*</button>
+                <button class="dial-btn" data-digit="0" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">0</button>
+                <button class="dial-btn" data-digit="#" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">#</button>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:4px;">
+                <button id="dial-backspace" style="flex:1; height:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900; cursor:pointer;">Del</button>
+                <button id="dial-save" style="flex:1; height:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900; cursor:pointer;">Save</button>
+                <button id="dial-call" style="flex:1; height:44px; border-radius:14px; border:none; background:#2ecc71; color:#000; font-weight:900; cursor:pointer;">Call</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="uie-app-browser-view" class="phone-app-window">
+        <div class="p-browser-bar">
+            <button id="p-browser-back" title="Back"><i class="fa-solid fa-chevron-left"></i></button>
+            <button id="p-browser-fwd" title="Forward"><i class="fa-solid fa-chevron-right"></i></button>
+            <textarea id="p-browser-url" rows="1" placeholder="Search or enter location..."></textarea>
+            <button id="p-browser-go" title="Go"><i class="fa-solid fa-arrow-right"></i></button>
+            <button id="p-browser-save" title="Save Page" style="color:#f1c40f;"><i class="fa-solid fa-bookmark"></i></button>
+        </div>
+        <div class="phone-app-header" id="p-app-header" style="display:none;">
+            <i class="fa-solid fa-chevron-left phone-back-btn"></i><span id="p-app-title">App</span>
+        </div>
+        <div class="phone-app-content" style="padding:0; padding-bottom:50px;"><div id="p-browser-content"></div></div>
+        <div class="phone-nav-bar">
+            <i class="fa-solid fa-chevron-left p-nav-btn phone-back-btn"></i><i class="fa-solid fa-house p-nav-btn" id="p-browser-home"></i><i class="fa-solid fa-rotate-right p-nav-btn" id="p-browser-refresh"></i>
+        </div>
+    </div>
+
+    <div id="uie-app-books-view" class="phone-app-window">
+        <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span>Books</span></div>
+        <div class="phone-app-content" style="padding:0; display:flex; flex-direction:column; background:rgba(0,0,0,0.10);">
+            <style>
+                #uie-phone-window #uie-app-books-view .books-tabs { display:flex; gap:8px; padding:10px; border-bottom:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); }
+                #uie-phone-window #uie-app-books-view .books-tab { flex:1; height:34px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#ddd; font-weight:900; cursor:pointer; }
+                #uie-phone-window #uie-app-books-view .books-tab.active { background:#cba35c; color:#000; border:none; }
+                #uie-phone-window #uie-app-books-view .books-pane { flex:1; overflow:auto; padding:12px; }
+                #uie-phone-window #uie-app-books-view .books-card { border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); color:#fff; padding:12px; }
+                #uie-phone-window #uie-app-books-view .books-input { flex:1; height:40px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 12px; outline:none; }
+                #uie-phone-window #uie-app-books-view .books-go { height:40px; padding:0 14px; border-radius:14px; border:none; background:#2ecc71; color:#000; font-weight:900; cursor:pointer; }
+                #uie-phone-window #uie-app-books-view .books-wand { height:40px; width:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900; cursor:pointer; }
+                #uie-phone-window #uie-app-books-view .books-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+                #uie-phone-window #uie-app-books-view .books-row .books-input { min-width: 0; flex: 1 1 160px; }
+                #uie-phone-window #uie-app-books-view .books-row .books-go { flex: 0 0 auto; }
+                #uie-phone-window #uie-app-books-view .books-row .books-wand { flex: 0 0 auto; }
+                #uie-phone-window #uie-app-books-view .book-row { border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); cursor:pointer; padding:12px; color:#fff; }
+                #uie-phone-window #uie-app-books-view .book-row:hover { background:rgba(255,255,255,0.08); }
+                #uie-phone-window #uie-app-books-view #books-reader { border:1px solid rgba(255,255,255,0.12); border-radius:16px; overflow:hidden; }
+                #uie-phone-window #uie-app-books-view #books-reader-head { padding:10px; background:rgba(0,0,0,0.35); border-bottom:1px solid rgba(255,255,255,0.10); display:flex; gap:10px; align-items:center; color:#fff; }
+                #uie-phone-window #uie-app-books-view #books-reader-close { margin-left:auto; height:32px; padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; }
+                #uie-phone-window #uie-app-books-view #books-reader-body { padding:14px; background:#f7f2e8; color:#2c1e10; font-family: Iowan Old Style, Palatino Linotype, Book Antiqua, Palatino, Georgia, serif; line-height:1.6; }
+            </style>
+            <div class="books-tabs">
+                <button id="books-tab-guide" class="books-tab active">Guide</button>
+                <button id="books-tab-library" class="books-tab">Library</button>
+            </div>
+
+            <div id="books-view-guide" class="books-pane">
+                <div class="books-card" style="background:rgba(0,0,0,0.22);">
+                    <div style="font-weight:900; font-size:1.1em; margin-bottom:8px; color:#cba35c;">UIE Manual (Quick Start)</div>
+                    <div style="opacity:0.92; color:#e5e5e5; line-height:1.55;">
+                    <div style="font-weight:900; margin-top:12px;">How to use this Books app</div>
+                    <div>Use it for two things: a quick guide (this tab) and a pocket library of generated books (Library tab).</div>
+                    <div style="margin-top:6px;">Library flow:</div>
+                    <div>1) Tap Library.</div>
+                    <div>2) Type a request (genre + topic + tone + length).</div>
+                    <div>3) Press GO to open a simple browser page, or press the wand to generate a full book.</div>
+                    <div>4) Tap a saved book row to open it again. Close returns to the list.</div>
+                    <div style="margin-top:6px;">Good prompts:</div>
+                    <div>“Short field guide to cursed spirits, in-universe, no spoilers.”</div>
+                    <div>“A travel diary from a fantasy port city, cozy tone.”</div>
+                    <div>“A dark academic history of the local academy, neutral voice.”</div>
+
+                    <div style="font-weight:900; margin-top:12px;">Inventory</div>
+                    <div>Tabs (Items/Equip/Life/Create). Pencil menu edits Name/Class/Level and toggles Edit Mode. Avatar/Portrait are local uploads.</div>
+                    <div style="font-weight:900; margin-top:12px;">Items</div>
+                    <div>Tap an item for Info + Use/Custom Use/Discard. Custom Use logs your intent even if metadata is wrong.</div>
+                    <div style="font-weight:900; margin-top:12px;">Life</div>
+                    <div>Create trackers for anything. Trash toggles delete mode for selective mass deletion.</div>
+                    <div style="font-weight:900; margin-top:12px;">Journal/Codex</div>
+                    <div>Journal sparkle opens a menu (Generate Quests / Manual Quest). Codex shows Databank memories for people who prefer not to use the phone.</div>
+                    <div style="font-weight:900; margin-top:12px;">Map</div>
+                    <div>Generate a local/world map once (scrollable). It stays cached. Move the marker; refresh only when you want.</div>
+                    <div style="font-weight:900; margin-top:12px;">Phone</div>
+                    <div>App Builder: Generate → Preview → Install.</div>
+                    <div style="font-weight:900; margin-top:12px;">Settings</div>
+                    <div>RPG tab: Name/Class/Level + persona sync. Style tab: global CSS + per-menu backgrounds.</div>
+                    <div style="margin-top:6px;">Turbo + Images:</div>
+                    <div>- Turbo API: point to a fast local/server model for quick features.</div>
+                    <div>- Image Gen supports OpenAI-style images endpoints, Stable Diffusion WebUI (/sdapi/v1/txt2img), and ComfyUI.</div>
+                    <div style="margin-top:6px;">ComfyUI setup (local):</div>
+                    <div>1) Enable Images.</div>
+                    <div>2) Endpoint: http://127.0.0.1:8188 (or /prompt).</div>
+                    <div>3) Paste a ComfyUI Workflow JSON.</div>
+                    <div>4) Use {{prompt}} (and optional {{negative_prompt}}) in the workflow, or set the Positive/Negative node IDs.</div>
+                    <div style="margin-top:6px;">Prompts:</div>
+                    <div>Prompts tab includes an Image Gen prefix (applied to image prompts unless the feature uses a locked system prompt).</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="books-view-library" class="books-pane" style="display:none;">
+                <div class="books-card">
+                    <div class="books-row">
+                        <i class="fa-solid fa-book-open" style="opacity:0.8;"></i>
+                        <input id="books-prompt" type="text" class="books-input" placeholder="Describe the book you want...">
+                        <button id="books-go" class="books-go">GO</button>
+                        <button id="books-generate" class="books-wand" title="Generate"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+                    </div>
+                    <div style="opacity:0.75; font-size:12px; margin-top:8px; font-weight:800;">Tip: Press Enter for GO.</div>
+                </div>
+                <div id="books-list" style="display:flex; flex-direction:column; gap:10px; margin-top:12px;"></div>
+                <div id="books-reader" style="display:none; margin-top:12px;">
+                    <div id="books-reader-head">
+                        <button id="books-reader-close" title="Close" style="margin-left:auto; width:42px; height:32px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">×</button>
+                    </div>
+                    <div id="books-reader-body"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="uie-app-calc-view" class="phone-app-window">
+        <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span>Calculator</span></div>
+        <div class="phone-app-content" style="padding:14px; background:#0b101c; color:#fff; display:flex; flex-direction:column; gap:12px;">
+            <div id="calc-display" style="height:60px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); padding:12px; display:flex; align-items:flex-end; justify-content:flex-end; font-weight:900; font-size:22px; overflow:hidden; white-space:nowrap;">0</div>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
+                <button class="calc-btn" data-act="clear" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;">AC</button>
+                <button class="calc-btn" data-act="back" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;">⌫</button>
+                <button class="calc-btn" data-val="%" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;">%</button>
+                <button class="calc-btn" data-val="/" style="height:52px; border-radius:16px; border:none; background:#cba35c; color:#000; font-weight:900;">÷</button>
+
+                <button class="calc-btn" data-val="7" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">7</button>
+                <button class="calc-btn" data-val="8" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">8</button>
+                <button class="calc-btn" data-val="9" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">9</button>
+                <button class="calc-btn" data-val="*" style="height:52px; border-radius:16px; border:none; background:#cba35c; color:#000; font-weight:900;">×</button>
+
+                <button class="calc-btn" data-val="4" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">4</button>
+                <button class="calc-btn" data-val="5" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">5</button>
+                <button class="calc-btn" data-val="6" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">6</button>
+                <button class="calc-btn" data-val="-" style="height:52px; border-radius:16px; border:none; background:#cba35c; color:#000; font-weight:900;">−</button>
+
+                <button class="calc-btn" data-val="1" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">1</button>
+                <button class="calc-btn" data-val="2" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">2</button>
+                <button class="calc-btn" data-val="3" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">3</button>
+                <button class="calc-btn" data-val="+" style="height:52px; border-radius:16px; border:none; background:#cba35c; color:#000; font-weight:900;">+</button>
+
+                <button class="calc-btn" data-val="0" style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900; grid-column: span 2;">0</button>
+                <button class="calc-btn" data-val="." style="height:52px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">.</button>
+                <button class="calc-btn" data-act="eq" style="height:52px; border-radius:16px; border:none; background:#2ecc71; color:#000; font-weight:900;">=</button>
+            </div>
+        </div>
+    </div>
+
+    
+    
+    <div id="uie-app-cookies-view" class="phone-app-window">
+        <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span>Data & Storage</span></div>
+        <div class="phone-app-content" style="padding:0; background:#f5f5f7; color:#1d1d1f; display:flex; flex-direction:column; height:100%;">
+            <div style="padding:20px 16px; background:#fff; margin-bottom:10px;">
+                <div style="font-size:28px; font-weight:700; margin-bottom:4px;">Storage</div>
+                <div style="font-size:14px; color:#86868b;" id="cookies-total-size">Calculating...</div>
+            </div>
+            
+            <div style="padding:0 16px; flex:1; overflow-y:auto;">
+                <div style="font-size:12px; color:#86868b; text-transform:uppercase; font-weight:600; margin-bottom:8px; margin-top:10px;">Categories</div>
+                
+                <div style="background:#fff; border-radius:10px; overflow:hidden; margin-bottom:20px;">
+                    <div class="cookie-row" data-cat="logs" style="padding:12px 16px; display:flex; align-items:center; border-bottom:1px solid #e5e5e5; cursor:pointer;">
+                        <div style="width:32px; height:32px; background:#34c759; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-scroll"></i></div>
+                        <div style="flex:1; font-weight:500;">RP Logs</div>
+                        <div class="cookie-size" id="size-logs" style="color:#86868b; font-size:14px;">0 KB</div>
+                        <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
+                    </div>
+                    <div class="cookie-row" data-cat="browser" style="padding:12px 16px; display:flex; align-items:center; border-bottom:1px solid #e5e5e5; cursor:pointer;">
+                        <div style="width:32px; height:32px; background:#007aff; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-globe"></i></div>
+                        <div style="flex:1; font-weight:500;">Web Cache</div>
+                        <div class="cookie-size" id="size-browser" style="color:#86868b; font-size:14px;">0 KB</div>
+                        <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
+                    </div>
+                    <div class="cookie-row" data-cat="maps" style="padding:12px 16px; display:flex; align-items:center; border-bottom:1px solid #e5e5e5; cursor:pointer;">
+                        <div style="width:32px; height:32px; background:#ff9500; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-map"></i></div>
+                        <div style="flex:1; font-weight:500;">Maps</div>
+                        <div class="cookie-size" id="size-maps" style="color:#86868b; font-size:14px;">0 KB</div>
+                        <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
+                    </div>
+                    <div class="cookie-row" data-cat="books" style="padding:12px 16px; display:flex; align-items:center; border-bottom:1px solid #e5e5e5; cursor:pointer;">
+                        <div style="width:32px; height:32px; background:#a2845e; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-book"></i></div>
+                        <div style="flex:1; font-weight:500;">Books</div>
+                        <div class="cookie-size" id="size-books" style="color:#86868b; font-size:14px;">0 KB</div>
+                        <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
+                    </div>
+                    <div class="cookie-row" data-cat="numbers" style="padding:12px 16px; display:flex; align-items:center; border-bottom:1px solid #e5e5e5; cursor:pointer;">
+                        <div style="width:32px; height:32px; background:#0a84ff; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-phone"></i></div>
+                        <div style="flex:1; font-weight:500;">Saved Numbers</div>
+                        <div class="cookie-size" id="size-numbers" style="color:#86868b; font-size:14px;">0 KB</div>
+                        <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
+                    </div>
+                    <div class="cookie-row" data-cat="state" style="padding:12px 16px; display:flex; align-items:center; cursor:pointer;">
+                        <div style="width:32px; height:32px; background:#af52de; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-database"></i></div>
+                        <div style="flex:1; font-weight:500;">World State</div>
+                        <div class="cookie-size" id="size-state" style="color:#86868b; font-size:14px;">0 KB</div>
+                        <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
+                    </div>
+                </div>
+
+                <div style="text-align:center; margin-bottom:20px;">
+                    <button id="cookies-clear-all" style="background:#fff; color:#ff3b30; border:1px solid #e5e5e5; padding:12px 24px; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; width:100%;">Clear All Data</button>
+                    <div style="margin-top:8px; font-size:12px; color:#86868b;">This will remove all generated content and logs.</div>
+                </div>
+            </div>
+            
+            <!-- Detail View Overlay -->
+            <div id="cookies-detail-view" style="position:absolute; top:0; left:0; width:100%; height:100%; background:#f5f5f7; display:none; flex-direction:column; z-index:10;">
+                <div class="phone-app-header" style="background:#fff; border-bottom:1px solid #e5e5e5;">
+                    <i class="fa-solid fa-chevron-left" id="cookies-detail-back" style="padding:10px; cursor:pointer; color:#007aff;"></i>
+                    <span id="cookies-detail-title" style="color:#1d1d1f;">Category</span>
+                </div>
+                <div style="padding:16px; flex:1; overflow-y:auto;">
+                    <div style="margin-bottom:12px; position:relative;">
+                        <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:10px; color:#86868b;"></i>
+                        <input type="text" id="cookies-search" placeholder="Search items..." style="width:100%; padding:8px 12px 8px 36px; border-radius:10px; border:none; background:#e3e3e8; font-size:15px; color:#1d1d1f; outline:none;">
+                    </div>
+                    <div id="cookies-detail-list" style="background:#fff; border-radius:10px; overflow:hidden;"></div>
+                    <div style="margin-top:20px;">
+                        <button id="cookies-delete-cat" style="background:#fff; color:#ff3b30; border:1px solid #e5e5e5; padding:12px 24px; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; width:100%;">Delete All in Category</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="uie-app-contacts-view" class="phone-app-window">
+        <div class="phone-app-header">
+            <i class="fa-solid fa-chevron-left phone-back-btn"></i>
+            <span>Contacts</span>
+            <i class="fa-solid fa-plus" id="contact-add-manual" style="margin-left:auto; cursor:pointer; padding:5px; font-size:1.2em;" title="Add Contact"></i>
+        </div>
+        <div class="phone-app-content" style="position:relative;">
+            <div id="contact-list"></div>
+            <button id="contact-add-fab" title="Add Contact" style="position:absolute; right:14px; bottom:14px; width:46px; height:46px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.35); color:#f1c40f; font-weight:900; display:grid; place-items:center; cursor:pointer; z-index:6;">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="uie-call-screen" class="phone-app-window" style="display:none; z-index:150;">
+        <div class="call-avatar" id="call-avatar-img"></div><h2 id="call-name-disp">Unknown</h2><div class="call-status">Connected</div><div class="call-timer" id="call-timer-disp">00:00</div>
+        <div id="call-transcript" style="flex:1; width:90%; overflow-y:auto; margin:20px 0; font-size:0.9em; text-align:center; color:#ddd; padding:10px; border-top:1px solid rgba(255,255,255,0.1);"></div>
+        <div class="call-input-row" style="width:100%; display:flex; gap:8px; margin:0 0 20px 0; padding:0 16px; box-sizing:border-box; align-items:center;">
+            <input type="text" id="call-input" placeholder="Speak..." style="flex:1; min-width:0; background:rgba(255,255,255,0.1); border:none; color:white; padding:10px 12px; border-radius:18px;">
+            <button id="call-speak-btn" style="background:white; color:black; border:none; border-radius:14px; width:34px; height:34px; cursor:pointer; display:grid; place-items:center;"><i class="fa-solid fa-comment"></i></button>
+        </div>
+        <div class="call-actions"><div class="call-btn-round btn-end" id="call-end-btn"><i class="fa-solid fa-phone-slash"></i></div></div>
+    </div>
+
+    <i class="fa-solid fa-xmark uie-close-btn" id="uie-phone-close" style="position:absolute; top:9px; right:5px; z-index:300; color:white; padding:5px; text-shadow:0 0 3px #000; cursor: pointer;"></i>
+</div>
