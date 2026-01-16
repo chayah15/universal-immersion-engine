@@ -1,0 +1,255 @@
+<div id="uie-social-window" class="uie-window" style="display:none; width:min(760px, 92vw); height:min(760px, 92vh); background-color:rgba(0,0,0,0.18); backdrop-filter: blur(8px); border:1px solid rgba(203,163,92,0.45);">
+    <style>
+        #uie-social-window{
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            top: 80px;
+            left: 80px;
+            transform: none;
+        }
+        #uie-social-window .uie-header { position:relative; overflow: visible; }
+        #uie-social-menu { z-index: 2147483646; }
+        #uie-social-window .uie-tab { cursor:pointer; }
+        #uie-social-overlay {
+            position: absolute !important;
+            inset: 0 !important;
+            display: none !important;
+            background: transparent !important;
+            pointer-events: none !important;
+            z-index: 2147483647 !important;
+        }
+        #uie-social-overlay[data-open="1"]{ display:block !important; pointer-events:none !important; }
+        #uie-social-overlay .uie-paper-box{
+            position: absolute !important;
+            pointer-events: auto !important;
+            width: min(360px, 92vw);
+            max-height: calc(100% - 28px);
+            overflow: visible;
+            top: 14px;
+            left: 14px;
+            transform: none;
+        }
+        #uie-social-overlay .uie-p-header{ cursor: move; touch-action: none; user-select: none; }
+        #uie-social-overlay .uie-p-close{ z-index: 3; }
+        #uie-social-overlay .uie-p-top-actions{ position:absolute; top:10px; right:46px; display:flex; gap:8px; z-index:3; }
+        #uie-social-overlay .uie-p-icon-btn{ width:30px; height:30px; border-radius:10px; border:1px solid rgba(0,0,0,0.18); background:rgba(255,255,255,0.65); display:grid; place-items:center; cursor:pointer; }
+        #uie-social-overlay .uie-p-icon-btn.danger{ border-color: rgba(243,139,168,0.55); color:#b00020; background:rgba(243,139,168,0.18); }
+        #uie-social-overlay a { color:#1565c0; text-decoration: underline; font-weight:900; cursor:pointer; }
+        #uie-social-overlay a:hover { filter: brightness(1.1); }
+        #uie-social-overlay .uie-p-actions { display:flex; gap:10px; margin-top:12px; }
+
+        #uie-social-overlay .uie-p-btn {
+            flex:1; height:38px; border-radius:12px;
+            border:1px solid rgba(0,0,0,0.18);
+            background:rgba(255,255,255,0.65);
+            font-weight:900; cursor:pointer;
+        }
+        #uie-social-overlay .uie-p-btn.danger {
+            border-color: rgba(243,139,168,0.55);
+            color:#b00020;
+            background:rgba(243,139,168,0.18);
+        }
+
+        @media (max-width: 700px), (pointer: coarse) {
+            #uie-social-window {
+                position: fixed !important;
+                inset: auto !important;
+                width: 96vw !important; height: 80vh !important;
+                top: 12vh !important; left: 2vw !important;
+                transform: none !important;
+                max-width: 96vw !important;
+                max-height: 80vh !important;
+            }
+            /* Made boxes slightly bigger by reducing columns to 2 on mobile if needed, or just relying on width */
+            .uie-social-grid { grid-template-columns: repeat(2, 1fr) !important; } 
+        }
+
+        @media (max-width: 700px), (pointer: coarse) {
+            #uie-social-window .uie-inv-tabs {
+                justify-content: flex-start !important;
+                overflow-x: auto !important;
+                gap: 8px !important;
+                padding: 8px 10px !important;
+                scrollbar-width: none;
+            }
+            #uie-social-window .uie-inv-tabs::-webkit-scrollbar { display: none; }
+            #uie-social-window .uie-inv-tabs .uie-tab {
+                flex: 0 0 auto !important;
+                white-space: nowrap !important;
+                padding: 8px 12px !important;
+            }
+        }
+    </style>
+    <div class="uie-header">
+        <h2>SOCIAL MENU</h2>
+        <div id="uie-social-sparkle" title="Manage Contacts"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+        <div id="uie-social-close"><i class="fa-solid fa-xmark"></i></div>
+        
+        <div class="uie-dropdown" id="uie-social-menu">
+            <div class="uie-dd-item" id="uie-act-scan"><i class="fa-solid fa-users-viewfinder"></i> Scan Chat Log</div>
+            <div class="uie-dd-item" id="uie-act-toggle-auto"><i class="fa-solid fa-robot"></i> Auto Scan: <span id="uie-auto-scan-state">OFF</span></div>
+            <div class="uie-dd-item" id="uie-act-add"><i class="fa-solid fa-plus"></i> Manual Add</div>
+            <div class="uie-dd-item" id="uie-act-delete"><i class="fa-solid fa-trash"></i> Mass Delete</div>
+            <div class="uie-dd-item" id="uie-act-bg"><i class="fa-solid fa-image"></i> Change Background</div>
+        </div>
+    </div>
+    
+    <div class="uie-inv-tabs">
+        <div class="uie-tab active" data-tab="friends">FRIENDS</div>
+        <div class="uie-tab" data-tab="romance">RELATIONSHIPS</div>
+        <div class="uie-tab" data-tab="family">FAMILY</div>
+        <div class="uie-tab" data-tab="rivals">RIVALS</div>
+    </div>
+    
+    <div class="uie-content custom-scroll" id="uie-social-content" style="padding:12px; position:relative;">
+        </div>
+
+    <div id="uie-delete-controls">
+        <div class="uie-del-confirm">CONFIRM DELETE</div>
+        <div class="uie-del-cancel">CANCEL</div>
+    </div>
+
+    <div id="uie-add-modal">
+        <div style="text-align:center; font-weight:bold; color:#8d4004; margin-bottom:15px; font-size:1.2em;">NEW CONTACT</div>
+        
+        <label class="uie-img-preview" title="Click to upload image">
+            <img id="uie-add-preview" src="" style="width:100%; height:100%; display:none; object-fit:cover;">
+            <i class="fa-solid fa-camera" id="uie-add-icon" style="font-size:1.5em; color:#8c6a4a;"></i>
+            <input type="file" id="uie-add-img-file" accept="image/*">
+        </label>
+
+        <div class="uie-add-row">
+            <label class="uie-add-label">Name</label>
+            <input type="text" id="uie-add-name" class="uie-add-input" placeholder="Character Name">
+        </div>
+
+        <div class="uie-add-row">
+            <label class="uie-add-label">Age</label>
+            <input type="text" id="uie-add-age" class="uie-add-input" placeholder="Unknown">
+        </div>
+
+        <div class="uie-add-row">
+            <label class="uie-add-label">Known Family</label>
+            <input type="text" id="uie-add-family" class="uie-add-input" placeholder="Names / relationships">
+        </div>
+
+        <div class="uie-add-row">
+            <label class="uie-add-label">Relationship Type</label>
+            <select id="uie-add-tab" class="uie-add-select">
+                <option value="friends">Friend</option>
+                <option value="romance">Relationship</option>
+                <option value="family">Family</option>
+                <option value="rivals">Rival</option>
+            </select>
+        </div>
+
+        <div class="uie-add-row">
+            <label class="uie-add-label">Family Role / Relation</label>
+            <input type="text" id="uie-add-family-role" class="uie-add-input" placeholder="e.g. Sister, Father, Cousin">
+        </div>
+
+        <div class="uie-add-row">
+            <label class="uie-add-label">Relationship Status</label>
+            <input type="text" id="uie-add-rel-status" class="uie-add-input" placeholder="e.g. Dating, Married, Ex, Complicated">
+        </div>
+
+        <div class="uie-add-row">
+            <label class="uie-add-label">Heart Level (0-100)</label>
+            <input type="number" id="uie-add-affinity" class="uie-add-input" value="0" min="0" max="100">
+        </div>
+
+        <details style="margin-top:10px; border:1px solid rgba(0,0,0,0.12); border-radius:10px; background:rgba(255,255,255,0.35); padding:10px;">
+            <summary style="cursor:pointer; font-weight:900; color:#4a2e16;">More Details</summary>
+            <div class="uie-add-row" style="margin-top:10px;">
+                <label class="uie-add-label">Background / Notes</label>
+                <input type="text" id="uie-add-thoughts" class="uie-add-input" placeholder="Short status line">
+            </div>
+            <div class="uie-add-row">
+                <label class="uie-add-label">Birthday</label>
+                <input type="text" id="uie-add-bday" class="uie-add-input" placeholder="Unknown">
+            </div>
+            <div class="uie-add-row">
+                <label class="uie-add-label">Location</label>
+                <input type="text" id="uie-add-loc" class="uie-add-input" placeholder="Unknown">
+            </div>
+            <div class="uie-add-row">
+                <label class="uie-add-label">Likes</label>
+                <input type="text" id="uie-add-likes" class="uie-add-input" placeholder="comma separated">
+            </div>
+            <div class="uie-add-row">
+                <label class="uie-add-label">Dislikes</label>
+                <input type="text" id="uie-add-dislikes" class="uie-add-input" placeholder="comma separated">
+            </div>
+        </details>
+
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <button class="uie-add-btn" id="uie-submit-add" style="flex:1;">Add to Book</button>
+            <button class="uie-add-btn" id="uie-cancel-add" style="flex:1; background:rgba(0,0,0,0.15); color:#4a2e16; border:2px solid rgba(74,46,22,0.35);">Cancel</button>
+        </div>
+    </div>
+
+    <div id="uie-social-overlay" style="display:none;">
+        <div class="uie-paper-box">
+            <div class="uie-p-close">X</div>
+            <div class="uie-p-top-actions">
+                <div class="uie-p-icon-btn" id="uie-social-message" title="Message"><i class="fa-solid fa-comment"></i></div>
+                <div class="uie-p-icon-btn" id="uie-social-memories" title="Memories"><i class="fa-solid fa-brain"></i></div>
+                <div class="uie-p-icon-btn" id="uie-social-edit" title="Edit"><i class="fa-solid fa-pencil"></i></div>
+                <div class="uie-p-icon-btn danger" id="uie-social-del-one" title="Delete"><i class="fa-solid fa-trash"></i></div>
+            </div>
+            <div class="uie-paper-inner">
+                <div class="uie-p-header">
+                    <div class="uie-p-portrait"><img id="p-img-disp" style="width:100%; height:100%; border-radius:4px; display:none;"></div>
+                    <div class="uie-p-info">
+                        <div class="uie-p-name-lg">NAME</div>
+                        <div class="uie-p-hearts-lg">❤❤❤❤❤</div>
+                    </div>
+                </div>
+
+                <div class="uie-p-status-line" id="p-val-status">"No thoughts currently..."</div>
+
+                <div class="uie-p-grid">
+                    <div class="uie-p-row"><strong>Birthday:</strong> <span id="p-val-bday">???</span></div>
+                    <div class="uie-p-row"><strong>Location:</strong> <span id="p-val-loc">???</span></div>
+                    <div class="uie-p-row"><strong>Age:</strong> <span id="p-val-age">???</span></div>
+                    <div class="uie-p-row"><strong>Known Family:</strong> <span id="p-val-family">???</span></div>
+                    <div class="uie-p-row"><strong>Family Role:</strong> <span id="p-val-family-role">—</span></div>
+                    <div class="uie-p-row"><strong>Status:</strong> <span id="p-val-rel-status">—</span></div>
+                </div>
+
+                <div class="uie-p-lists-container">
+                    <div class="uie-p-list-col list-likes">
+                        <div class="uie-p-list-header">Likes</div>
+                        <div class="uie-p-list-content" id="p-val-likes">-</div>
+                    </div>
+                    <div class="uie-p-list-col list-dislikes">
+                        <div class="uie-p-list-header">Dislikes</div>
+                        <div class="uie-p-list-content" id="p-val-dislikes">-</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="uie-social-mem-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:10070;">
+        <div class="uie-paper-box" style="max-width:700px; width:92vw;">
+            <div class="uie-p-close" id="uie-social-mem-close">X</div>
+            <div class="uie-paper-inner">
+                <div style="font-weight:900; font-size:20px; color:#4a2e16; font-family:serif;">Memories</div>
+                <div id="uie-social-mem-sub" style="margin-top:4px; font-size:12px; opacity:0.75; color:#4a2e16;"></div>
+
+                <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                    <button class="uie-p-btn" id="uie-social-mem-scan" style="flex:0 0 auto;">Scan From Chat</button>
+                    <button class="uie-p-btn" id="uie-social-mem-add" style="flex:0 0 auto;">Add</button>
+                    <button class="uie-p-btn" id="uie-social-mem-inject" style="flex:0 0 auto;">Inject to Chat</button>
+                    <button class="uie-p-btn" id="uie-social-mem-clear" style="flex:0 0 auto; background:rgba(0,0,0,0.15); color:#4a2e16; border:2px solid rgba(74,46,22,0.35);">Clear</button>
+                </div>
+
+                <div id="uie-social-mem-list" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;"></div>
+                <div id="uie-social-mem-empty" style="margin-top:12px; display:none; text-align:center; color:#4a2e16; opacity:0.7; font-family:serif;">— No memories saved —</div>
+            </div>
+        </div>
+    </div>
+</div>

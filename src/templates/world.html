@@ -1,0 +1,25 @@
+<div id="uie-world-window" class="uie-window" style="display:none; width: 500px; height: 700px; background: #0b0f15; flex-direction:column; z-index:10010;">
+    
+    <div class="uie-header" style="border-bottom: 1px solid #cba35c; padding: 10px; background: linear-gradient(90deg, #1b202b, #0e121a);">
+        <div class="uie-info">
+            <h2 style="margin:0; font-family:'Cinzel',serif; color:#cba35c;">REALITY ENGINE</h2>
+            <div style="font-size:0.7em; color:#666;">SIMULATION_ID: <span id="uie-world-id">NULL</span></div>
+        </div>
+        <div class="uie-controls">
+            <i class="fa-solid fa-arrows-rotate" id="uie-world-update" title="AI Update (Scan Chat)" style="cursor:pointer; color:#cba35c; margin-right:10px;"></i>
+            <i class="fa-solid fa-xmark uie-close-btn" id="uie-world-close"></i>
+        </div>
+    </div>
+
+    <div id="uie-world-content" class="custom-scroll" style="flex:1; padding:15px; overflow-y:auto; position:relative;">
+        <div style="text-align:center; margin-top:50%; transform:translateY(-50%); color:#333;">
+            <i class="fa-solid fa-terminal" style="font-size:3em; margin-bottom:10px;"></i>
+            <p>AWAITING INPUT...</p>
+        </div>
+    </div>
+
+    <div style="padding:10px; background:#111; border-top:1px solid #333; display:flex; gap:10px;">
+        <input type="text" id="uie-world-input" placeholder="What should I simulate? (e.g. 'My Magic Shop' or 'Zombie Base')" style="flex:1; background:#000; border:1px solid #333; color:#cba35c; padding:10px; font-family:monospace;">
+        <button id="uie-world-gen" style="background:#cba35c; color:#000; font-weight:bold; border:none; padding:0 15px; cursor:pointer;"><i class="fa-solid fa-bolt"></i></button>
+    </div>
+</div>
