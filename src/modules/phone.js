@@ -514,6 +514,10 @@ export function initPhone() {
         $(id).css("display", "flex").hide().fadeIn(150);
         
         if(id === "#uie-app-contacts-view") renderContacts();
+        if(id === "#uie-app-dial-view") {
+            try { renderDialRecents(); } catch (_) {}
+            try { $("#dial-display").text(dialBuf ? dialBuf : "—"); } catch (_) {}
+        }
         if(id === "#uie-app-msg-view") {
             // Default header if not set via contact click
             if(!activeContact) $("#msg-contact-name").text("Messages");
@@ -622,6 +626,8 @@ export function initPhone() {
     const ensureNumbersState = (s) => {
         if (!s.phone) s.phone = {};
         if (!Array.isArray(s.phone.numberBook)) s.phone.numberBook = [];
+        if (!Array.isArray(s.phone.callLog)) s.phone.callLog = [];
+        if (!Array.isArray(s.phone.callHistory)) s.phone.callHistory = [];
         if (!s.social) s.social = {};
         for (const k of SOCIAL_BUCKETS) if (!Array.isArray(s.social[k])) s.social[k] = [];
     };
@@ -647,6 +653,119 @@ export function initPhone() {
         }
         if (changed) saveSettings();
     };
+
+    const isLikelyNumber = (v) => {
+        const s = String(v || "").trim();
+        if (!s) return false;
+        const d = normalizeNumber(s);
+        return !!d && d.length >= 7;
+    };
+
+    const lookupNumberForName = (s, name) => {
+        const nm = String(name || "").trim();
+        if (!nm) return "";
+        if (isLikelyNumber(nm)) return formatNumber(normalizeNumber(nm));
+        const friends = Array.isArray(s?.social?.friends) ? s.social.friends : [];
+        const hit = friends.find(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase());
+        const raw = String(hit?.phone || hit?.phoneNumber || "").trim();
+        if (raw) return formatNumber(normalizeNumber(raw));
+        const nb = Array.isArray(s?.phone?.numberBook) ? s.phone.numberBook : [];
+        const hit2 = nb.find(x => String(x?.name || "").trim().toLowerCase() === nm.toLowerCase());
+        const raw2 = String(hit2?.number || "").trim();
+        if (raw2) return formatNumber(normalizeNumber(raw2));
+        return "";
+    };
+
+    const pushCallLog = (entry) => {
+        try {
+            const s = getSettings();
+            ensureNumbersState(s);
+            const e = entry && typeof entry === "object" ? entry : {};
+            const who = String(e.who || "").trim();
+            const number = String(e.number || "").trim();
+            const dir = String(e.dir || "").trim() || "out";
+            const startedAt = Number(e.startedAt || 0) || Date.now();
+            const endedAt = Number(e.endedAt || 0) || 0;
+            const durationSec = endedAt && startedAt ? Math.max(0, Math.round((endedAt - startedAt) / 1000)) : 0;
+            const missed = e.missed === true;
+            const id = `call_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}`;
+            s.phone.callLog.unshift({ id, who: who.slice(0, 80), number: number.slice(0, 40), dir, startedAt, endedAt, durationSec, missed });
+            s.phone.callLog = (s.phone.callLog || []).slice(0, 80);
+            saveSettings();
+        } catch (_) {}
+        try { renderDialRecents(); } catch (_) {}
+    };
+
+    const renderDialRecents = () => {
+        const box = $("#dial-recents");
+        if (!box.length) return;
+        const s = getSettings();
+        ensureNumbersState(s);
+        const list = Array.isArray(s?.phone?.callLog) ? s.phone.callLog : [];
+        if (!list.length) {
+            box.html(`<div style="opacity:0.65; color:#fff; text-align:center; padding:14px; font-weight:900;">No recent calls.</div>`);
+            return;
+        }
+        const fmtTime = (ts) => {
+            try { return new Date(Number(ts || 0) || Date.now()).toLocaleString(); } catch (_) { return ""; }
+        };
+        box.empty();
+        for (const c of list.slice(0, 30)) {
+            const who = String(c?.who || "").trim();
+            const number = String(c?.number || "").trim();
+            const label = who || number || "Unknown";
+            const sub = number && who && who !== number ? number : fmtTime(c?.startedAt);
+            const dir = String(c?.dir || "out");
+            const missed = c?.missed === true;
+            const badge = missed ? `<span style="margin-left:8px; font-size:11px; color:#f38ba8; font-weight:900;">MISSED</span>` : "";
+            const dirIco = dir === "in" ? "fa-arrow-down" : "fa-arrow-up";
+            const dialNum = number || (isLikelyNumber(who) ? who : "");
+            box.append(`
+                <div class="dial-recent-row" data-number="${esc(dialNum)}" style="display:flex; align-items:center; gap:10px; padding:10px; border-radius:14px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.04); margin-bottom:8px; cursor:pointer;">
+                    <i class="fa-solid ${dirIco}" style="opacity:0.75;"></i>
+                    <div style="flex:1; min-width:0;">
+                        <div style="color:#fff; font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(label)}${badge}</div>
+                        <div style="color:rgba(255,255,255,0.72); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(sub || "")}</div>
+                    </div>
+                    <button class="dial-recent-call" data-number="${esc(dialNum)}" style="height:34px; width:44px; border-radius:14px; border:none; background:#2ecc71; color:#000; font-weight:900; cursor:pointer;"><i class="fa-solid fa-phone"></i></button>
+                </div>
+            `);
+        }
+    };
+
+    $(document).off("click.phoneDialRecentsClear", "#dial-recents-clear").on("click.phoneDialRecentsClear", "#dial-recents-clear", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const ok = confirm("Clear call log?");
+        if (!ok) return;
+        const s = getSettings();
+        ensureNumbersState(s);
+        s.phone.callLog = [];
+        saveSettings();
+        renderDialRecents();
+    });
+
+    $(document).off("click.phoneDialRecentCall", "#dial-recents .dial-recent-call").on("click.phoneDialRecentCall", "#dial-recents .dial-recent-call", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const raw = String($(this).data("number") || "").trim();
+        if (!raw) return;
+        const digits = normalizeNumber(raw);
+        dialBuf = digits || raw;
+        try { $("#dial-display").text(dialBuf || "—"); } catch (_) {}
+        $("#dial-call").trigger("click");
+    });
+
+    $(document).off("click.phoneDialRecentPick", "#dial-recents .dial-recent-row").on("click.phoneDialRecentPick", "#dial-recents .dial-recent-row", function (e) {
+        if ($(e.target).closest(".dial-recent-call").length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const raw = String($(this).data("number") || "").trim();
+        if (!raw) return;
+        const digits = normalizeNumber(raw);
+        dialBuf = digits || raw;
+        try { $("#dial-display").text(dialBuf || "—"); } catch (_) {}
+    });
 
     const renderMessages = () => {
         const s = getSettings();
@@ -1269,25 +1388,43 @@ ${chat}`.slice(0, 6000);
     $(document).on("click.phoneCallTrigger", ".phone-call-trigger", function(e) {
         e.stopPropagation();
         activeContact = $(this).data("name");
-        startCall(activeContact);
+        startCall(activeContact, { dir: "out" });
     });
 
-    const startCall = async (name) => {
+    const startCall = async (name, opts = {}) => {
         $("#uie-phone-homescreen").hide();
         $("#uie-app-contacts-view").hide();
         $("#uie-call-screen").css("display", "flex").hide().fadeIn(200);
-        $("#call-name-disp").text(name);
+        const rawName = String(name || "").trim();
+        const dir = String(opts?.dir || "out").trim() || "out";
+        $("#call-name-disp").text(rawName || "Unknown");
         $(".call-status").text("Dialing...");
         $("#call-transcript").empty();
         try {
             const s0 = getSettings();
             if (s0?.phone) {
                 if (!Array.isArray(s0.phone.callHistory)) s0.phone.callHistory = [];
-                s0.phone.activeCall = { who: String(name || "").trim(), startedAt: Date.now(), lines: [] };
+                ensureNumbersState(s0);
+                let number = String(opts?.number || "").trim();
+                if (!number) number = lookupNumberForName(s0, rawName);
+                if (!number && dir === "in") {
+                    const used = new Set();
+                    for (const p of getSocialPeople(s0)) {
+                        const d = normalizeNumber(p?.phone || p?.phoneNumber || "");
+                        if (d) used.add(d);
+                    }
+                    for (const nb of (s0.phone.numberBook || [])) {
+                        const d = normalizeNumber(nb?.number || "");
+                        if (d) used.add(d);
+                    }
+                    number = formatNumber(generateNumber(used));
+                }
+                const who = rawName || (number || "Unknown");
+                s0.phone.activeCall = { who, number, dir, startedAt: Date.now(), lines: [], answered: false };
                 saveSettings();
             }
         } catch (_) {}
-        syncToMainChat(`(On phone) Calling ${name}...`);
+        syncToMainChat(`(On phone) Calling ${rawName || "Unknown"}...`);
 
         const sAllow = getSettings();
         if (sAllow?.ai && sAllow.ai.phoneCalls === false) {
@@ -1362,6 +1499,7 @@ ${chat}`.slice(0, 6000), "System Check");
             if (s0?.phone?.activeCall && typeof s0.phone.activeCall === "object") {
                 if (!Array.isArray(s0.phone.activeCall.lines)) s0.phone.activeCall.lines = [];
                 s0.phone.activeCall.lines.push({ who: String(n || ""), isUser: false, text: gl.slice(0, 320), ts: Date.now() });
+                s0.phone.activeCall.answered = true;
                 saveSettings();
             }
         } catch (_) {}
@@ -1378,10 +1516,15 @@ ${chat}`.slice(0, 6000), "System Check");
                 if (!Array.isArray(s0.phone.callHistory)) s0.phone.callHistory = [];
                 const ac = s0.phone.activeCall && typeof s0.phone.activeCall === "object" ? s0.phone.activeCall : null;
                 const who = String(ac?.who || $("#call-name-disp").text() || "").trim() || "Unknown";
+                const number = String(ac?.number || lookupNumberForName(s0, who) || "").trim();
                 const lines = Array.isArray(ac?.lines) ? ac.lines : [];
                 const tail = lines.slice(-12).map(x => ({ who: String(x?.who || who), isUser: !!x?.isUser, text: String(x?.text || "").slice(0, 320), ts: Number(x?.ts || 0) || Date.now() }));
-                s0.phone.callHistory.push({ who, startedAt: Number(ac?.startedAt || 0) || Date.now(), endedAt: Date.now(), lines: tail });
+                const startedAt = Number(ac?.startedAt || 0) || Date.now();
+                const endedAt = Date.now();
+                s0.phone.callHistory.push({ who, startedAt, endedAt, lines: tail });
                 while (s0.phone.callHistory.length > 30) s0.phone.callHistory.shift();
+                ensureNumbersState(s0);
+                pushCallLog({ who, number, dir: String(ac?.dir || "out"), startedAt, endedAt, missed: ac?.answered !== true });
                 s0.phone.activeCall = null;
                 saveSettings();
             }
@@ -1400,7 +1543,7 @@ ${chat}`.slice(0, 6000), "System Check");
             }
             $("#uie-phone-window").show().css("display", "flex");
             if (window.toastr) toastr.info("Call incoming", "Phone");
-            startCall(activeContact);
+            startCall(activeContact, { dir: "in" });
         } catch (e) { console.warn("[UIE] Incoming call handler failed:", e); }
     };
 
@@ -1537,7 +1680,7 @@ ${chat}`.slice(0, 6000), "System Check");
         const target = String(hit?.name || hit2?.name || formatNumber(digits) || "Unknown");
         dialBuf = "";
         setDialDisplay();
-        startCall(target);
+        startCall(target, { dir: "out", number: formatNumber(digits) });
     });
     $(document).off("click.phoneDialSave", "#dial-save").on("click.phoneDialSave", "#dial-save", function(e){
         e.preventDefault();

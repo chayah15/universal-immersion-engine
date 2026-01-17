@@ -322,6 +322,13 @@ export function initDiary() {
     if (!stickerInit) {
         stickerInit = true;
         $(document).off("click.uieDiaryStickers");
+        $(document).off("click.uieDiaryClose", "#uie-diary-close");
+        $(document).on("click.uieDiaryClose", "#uie-diary-close", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            try { $("#uie-diary-sticker-drawer").hide(); } catch (_) {}
+            $("#uie-diary-window").hide();
+        });
         $(document).on("click.uieDiaryStickers", "#uie-diary-stickers", async function(e) {
             e.preventDefault();
             e.stopPropagation();

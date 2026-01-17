@@ -270,6 +270,11 @@
     <div id="uie-app-dial-view" class="phone-app-window">
         <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span>Phone</span></div>
         <div class="phone-app-content" style="padding:14px; display:flex; flex-direction:column; gap:12px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="font-weight:900; color:#fff; opacity:0.85;">Recents</div>
+                <button id="dial-recents-clear" title="Clear call log" style="margin-left:auto; height:34px; padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900; cursor:pointer;">Clear</button>
+            </div>
+            <div id="dial-recents" style="max-height:160px; overflow:auto; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); padding:10px;"></div>
             <div id="dial-display" style="height:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; letter-spacing:1px; font-size:1.05em;">—</div>
             <div id="dial-pad" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
                 <button class="dial-btn" data-digit="1" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">1</button>

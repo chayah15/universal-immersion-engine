@@ -1,4 +1,4 @@
-import { extension_settings } from "../../../../../extensions.js";
+import { extension_settings, getContext } from "../../../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../../../script.js";
 
 export const EXT_ID = "universal-immersion-engine";
@@ -110,11 +110,130 @@ export const SETTINGS_DEFAULT = {
     characterClass: "Sanguine Shinobi",
     turbo: { enabled: false, url: "https://openrouter.ai/api/v1/chat/completions", key: "", model: "google/gemini-2.0-flash-exp" },
     image: { enabled: false, url: "https://api.openai.com/v1/images/generations", key: "", model: "dall-e-3", negativePrompt: "", features: { map: true, doll: true, social: true, phoneBg: true, msg: true, party: true, items: true }, comfy: { workflow: "", checkpoint: "", quality: "balanced", positiveNodeId: "", negativeNodeId: "", outputNodeId: "" } },
-    connections: { activeProfileId: "", profiles: [] }
+    connections: { activeProfileId: "", profiles: [] },
+    chatState: { activeKey: "", states: {} }
 };
 
 export function getSettings() { return extension_settings[EXT_ID]; }
 export function saveSettings() { saveSettingsDebounced(); }
+
+const CHAT_SCOPED_KEYS = [
+    "permadeath",
+    "hearts", "maxHearts",
+    "hp", "maxHp", "mp", "maxMp", "ap", "maxAp",
+    "xp", "maxXp", "level", "shield",
+    "currency", "currencySymbol",
+    "map",
+    "inventory",
+    "journal",
+    "party",
+    "worldState",
+    "memories",
+    "diary",
+    "phone",
+    "codex",
+    "calendar",
+    "battle",
+    "character",
+    "databank",
+    "social",
+    "socialMeta",
+    "quests",
+    "life"
+];
+
+function deepClone(v) {
+    if (v === undefined) return undefined;
+    try { return JSON.parse(JSON.stringify(v)); } catch (_) { return v; }
+}
+
+function getChatKeySafe() {
+    try {
+        const ctx = getContext ? getContext() : null;
+        const chatId = String(ctx?.chatId || "").trim();
+        if (chatId) return `chat:${chatId}`;
+        const groupId = String(ctx?.groupId || "").trim();
+        const characterId = String(ctx?.characterId || "").trim();
+        const name1 = String(ctx?.name1 || "").trim();
+        const name2 = String(ctx?.name2 || "").trim();
+        const parts = [];
+        if (groupId) parts.push(`group:${groupId}`);
+        if (characterId) parts.push(`char:${characterId}`);
+        if (name1) parts.push(`n1:${name1}`);
+        if (name2) parts.push(`n2:${name2}`);
+        return parts.length ? parts.join("|") : "";
+    } catch (_) {
+        return "";
+    }
+}
+
+function snapshotChatState(s) {
+    const out = {};
+    for (const k of CHAT_SCOPED_KEYS) {
+        if (s[k] === undefined) continue;
+        out[k] = deepClone(s[k]);
+    }
+    return out;
+}
+
+function applyChatState(s, state) {
+    const st = state && typeof state === "object" ? state : {};
+    for (const k of CHAT_SCOPED_KEYS) {
+        if (st[k] !== undefined) {
+            s[k] = deepClone(st[k]);
+            continue;
+        }
+        if (SETTINGS_DEFAULT[k] !== undefined) {
+            s[k] = deepClone(SETTINGS_DEFAULT[k]);
+            continue;
+        }
+        if (k === "databank") s[k] = [];
+        else if (k === "quests") s[k] = [];
+        else if (k === "life") s[k] = { trackers: [] };
+        else if (k === "socialMeta") s[k] = { autoScan: false, deletedNames: [] };
+        else s[k] = undefined;
+    }
+}
+
+export function ensureChatStateLoaded() {
+    const s = extension_settings[EXT_ID];
+    if (!s) return;
+    if (!s.chatState || typeof s.chatState !== "object") s.chatState = { activeKey: "", states: {} };
+    if (typeof s.chatState.activeKey !== "string") s.chatState.activeKey = "";
+    if (!s.chatState.states || typeof s.chatState.states !== "object") s.chatState.states = {};
+
+    const key = getChatKeySafe();
+    if (!key) return;
+    const cur = String(s.chatState.activeKey || "").trim();
+    if (!cur) {
+        s.chatState.activeKey = key;
+        if (!s.chatState.states[key]) s.chatState.states[key] = snapshotChatState(s);
+        return;
+    }
+    if (cur === key) return;
+
+    try { s.chatState.states[cur] = snapshotChatState(s); } catch (_) {}
+    const next = s.chatState.states[key];
+    applyChatState(s, next);
+    s.chatState.activeKey = key;
+
+    const keys = Object.keys(s.chatState.states || {});
+    if (keys.length > 60) {
+        const keep = new Set([key]);
+        const trim = keys.filter(k => !keep.has(k)).slice(0, keys.length - 60);
+        for (const k of trim) delete s.chatState.states[k];
+    }
+    saveSettings();
+}
+
+let uieChatStateWatch = null;
+export function startChatStateWatcher() {
+    if (uieChatStateWatch) return;
+    try { ensureChatStateLoaded(); } catch (_) {}
+    uieChatStateWatch = setInterval(() => {
+        try { ensureChatStateLoaded(); } catch (_) {}
+    }, 900);
+}
 
 export function isMobileUI() {
     try {
@@ -127,9 +246,9 @@ export function isMobileUI() {
 }
 
 export function sanitizeSettings() {
-    if (!extension_settings[EXT_ID]) extension_settings[EXT_ID] = SETTINGS_DEFAULT;
+    if (!extension_settings[EXT_ID]) extension_settings[EXT_ID] = deepClone(SETTINGS_DEFAULT);
     const s = extension_settings[EXT_ID];
-    for(const k in SETTINGS_DEFAULT) if(s[k] === undefined) s[k] = SETTINGS_DEFAULT[k];
+    for(const k in SETTINGS_DEFAULT) if(s[k] === undefined) s[k] = deepClone(SETTINGS_DEFAULT[k]);
     
     if (isNaN(parseFloat(s.uiScale))) s.uiScale = 1.0;
     if (!s.phone) s.phone = SETTINGS_DEFAULT.phone;
@@ -298,6 +417,8 @@ export function sanitizeSettings() {
         curItem.symbol = sym;
     }
 
+    try { startChatStateWatcher(); } catch (_) {}
+    try { ensureChatStateLoaded(); } catch (_) {}
     saveSettings();
     return s;
 }

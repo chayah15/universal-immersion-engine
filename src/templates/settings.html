@@ -93,6 +93,8 @@
                             <option value="dall-e-3">dall-e-3</option>
                             <option value="gpt-image-1">gpt-image-1</option>
                             <option value="dall-e-2">dall-e-2</option>
+                            <option value="stabilityai/stable-diffusion-3.5-large">stabilityai/stable-diffusion-3.5-large</option>
+                            <option value="stabilityai/stable-diffusion-3.5-large-turbo">stabilityai/stable-diffusion-3.5-large-turbo</option>
                             <option value="__custom__">Custom…</option>
                         </select>
                     </div>
@@ -118,6 +120,53 @@
                             <option value="balanced" selected>Balanced (768, 24 steps)</option>
                             <option value="hq">HQ (1024, 32 steps)</option>
                         </select>
+                    </div>
+                    <div style="margin-top:10px; border:1px solid rgba(255,255,255,0.10); border-radius:10px; padding:10px; background:rgba(0,0,0,0.16);">
+                        <div style="font-weight:900; color:#ddd; margin-bottom:8px; font-size:0.8em;">ComfyUI Generation Settings (SillyTavern-style)</div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                            <div class="uie-control-group" style="margin:0;">
+                                <label style="font-size:0.78em;">Sampling method</label>
+                                <input type="text" id="uie-img-comfy-sampler" placeholder="euler_ancestral" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            </div>
+                            <div class="uie-control-group" style="margin:0;">
+                                <label style="font-size:0.78em;">Scheduler</label>
+                                <input type="text" id="uie-img-comfy-scheduler" placeholder="normal" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            </div>
+                            <div class="uie-control-group" style="margin:0;">
+                                <label style="font-size:0.78em;">Sampling steps</label>
+                                <input type="number" id="uie-img-comfy-steps" min="1" step="1" placeholder="24" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            </div>
+                            <div class="uie-control-group" style="margin:0;">
+                                <label style="font-size:0.78em;">CFG scale</label>
+                                <input type="number" id="uie-img-comfy-cfg" min="0" step="0.1" placeholder="7" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            </div>
+                            <div class="uie-control-group" style="margin:0;">
+                                <label style="font-size:0.78em;">Width</label>
+                                <input type="number" id="uie-img-comfy-width" min="64" step="8" placeholder="768" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            </div>
+                            <div class="uie-control-group" style="margin:0;">
+                                <label style="font-size:0.78em;">Height</label>
+                                <input type="number" id="uie-img-comfy-height" min="64" step="8" placeholder="768" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            </div>
+                            <div class="uie-control-group" style="margin:0;">
+                                <label style="font-size:0.78em;">Denoising strength</label>
+                                <input type="number" id="uie-img-comfy-denoise" min="0" max="1" step="0.01" placeholder="1.0" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            </div>
+                            <div class="uie-control-group" style="margin:0;">
+                                <label style="font-size:0.78em;">Seed (-1 random)</label>
+                                <input type="number" id="uie-img-comfy-seed" step="1" placeholder="-1" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            </div>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
+                            <div class="uie-control-group" style="margin:0;">
+                                <label style="font-size:0.78em;">Common prompt prefix</label>
+                                <input type="text" id="uie-img-comfy-common" placeholder="" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            </div>
+                            <div class="uie-control-group" style="margin:0;">
+                                <label style="font-size:0.78em;">Negative common prompt prefix</label>
+                                <input type="text" id="uie-img-comfy-common-neg" placeholder="" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                            </div>
+                        </div>
                     </div>
                     <div class="uie-control-group"><label style="font-size:0.8em;">Negative Prompt (optional)</label><input type="text" id="uie-img-negative" placeholder="blurry, low quality" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
                     <button id="uie-img-comfy-apply" style="margin-top:8px; width:100%; background:#333; border:1px solid #555; color:#fff; cursor:pointer;">Apply ComfyUI Easy Setup</button>

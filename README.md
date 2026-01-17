@@ -36,6 +36,8 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 ### Databank + Journal + Diary
 - Databank for world state/memories style tracking
 - World State includes a manual Scan/Refresh action
+- Databank entries are chat-scoped (each chat keeps its own archive/lore entries)
+- Databank supports both “Memory Files” and scanner-saved lore entries (key/entry) in the same list
 - Journal + diary tools for roleplay structure and record keeping (quest states include pending/active/completed/failed/abandoned)
 - Stickers are user-imported packs (no built-in default pack)
 - Diary supports copying/pasting images via clipboard (when supported by device/browser)
@@ -76,3 +78,7 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 - Map: use Map Actions → Generate (Instant)
 
 Built to sell immersion: fast to use, hard to break, and story-consistent by design.
+
+## Dev / Tests
+- Databank normalization regression tests:
+  - `node universal-immersion-engine/tests/databankModel.test.js`

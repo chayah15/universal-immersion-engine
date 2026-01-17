@@ -257,6 +257,15 @@ export async function generateImageAPI(prompt) {
 }
 
 async function generateComfyUI({ endpoint, workflowRaw, promptText, negativePrompt, checkpoint, positiveNodeId, negativeNodeId, outputNodeId }) {
+    try {
+        const s = getSettings();
+        const ez = s?.image?.comfy?.easy && typeof s.image.comfy.easy === "object" ? s.image.comfy.easy : null;
+        const common = String(ez?.common || "").trim();
+        const commonNeg = String(ez?.commonNeg || "").trim();
+        if (common) promptText = `${common}\n${String(promptText || "")}`.trim();
+        if (commonNeg) negativePrompt = `${commonNeg}\n${String(negativePrompt || "")}`.trim();
+    } catch (_) {}
+
     const normalizeBase = (u) => String(u || "").trim().replace(/\/+$/g, "").replace(/\/prompt$/i, "");
     const base = normalizeBase(endpoint);
     const promptUrl = `${base}/prompt`;
@@ -322,6 +331,17 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
     let graph = parseWorkflow();
     graph = deepReplace(graph);
     graph = injectTextNodes(graph);
+
+    try {
+        const randSeed = () => Math.floor(Math.random() * 1e9);
+        for (const n of Object.values(graph || {})) {
+            const ct = String(n?.class_type || "");
+            if (!/KSampler/i.test(ct)) continue;
+            if (!n.inputs || typeof n.inputs !== "object") n.inputs = {};
+            const sd = Number(n.inputs.seed);
+            if (!Number.isFinite(sd) || sd < 0) n.inputs.seed = randSeed();
+        }
+    } catch (_) {}
 
     const client_id = `uie_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}`;
     const fx = await fetchWithCorsProxyFallback(promptUrl, {

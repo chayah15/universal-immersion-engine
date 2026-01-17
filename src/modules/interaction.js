@@ -218,9 +218,7 @@ export function initInteractions() {
 
             const suggested = [
                 { id: "openai/gpt-4.1-nano", label: "OpenAI: gpt-4.1-nano" },
-                { id: "nvidia/llama-3.1-nemotron-70b-instruct", label: "NVIDIA: llama-3.1-nemotron-70b-instruct" },
-                { id: "stabilityai/stable-diffusion-3.5-large", label: "Stability AI: stable-diffusion-3.5-large" },
-                { id: "stabilityai/stable-diffusion-3.5-large-turbo", label: "Stability AI: stable-diffusion-3.5-large-turbo" }
+                { id: "nvidia/llama-3.1-nemotron-70b-instruct", label: "NVIDIA: llama-3.1-nemotron-70b-instruct" }
             ];
             const seen = new Set();
             const addOpt = (group, id, label) => {
@@ -578,6 +576,24 @@ export function initInteractions() {
             if (neg) neg.value = String(s2.image?.negativePrompt || "");
             const q = scope.querySelector("#uie-img-comfy-quality");
             if (q) q.value = String(s2.image?.comfy?.quality || "balanced");
+            try {
+                if (!s2.image.comfy) s2.image.comfy = {};
+                if (!s2.image.comfy.easy || typeof s2.image.comfy.easy !== "object") {
+                    s2.image.comfy.easy = { sampler: "euler_ancestral", scheduler: "normal", steps: 24, cfg: 7, width: 768, height: 768, denoise: 1, seed: -1, common: "", commonNeg: "" };
+                }
+                const ez = s2.image.comfy.easy;
+                const setV = (id, v) => { const el = scope.querySelector(id); if (el) el.value = String(v ?? ""); };
+                setV("#uie-img-comfy-sampler", ez.sampler ?? "euler_ancestral");
+                setV("#uie-img-comfy-scheduler", ez.scheduler ?? "normal");
+                setV("#uie-img-comfy-steps", ez.steps ?? 24);
+                setV("#uie-img-comfy-cfg", ez.cfg ?? 7);
+                setV("#uie-img-comfy-width", ez.width ?? 768);
+                setV("#uie-img-comfy-height", ez.height ?? 768);
+                setV("#uie-img-comfy-denoise", ez.denoise ?? 1);
+                setV("#uie-img-comfy-seed", ez.seed ?? -1);
+                setV("#uie-img-comfy-common", ez.common ?? "");
+                setV("#uie-img-comfy-common-neg", ez.commonNeg ?? "");
+            } catch (_) {}
             const sd = scope.querySelector("#uie-img-sdwebui-url");
             if (sd) sd.value = url || "http://127.0.0.1:7860/sdapi/v1/txt2img";
 
@@ -1092,6 +1108,27 @@ export function initInteractions() {
         });
 
     $(document)
+        .off("input.uieImgComfyEasy", "#uie-img-comfy-sampler, #uie-img-comfy-scheduler, #uie-img-comfy-steps, #uie-img-comfy-cfg, #uie-img-comfy-width, #uie-img-comfy-height, #uie-img-comfy-denoise, #uie-img-comfy-seed, #uie-img-comfy-common, #uie-img-comfy-common-neg")
+        .on("input.uieImgComfyEasy", "#uie-img-comfy-sampler, #uie-img-comfy-scheduler, #uie-img-comfy-steps, #uie-img-comfy-cfg, #uie-img-comfy-width, #uie-img-comfy-height, #uie-img-comfy-denoise, #uie-img-comfy-seed, #uie-img-comfy-common, #uie-img-comfy-common-neg", function () {
+            const s2 = getSettings();
+            if (!s2.image || typeof s2.image !== "object") s2.image = {};
+            if (!s2.image.comfy || typeof s2.image.comfy !== "object") s2.image.comfy = {};
+            if (!s2.image.comfy.easy || typeof s2.image.comfy.easy !== "object") s2.image.comfy.easy = {};
+            const ez = s2.image.comfy.easy;
+            ez.sampler = String($("#uie-img-comfy-sampler").val() || ez.sampler || "euler_ancestral").trim();
+            ez.scheduler = String($("#uie-img-comfy-scheduler").val() || ez.scheduler || "normal").trim();
+            ez.steps = Math.max(1, Math.round(Number($("#uie-img-comfy-steps").val() || ez.steps || 24)));
+            ez.cfg = Math.max(0, Number($("#uie-img-comfy-cfg").val() || ez.cfg || 7));
+            ez.width = Math.max(64, Math.round(Number($("#uie-img-comfy-width").val() || ez.width || 768)));
+            ez.height = Math.max(64, Math.round(Number($("#uie-img-comfy-height").val() || ez.height || 768)));
+            ez.denoise = Math.max(0, Math.min(1, Number($("#uie-img-comfy-denoise").val() || ez.denoise || 1)));
+            ez.seed = Math.round(Number($("#uie-img-comfy-seed").val() ?? ez.seed ?? -1));
+            ez.common = String($("#uie-img-comfy-common").val() || ez.common || "");
+            ez.commonNeg = String($("#uie-img-comfy-common-neg").val() || ez.commonNeg || "");
+            saveSettings();
+        });
+
+    $(document)
         .off("change.uieImgComfyCkpt", "#uie-img-comfy-ckpt")
         .on("change.uieImgComfyCkpt", "#uie-img-comfy-ckpt", function () {
             const v = String($(this).val() || "").trim();
@@ -1161,13 +1198,23 @@ export function initInteractions() {
                 return;
             }
             const q = String($("#uie-img-comfy-quality").val() || "balanced");
+            if (!s2.image.comfy.easy || typeof s2.image.comfy.easy !== "object") s2.image.comfy.easy = {};
+            const ez = s2.image.comfy.easy;
             const sizes = q === "fast" ? { w: 512, h: 512, steps: 16 } : q === "hq" ? { w: 1024, h: 1024, steps: 32 } : { w: 768, h: 768, steps: 24 };
+            const w = Number($("#uie-img-comfy-width").val() || ez.width || sizes.w);
+            const h = Number($("#uie-img-comfy-height").val() || ez.height || sizes.h);
+            const steps = Number($("#uie-img-comfy-steps").val() || ez.steps || sizes.steps);
+            const cfg = Number($("#uie-img-comfy-cfg").val() || ez.cfg || 7);
+            const sampler = String($("#uie-img-comfy-sampler").val() || ez.sampler || "euler").trim() || "euler";
+            const scheduler = String($("#uie-img-comfy-scheduler").val() || ez.scheduler || "normal").trim() || "normal";
+            const denoise = Number($("#uie-img-comfy-denoise").val() || ez.denoise || 1);
+            const seed = Number($("#uie-img-comfy-seed").val() ?? ez.seed ?? -1);
             const wf = {
                 "3": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "{{checkpoint}}" } },
                 "4": { class_type: "CLIPTextEncode", inputs: { text: "{{prompt}}", clip: ["3", 1] } },
                 "5": { class_type: "CLIPTextEncode", inputs: { text: "{{negative_prompt}}", clip: ["3", 1] } },
-                "6": { class_type: "EmptyLatentImage", inputs: { width: sizes.w, height: sizes.h, batch_size: 1 } },
-                "7": { class_type: "KSampler", inputs: { seed: 0, steps: sizes.steps, cfg: 7, sampler_name: "euler", scheduler: "normal", denoise: 1, model: ["3", 0], positive: ["4", 0], negative: ["5", 0], latent_image: ["6", 0] } },
+                "6": { class_type: "EmptyLatentImage", inputs: { width: Math.max(64, Math.round(w)), height: Math.max(64, Math.round(h)), batch_size: 1 } },
+                "7": { class_type: "KSampler", inputs: { seed: Number.isFinite(seed) ? Math.round(seed) : -1, steps: Math.max(1, Math.round(steps)), cfg: Math.max(0, Number(cfg) || 7), sampler_name: sampler, scheduler: scheduler, denoise: Math.max(0, Math.min(1, Number(denoise) || 1)), model: ["3", 0], positive: ["4", 0], negative: ["5", 0], latent_image: ["6", 0] } },
                 "8": { class_type: "VAEDecode", inputs: { samples: ["7", 0], vae: ["3", 2] } },
                 "9": { class_type: "SaveImage", inputs: { filename_prefix: "uie", images: ["8", 0] } }
             };
@@ -1277,6 +1324,11 @@ export function initInteractions() {
             const sel = String($("#uie-profile-select").val() || "");
             const profs = Array.isArray(s2.connections.profiles) ? s2.connections.profiles : [];
             const find = (id) => profs.find(p => String(p?.id || "") === id);
+            const refreshAll = () => {
+                try { refreshSettingsDrawer(); } catch (_) {}
+                try { refreshProfileSelect(document.getElementById("uie-settings-window"), getSettings()); } catch (_) {}
+                try { refreshProfileSelect(document.getElementById("uie-settings-block"), getSettings()); } catch (_) {}
+            };
 
             if (this.id === "uie-profile-apply") {
                 if (sel.startsWith("st:")) {
@@ -1307,8 +1359,7 @@ export function initInteractions() {
                     s2.turbo.enabled = true;
                     s2.connections.activeProfileId = sel;
                     saveSettings();
-                    refreshSettingsDrawer();
-                    try { refreshProfileSelect(document.getElementById("uie-settings-window"), s2); } catch (_) {}
+                    refreshAll();
                     try { window.toastr?.success?.("SillyTavern profile applied to Turbo."); } catch (_) {}
                     return;
                 }
@@ -1337,8 +1388,7 @@ export function initInteractions() {
                 }
                 s2.connections.activeProfileId = sel;
                 saveSettings();
-                refreshSettingsDrawer();
-                try { refreshProfileSelect(document.getElementById("uie-settings-window"), s2); } catch (_) {}
+                refreshAll();
                 try { window.toastr?.success?.("Profile applied."); } catch (_) {}
                 return;
             }
@@ -1356,27 +1406,39 @@ export function initInteractions() {
                 s2.connections.profiles = profs.filter(p => String(p?.id || "") !== sel);
                 if (s2.connections.activeProfileId === sel) s2.connections.activeProfileId = "";
                 saveSettings();
-                refreshSettingsDrawer();
-                try { refreshProfileSelect(document.getElementById("uie-settings-window"), s2); } catch (_) {}
+                refreshAll();
                 try { window.toastr?.info?.("Profile deleted."); } catch (_) {}
                 return;
             }
 
             if (this.id === "uie-profile-save") {
                 const cur = sel.startsWith("st:") ? null : find(sel);
-                const wantName = prompt("Profile name:", cur ? String(cur.name || "") : "");
-                if (wantName === null) return;
-                const nm = String(wantName || "").trim();
-                if (!nm) return;
+                const autoName = (() => {
+                    try {
+                        const url = String(s2?.turbo?.url || "").trim();
+                        const model = String(s2?.turbo?.model || "").trim();
+                        const host = url ? (new URL(url).hostname || "").replace(/^www\./, "") : "";
+                        const h = host ? host : "profile";
+                        const m = model ? ` ${model}` : "";
+                        return `${h}${m}`.slice(0, 60);
+                    } catch (_) {
+                        return `profile_${new Date().toLocaleString()}`.slice(0, 60);
+                    }
+                })();
+                const wantName = prompt("Profile name:", cur ? String(cur.name || "") : autoName);
+                const nm = String((wantName === null ? autoName : wantName) || "").trim();
+                if (!nm) {
+                    try { window.toastr?.info?.("Profile name was empty; using an auto name."); } catch (_) {}
+                }
+                const finalName = (nm || autoName).trim().slice(0, 60);
                 const id = (!sel || sel.startsWith("st:")) ? `p_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}` : sel;
-                const packed = packProfile(s2, id, nm);
+                const packed = packProfile(s2, id, finalName);
                 const next = profs.filter(p => String(p?.id || "") !== id);
                 next.unshift(packed);
                 s2.connections.profiles = next.slice(0, 40);
                 s2.connections.activeProfileId = id;
                 saveSettings();
-                refreshSettingsDrawer();
-                try { refreshProfileSelect(document.getElementById("uie-settings-window"), s2); } catch (_) {}
+                refreshAll();
                 try { window.toastr?.success?.("Profile saved."); } catch (_) {}
             }
         });
@@ -2119,7 +2181,32 @@ export function initInteractions() {
         }
         openWindow("#uie-world-window", "./world.js", "initWorld");
     });
-    $(document).on("click.uie", "#uie-btn-databank", (e) => { e.stopPropagation(); openWindow("#uie-databank-window", "./databank.js", "initDatabank"); });
+    $(document).on("click.uie", "#uie-btn-databank", async (e) => {
+        e.stopPropagation();
+        if ($("#uie-databank-window").length === 0) {
+            let root = "";
+            try { root = String(window.UIE_BASEPATH || "scripts/extensions/third-party/universal-immersion-engine"); } catch (_) { root = "scripts/extensions/third-party/universal-immersion-engine"; }
+            root = root.replace(/^\/+|\/+$/g, "");
+            const urls = [
+                `${baseUrl}src/templates/databank.html`,
+                `/${root}/src/templates/databank.html`,
+                `/scripts/extensions/third-party/universal-immersion-engine/src/templates/databank.html`
+            ];
+            let html = "";
+            for (const url of urls) {
+                try {
+                    html = await fetchTemplateHtml(url);
+                    if (html) break;
+                } catch (_) {}
+            }
+            if (!html) {
+                notify("error", "Databank UI failed to load.", "UIE", "api");
+                return;
+            }
+            $("body").append(html);
+        }
+        openWindow("#uie-databank-window", "./databank.js", "initDatabank");
+    });
     $(document).on("click.uie", "#uie-btn-debug", async (e) => {
         e.stopPropagation();
         if ($("#uie-debug-window").length === 0) {

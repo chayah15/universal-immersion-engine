@@ -1,8 +1,9 @@
-import { getSettings, saveSettings } from "./core.js";
+import { getSettings, saveSettings, ensureChatStateLoaded } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getWorldState, scanEverything } from "./stateTracker.js";
 import { getContext } from "../../../../../extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
+import { parseJsonLoose, normalizeDatabankArrayInPlace, toDatabankDisplayEntries } from "./databankModel.js";
 
 function esc(s) {
     return String(s ?? "")
@@ -15,6 +16,45 @@ function esc(s) {
 
 function newId(prefix) {
     return `${String(prefix || "id")}_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}`;
+}
+
+function getChatSnippet(max) {
+    try {
+        let raw = "";
+        const $txt = $(".chat-msg-txt");
+        if ($txt.length) {
+            $txt.slice(-1 * Math.max(1, Number(max || 50))).each(function () { raw += $(this).text() + "\n"; });
+            return raw.trim().slice(0, 6000);
+        }
+        const chatEl = document.getElementById("chat");
+        if (!chatEl) return "";
+        const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-1 * Math.max(1, Number(max || 50)));
+        for (const m of msgs) {
+            const isUser =
+                m.classList?.contains("is_user") ||
+                m.getAttribute?.("is_user") === "true" ||
+                m.getAttribute?.("data-is-user") === "true" ||
+                m.dataset?.isUser === "true";
+            const t =
+                m.querySelector?.(".mes_text")?.textContent ||
+                m.querySelector?.(".mes-text")?.textContent ||
+                m.textContent ||
+                "";
+            const line = `${isUser ? "You" : "Story"}: ${String(t || "").trim()}`;
+            if (!line.trim()) continue;
+            raw += line.slice(0, 520) + "\n";
+        }
+        return raw.trim().slice(0, 6000);
+    } catch (_) {
+        return "";
+    }
+}
+
+function ensureDatabank(s) {
+    if (!s.databank) s.databank = [];
+    if (!Array.isArray(s.databank)) s.databank = [];
+    const changed = normalizeDatabankArrayInPlace(s.databank, { now: Date.now(), makeId: () => newId("db") });
+    if (changed) saveSettings();
 }
 
 function ensureSocial(s) {
@@ -30,9 +70,15 @@ function ensureSocial(s) {
 }
 
 let dbSocialActivePersonId = "";
+let dbRenderLimit = 60;
+let dbLastListSig = "";
 
 export function initDatabank() {
     const doc = $(document);
+    if (!$("#uie-databank-window").length) {
+        setTimeout(() => { try { initDatabank(); } catch (_) {} }, 120);
+        return;
+    }
     render();
 
     // Tab Switching
@@ -66,8 +112,7 @@ export function initDatabank() {
         const btn = $(this);
         btn.addClass("fa-spin");
         
-        let rawLog = "";
-        $(".chat-msg-txt").slice(-50).each(function() { rawLog += $(this).text() + "\n"; });
+        const rawLog = getChatSnippet(60);
         
         if(rawLog.length < 50) { alert("Not enough chat data to archive."); btn.removeClass("fa-spin"); return; }
 
@@ -75,15 +120,17 @@ export function initDatabank() {
 
         try {
             const res = await generateContent(prompt, "System Check");
-            const data = JSON.parse(res.replace(/```json|```/g, "").trim());
+            const data = parseJsonLoose(res);
+            if (!data || typeof data !== "object") throw new Error("Bad JSON response");
             const s = getSettings();
-            if(!s.databank) s.databank = [];
+            ensureDatabank(s);
             
-            s.databank.push({ id: Date.now(), title: data.title, summary: data.summary, date: new Date().toLocaleDateString() });
+            const now = Date.now();
+            s.databank.push({ id: newId("db"), created: now, date: new Date(now).toLocaleDateString(), title: String(data.title || "Memory").trim().slice(0, 80), summary: String(data.summary || "").trim() });
             saveSettings();
             render();
             if(window.toastr) toastr.success("Memory Archived");
-        } catch(e) { console.error(e); }
+        } catch(e) { try { window.toastr?.error?.("Archive failed (check console)."); } catch (_) {} console.error(e); }
         btn.removeClass("fa-spin");
     });
 
@@ -98,11 +145,18 @@ export function initDatabank() {
     // Delete Memory
     doc.off("click", ".db-delete").on("click", ".db-delete", function() {
         if(confirm("Delete this memory?")) {
-            const id = $(this).data("id");
+            const id = String($(this).data("id") || "");
             const s = getSettings();
-            s.databank = s.databank.filter(m => m.id !== id);
+            s.databank = (s.databank || []).filter(m => String(m?.id || "") !== id);
             saveSettings(); render();
         }
+    });
+
+    doc.off("click.uieDbLoadMore").on("click.uieDbLoadMore", "#uie-db-load-more", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dbRenderLimit = Math.min(600, dbRenderLimit + 60);
+        render();
     });
 
     doc.off("input.uieDbSocialSearch").on("input.uieDbSocialSearch", "#uie-db-social-search", function () {
@@ -349,21 +403,66 @@ Rules:
 }
 
 function render() {
+    try { ensureChatStateLoaded(); } catch (_) {}
     const s = getSettings();
-    const list = $("#uie-db-list").empty();
-    const data = s.databank || [];
+    ensureDatabank(s);
+    const list = $("#uie-db-list");
+    if (!list.length) {
+        setTimeout(() => { try { render(); } catch (_) {} }, 160);
+        return;
+    }
+    const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    const entries = toDatabankDisplayEntries(s.databank || []);
+    const meta = $("#uie-db-meta");
+    const sig = `${entries.length}|${dbRenderLimit}|${entries[0]?.id || ""}`;
+    if (sig === dbLastListSig && list.children().length) {
+        try {
+            const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+            window.UIE_lastDatabankRenderMs = Math.max(0, (t1 - t0));
+        } catch (_) {}
+        return;
+    }
+    dbLastListSig = sig;
+    list.empty();
 
-    if(data.length === 0) list.html('<div style="text-align:center; color:#00f0ff; opacity:0.5; margin-top:50px;">NO ARCHIVES FOUND</div>');
+    if (meta.length) {
+        meta.text(`${entries.length} ${entries.length === 1 ? "entry" : "entries"} saved for this chat`);
+    }
 
-    data.slice().reverse().forEach(m => {
-        list.append(`
-            <div style="background:rgba(0, 240, 255, 0.05); border:1px solid rgba(0,240,255,0.3); border-radius:4px; padding:12px; position:relative; margin-bottom:10px;">
-                <div style="font-weight:bold; color:#00f0ff; font-size:14px; margin-bottom:6px; letter-spacing:1px; text-transform:uppercase;">${esc(m.title)} <span style="float:right; color:rgba(0,240,255,0.5); font-size:10px;">${esc(m.date)}</span></div>
-                <div style="font-size:12px; color:rgba(255,255,255,0.8); line-height:1.4;">${esc(m.summary)}</div>
-                <i class="fa-solid fa-trash db-delete" data-id="${m.id}" style="position:absolute; bottom:8px; right:8px; color:#ff3b30; cursor:pointer; font-size:12px; opacity:0.7;"></i>
+    if (entries.length === 0) {
+        list.html('<div style="text-align:center; color:#00f0ff; opacity:0.55; margin-top:50px;">NO MEMORIES FOUND IN THIS CHAT</div>');
+        return;
+    }
+
+    const shown = entries.slice(-1 * Math.max(1, Math.min(dbRenderLimit, entries.length))).reverse();
+    const html = [];
+    for (const m of shown) {
+        const title = String(m?.title || "Entry").trim() || "Entry";
+        const body = String(m?.body || "").trim();
+        const date = String(m?.date || "").trim();
+        const tag = m?.type === "lore" ? "LORE" : "MEMORY";
+        html.push(`
+            <div style="background:rgba(0, 240, 255, 0.05); border:1px solid rgba(0,240,255,0.3); border-radius:6px; padding:12px; position:relative; margin-bottom:10px;">
+                <div style="display:flex; align-items:flex-start; gap:8px;">
+                    <div style="flex:1; min-width:0; font-weight:bold; color:#00f0ff; font-size:14px; margin-bottom:6px; letter-spacing:1px; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(title)}</div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-left:auto; flex:0 0 auto;">
+                        <span style="font-size:10px; color:rgba(0,240,255,0.75); border:1px solid rgba(0,240,255,0.25); padding:2px 6px; border-radius:999px; letter-spacing:1px;">${esc(tag)}</span>
+                        <span style="color:rgba(0,240,255,0.5); font-size:10px; white-space:nowrap;">${esc(date)}</span>
+                    </div>
+                </div>
+                <div style="font-size:12px; color:rgba(255,255,255,0.88); line-height:1.45; white-space:pre-wrap; word-break:break-word;">${esc(body || "(empty)")}</div>
+                <i class="fa-solid fa-trash db-delete" data-id="${esc(String(m.id || ""))}" style="position:absolute; bottom:10px; right:10px; color:#ff3b30; cursor:pointer; font-size:12px; opacity:0.7;"></i>
             </div>
         `);
-    });
+    }
+    if (entries.length > shown.length) {
+        html.push(`<button id="uie-db-load-more" style="width:100%; margin:10px 0 2px; background:rgba(0,240,255,0.10); border:1px solid rgba(0,240,255,0.35); color:#00f0ff; padding:10px 12px; cursor:pointer; font-weight:900; font-size:12px; border-radius:10px;">LOAD MORE</button>`);
+    }
+    list.html(html.join(""));
+    try {
+        const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        window.UIE_lastDatabankRenderMs = Math.max(0, (t1 - t0));
+    } catch (_) {}
 }
 
 function renderState() {
@@ -410,7 +509,14 @@ function renderState() {
 
 // Export for other modules to read history
 export function getFullHistoryContext() {
+    try { ensureChatStateLoaded(); } catch (_) {}
     const s = getSettings();
     if(!s.databank || s.databank.length === 0) return "";
-    return "PAST EVENTS:\n" + s.databank.map(m => `- ${m.summary}`).join("\n");
+    ensureDatabank(s);
+    const lines = (s.databank || [])
+        .map(m => String(m?.summary || m?.content || m?.entry || "").trim())
+        .filter(Boolean)
+        .slice(-80);
+    if (!lines.length) return "";
+    return "PAST EVENTS:\n" + lines.map(x => `- ${x}`).join("\n");
 }
