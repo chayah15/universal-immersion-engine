@@ -42,21 +42,10 @@
             <div style="flex:1; min-width:0;">
                 <div id="cal-title" style="font-weight:900; letter-spacing:0.5px; color:#fff;"></div>
                 <div style="opacity:0.7; font-size:12px; color:#ddd;">Click a day to view/add events.</div>
-                <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                    <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:#ddd; font-weight:900;">
-                        <input id="cal-use-rp-date" type="checkbox">
-                        Use RP date
-                    </label>
-                    <input id="cal-rp-date" type="text" placeholder="YYYY-MM-DD (e.g., 2230-01-01)" style="flex:1; min-width:220px; height:34px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 10px;">
-                    <button id="cal-rp-set" title="Set RP date" style="height:34px; padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;">Set</button>
-                    <button id="cal-rp-prev-day" title="Back 1 day" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">-1</button>
-                    <button id="cal-rp-next-day" title="Forward 1 day" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">+1</button>
-                    <button id="cal-rp-next-week" title="Forward 7 days" style="height:34px; padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">+7</button>
-                    <button id="cal-rp-today" title="Use real today" style="height:34px; padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">Now</button>
-                </div>
             </div>
             <button id="cal-sparkle" title="Generate" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
             <button id="cal-refresh" title="Scan chat log" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-rotate-right"></i></button>
+            <button id="cal-rp-open" title="RP Date" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-calendar-day"></i></button>
             <button id="cal-import" title="Import Calendar" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-file-import"></i></button>
             <button id="cal-export" title="Export Calendar" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-file-export"></i></button>
             <button id="cal-next" style="height:34px; width:40px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;"><i class="fa-solid fa-chevron-right"></i></button>
@@ -82,5 +71,29 @@
             <button id="cal-add" style="height:40px; padding:0 14px; border-radius:14px; border:none; background:#2ecc71; color:#000; font-weight:900;">Add</button>
         </div>
         <textarea id="cal-new-notes" placeholder="Notes (optional)..." style="margin-top:8px; width:100%; height:90px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:10px 12px; resize:vertical;"></textarea>
+    </div>
+</div>
+
+<div id="cal-rp-modal" style="display:none; position:fixed; inset:0; z-index:2147483651; background:rgba(0,0,0,0.75);">
+    <div id="cal-rp-card" style="position:absolute; width:min(520px, 92vw); max-height:70vh; overflow:auto; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,10,8,0.96); padding:12px; color:#fff;">
+        <div style="display:flex; gap:10px; align-items:center;">
+            <div style="font-weight:900;">RP DATE</div>
+            <button id="cal-rp-modal-close" style="margin-left:auto; height:34px; padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">Close</button>
+        </div>
+        <div style="margin-top:10px; display:flex; flex-direction:column; gap:10px;">
+            <label style="display:flex; gap:10px; align-items:center; font-size:12px; color:#ddd; font-weight:900;">
+                <input id="cal-use-rp-date" type="checkbox">
+                Use RP date (override real date)
+            </label>
+            <input id="cal-rp-date" type="text" placeholder="YYYY-MM-DD (example: 2230-01-01)" style="height:40px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 12px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button id="cal-rp-set" style="height:40px; padding:0 14px; border-radius:14px; border:none; background:#2ecc71; color:#000; font-weight:900;">Set</button>
+                <button id="cal-rp-prev-day" style="height:40px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">-1</button>
+                <button id="cal-rp-next-day" style="height:40px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">+1</button>
+                <button id="cal-rp-next-week" style="height:40px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">+7</button>
+                <button id="cal-rp-today" style="height:40px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">Now</button>
+            </div>
+            <div style="opacity:0.75; font-size:12px;">When enabled, the calendar highlights and AI date reasoning use the RP date instead of real time.</div>
+        </div>
     </div>
 </div>

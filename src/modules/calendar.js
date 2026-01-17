@@ -307,6 +307,33 @@ function openCalModal(dateKey, anchorEl) {
   });
 }
 
+function openRpModal() {
+  const $m = $("#cal-rp-modal");
+  const win = document.getElementById("uie-calendar-window");
+  const card = document.getElementById("cal-rp-card");
+  if (!$m.length || !win || !card) return;
+  $m.css("display", "block");
+
+  const winRect = win.getBoundingClientRect();
+  card.style.visibility = "hidden";
+  card.style.left = `${Math.round(winRect.left + 10)}px`;
+  card.style.top = `${Math.round(winRect.top + 10)}px`;
+
+  requestAnimationFrame(() => {
+    const cardRect = card.getBoundingClientRect();
+    const pad = 12;
+    let left = Math.round(winRect.left + (winRect.width - cardRect.width) / 2);
+    let top = Math.round(winRect.top + (winRect.height - cardRect.height) / 2);
+    const maxLeft = Math.max(pad, Math.floor(winRect.width - cardRect.width - pad));
+    const maxTop = Math.max(pad, Math.floor(winRect.height - cardRect.height - pad));
+    left = Math.max(Math.round(winRect.left + pad), Math.min(left, Math.round(winRect.left + maxLeft)));
+    top = Math.max(Math.round(winRect.top + pad), Math.min(top, Math.round(winRect.top + maxTop)));
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+    card.style.visibility = "visible";
+  });
+}
+
 export function renderCalendar() {
   try { ensureChatStateLoaded(); } catch (_) {}
   const s = getSettings();
@@ -382,6 +409,21 @@ export function initCalendar() {
     s.calendar.cursor = monthKey(new Date(cur.getFullYear(), cur.getMonth() + 1, 1));
     saveSettings();
     renderCalendar();
+  });
+
+  $(document).on("click.uieCal", "#cal-rp-open", function (e) {
+    e.preventDefault(); e.stopPropagation();
+    openRpModal();
+  });
+
+  $(document).on("click.uieCal", "#cal-rp-modal-close", function (e) {
+    e.preventDefault(); e.stopPropagation();
+    $("#cal-rp-modal").hide();
+  });
+
+  $(document).on("click.uieCal", "#cal-rp-modal", function (e) {
+    if ($(e.target).closest("#cal-rp-card").length) return;
+    $("#cal-rp-modal").hide();
   });
 
   $(document).on("change.uieCal", "#cal-use-rp-date", function (e) {

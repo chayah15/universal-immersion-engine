@@ -992,6 +992,7 @@ export async function generateContent(prompt, type) {
     const rawBase = String(prompt || "").trim();
     const lockedPrompt = /^\[UIE_LOCKED\]/i.test(rawBase);
     const base = rawBase.replace(/^\[UIE_LOCKED\]\s*/i, "").trim();
+    const wantsJson = (type === "System Check" || type === "Unified State Scan");
     const prefixes = (() => {
         try {
             const typeKey = String(type || "").trim();
@@ -1035,9 +1036,29 @@ export async function generateContent(prompt, type) {
 
     notify("info", useTurbo ? `⚡ ${displayType}` : `📝 ${displayType}`, undefined, "api");
 
+    const normalizeJsonOut = (txt) => {
+        const t0 = String(txt || "").trim().replace(/```json|```/g, "").trim();
+        if (!t0) return null;
+        try {
+            const obj = JSON.parse(t0);
+            return JSON.stringify(obj);
+        } catch (_) {}
+        const first = t0.indexOf("{");
+        const last = t0.lastIndexOf("}");
+        if (first >= 0 && last > first) {
+            const sub = t0.slice(first, last + 1).trim();
+            try {
+                const obj = JSON.parse(sub);
+                return JSON.stringify(obj);
+            } catch (_) {}
+        }
+        return null;
+    };
+
     let out = null;
     if (useTurbo) {
-        const ctxBlock = (() => {
+        const allowCtx = !lockedPrompt && !wantsJson && type !== "Shop";
+        const ctxBlock = allowCtx ? (() => {
             try {
                 const chatEl = document.querySelector("#chat");
                 if (!chatEl) return "";
@@ -1063,7 +1084,7 @@ export async function generateContent(prompt, type) {
             } catch (_) {
                 return "";
             }
-        })();
+        })() : "";
         const turboPrompt = ctxBlock ? `${ctxBlock}\n\n${finalPrompt}` : finalPrompt;
         out = await generateTurbo(turboPrompt, system);
     }
@@ -1078,6 +1099,19 @@ export async function generateContent(prompt, type) {
         } catch (e) { return null; }
     }
     if (!out) return null;
+    if (wantsJson) {
+        const fixed = normalizeJsonOut(out);
+        if (fixed) out = fixed;
+        else {
+            const correction = `${finalPrompt}\n\n[CORRECTION]\nYour previous output was invalid. Output ONLY a single valid JSON object. No markdown, no extra text.`;
+            try {
+                if (useTurbo) out = await generateTurbo(correction, system);
+                else out = await generateRaw({ prompt: `${system}\n\n${correction}`, quietToLoud: false, skip_w_info: true });
+            } catch (_) {}
+            const fixed2 = normalizeJsonOut(out);
+            if (fixed2) out = fixed2;
+        }
+    }
     try {
         const vr = validateResponse ? validateResponse(out) : null;
         const issues = Array.isArray(vr?.issues) ? vr.issues : [];
