@@ -944,25 +944,37 @@ export async function generateContent(prompt, type) {
 
     if (type === "Logic" || type === "JSON") type = "System Check";
 
-    const sysGate = (() => {
-        if (type !== "System Check") return { ok: true, release: () => {} };
+    const sysGate = await (async () => {
+        if (type !== "System Check") return { release: () => {} };
+        const sleep = (ms) => new Promise(r => setTimeout(r, Math.max(0, ms | 0)));
         try {
-            const g = (window.UIE_systemCheckGate = window.UIE_systemCheckGate || { inFlight: false, lastAt: 0, blocked: 0, lastBlockedAt: 0 });
-            const now = Date.now();
+            const g = (window.UIE_systemCheckGate = window.UIE_systemCheckGate || { inFlight: false, lastAt: 0, blocked: 0, lastBlockedAt: 0, lastWaitToastAt: 0 });
+            const started = Date.now();
+            const maxWaitMs = 45000;
             const min = Math.max(0, Number(s?.generation?.systemCheckMinIntervalMs ?? 20000));
-            if (g.inFlight || (min > 0 && now - Number(g.lastAt || 0) < min)) {
+            while (true) {
+                const now = Date.now();
+                const since = now - Number(g.lastAt || 0);
+                const waitForMin = min > 0 ? Math.max(0, min - since) : 0;
+                const blocked = g.inFlight || waitForMin > 0;
+                if (!blocked) {
+                    g.inFlight = true;
+                    g.lastAt = now;
+                    return { release: () => { try { g.inFlight = false; } catch (_) {} } };
+                }
                 g.blocked = Number(g.blocked || 0) + 1;
                 g.lastBlockedAt = now;
-                return { ok: false, release: () => {} };
+                if (now - Number(g.lastWaitToastAt || 0) > 2500) {
+                    g.lastWaitToastAt = now;
+                    try { notify("info", "System scan is busy — waiting…", "UIE", "api"); } catch (_) {}
+                }
+                if (now - started > maxWaitMs) return { release: () => {} };
+                await sleep(Math.min(600, Math.max(140, waitForMin || 220)));
             }
-            g.inFlight = true;
-            g.lastAt = now;
-            return { ok: true, release: () => { try { g.inFlight = false; } catch (_) {} } };
         } catch (_) {
-            return { ok: true, release: () => {} };
+            return { release: () => {} };
         }
     })();
-    if (!sysGate.ok) return null;
 
     try {
     const displayType = type === "System Check" ? "System Check" : (type === "Shop" ? "Gathering list!" : type);

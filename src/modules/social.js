@@ -108,16 +108,18 @@ function findAvatarForNameFromChat(name) {
 }
 
 function normalizeSocial(s) {
-    if(!s.social) s.social = { friends: [], romance: [], family: [], rivals: [] };
-    ["friends","romance","family","rivals"].forEach(k => { if(!Array.isArray(s.social[k])) s.social[k] = []; });
+    if(!s.social) s.social = { friends: [], associates: [], romance: [], family: [], rivals: [] };
+    ["friends","associates","romance","family","rivals"].forEach(k => { if(!Array.isArray(s.social[k])) s.social[k] = []; });
     if (!s.socialMeta || typeof s.socialMeta !== "object") s.socialMeta = { autoScan: false, deletedNames: [] };
     if (!Array.isArray(s.socialMeta.deletedNames)) s.socialMeta.deletedNames = [];
-    ["friends","romance","family","rivals"].forEach(k => {
+    ["friends","associates","romance","family","rivals"].forEach(k => {
         (s.social[k] || []).forEach(p => {
             if (!p || typeof p !== "object") return;
             if (!p.id) p.id = newId("person");
             if (p.familyRole === undefined) p.familyRole = "";
             if (p.relationshipStatus === undefined) p.relationshipStatus = "";
+            if (p.met_physically === undefined) p.met_physically = false;
+            if (p.known_from_past === undefined) p.known_from_past = false;
             if (!Array.isArray(p.memories)) p.memories = [];
         });
     });
@@ -146,6 +148,7 @@ function normalizeSocial(s) {
 
     const before = { f: s.social.friends.length, r: s.social.romance.length, fa: s.social.family.length, rv: s.social.rivals.length };
     s.social.friends = moveToRivals(s.social.friends);
+    s.social.associates = moveToRivals(s.social.associates);
     s.social.romance = moveToRivals(s.social.romance);
     s.social.family = moveToRivals(s.social.family);
     const after = { f: s.social.friends.length, r: s.social.romance.length, fa: s.social.family.length, rv: s.social.rivals.length };
@@ -415,10 +418,12 @@ export function renderSocial() {
                 ? `<img src="${esc(avatar)}" style="width:100%; height:100%; object-fit:cover;">`
                 : `<i class="fa-solid fa-user"></i>`;
 
+            const tag = (person?.met_physically === true) ? "" : (person?.known_from_past === true ? "PAST" : "MENTION");
+            const tagHtml = tag ? `<span style="margin-left:8px; font-size:10px; opacity:0.75; border:1px solid rgba(255,255,255,0.18); padding:2px 6px; border-radius:999px;">${tag}</span>` : "";
             const card = $(`
                 <div class="uie-social-card ${isSel ? 'delete-selected' : ''}" data-idx="${index}">
                     <div class="uie-s-avatar">${avatarHtml}</div>
-                    <div class="uie-s-name">${person.name}</div>
+                    <div class="uie-s-name">${esc(person.name)}${tagHtml}</div>
                 </div>
             `);
             grid.append(card);
@@ -467,6 +472,10 @@ function openProfile(index, anchorEl) {
         return "Devoted";
     })();
     $("#p-val-rel-status").text(`${person.relationshipStatus || "—"} (${disp}, ${affNum}/100)`);
+    try {
+        const pres = person.met_physically === true ? "Present / met in scene" : (person.known_from_past === true ? "Known from the past (not present)" : "Mentioned only");
+        $("#p-val-presence").text(pres);
+    } catch (_) {}
     $("#p-val-likes").text(person.likes || "-");
     $("#p-val-dislikes").text(person.dislikes || "-");
 
@@ -524,6 +533,8 @@ function openAddModal({ mode, index }) {
     $("#uie-add-thoughts").val(p.thoughts || "");
     $("#uie-add-likes").val(p.likes || "");
     $("#uie-add-dislikes").val(p.dislikes || "");
+    try { $("#uie-add-known-past").prop("checked", p.known_from_past === true); } catch (_) {}
+    try { $("#uie-add-met-phys").prop("checked", p.met_physically === true); } catch (_) {}
 
     if (tempImgBase64) {
         $("#uie-add-preview").attr("src", tempImgBase64).show();
@@ -567,8 +578,11 @@ function applyAddOrEdit() {
         likes: String($("#uie-add-likes").val() || "").trim(),
         dislikes: String($("#uie-add-dislikes").val() || "").trim(),
         avatar: tempImgBase64 || "",
-        tab
+        tab,
+        known_from_past: $("#uie-add-known-past").prop("checked") === true,
+        met_physically: $("#uie-add-met-phys").prop("checked") === true
     };
+    if (person.met_physically) person.known_from_past = false;
 
     if (editingIndex !== null && s.social[currentTab] && s.social[currentTab][editingIndex]) {
         const prev = s.social[currentTab][editingIndex];
@@ -701,10 +715,15 @@ async function promptOrganizationForNewContacts(names) {
     const max = 8;
     const subset = list.slice(0, max);
     for (const nm of subset) {
-        const tab = prompt(`Organize contact: ${nm}\nTab? (friends/romance/family/rivals)\nBlank = keep default (friends)`, "") ?? "";
+        const tab = prompt(`Organize contact: ${nm}\nTab? (friends/associates/romance/family/rivals)\nBlank = keep default (friends)`, "") ?? "";
         if (tab === null) break;
         const t = String(tab || "").trim().toLowerCase();
-        const wantTab = (t === "romance" || t === "relationships") ? "romance" : (t === "family") ? "family" : (t === "rivals" || t === "rival") ? "rivals" : (t === "friends" ? "friends" : "");
+        const wantTab =
+            (t === "romance" || t === "relationships") ? "romance" :
+            (t === "family") ? "family" :
+            (t === "rivals" || t === "rival") ? "rivals" :
+            (t === "associates" || t === "associate" || t === "acquaintance" || t === "acquaintances") ? "associates" :
+            (t === "friends" ? "friends" : "");
         const rel = prompt(`Relationship status for ${nm}? (optional)`, "") ?? "";
         const affRaw = prompt(`Initial affinity for ${nm}? (0-100)`, "50");
         if (affRaw === null) break;
@@ -713,7 +732,7 @@ async function promptOrganizationForNewContacts(names) {
 
         const s = getSettings();
         normalizeSocial(s);
-        const allTabs = ["friends","romance","family","rivals"];
+        const allTabs = ["friends","associates","romance","family","rivals"];
         let curTab = allTabs.find(k => (s.social[k] || []).some(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase())) || "friends";
         let idx = (s.social[curTab] || []).findIndex(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase());
         if (idx < 0) continue;
@@ -894,15 +913,18 @@ Context:
 ${contextSnippet}
 
 Return ONLY valid JSON:
-{"verified":[{"name":"","tab":"","role":"","affinity":50,"met":true}]}
+{"verified":[{"name":"","tab":"","role":"","affinity":50,"presence":"present"}]}
 
 Rules:
 - verified: 0-24 entries max.
 - name must be from the provided list exactly (case-insensitive ok, but do not invent new names).
-- tab must be one of: friends|romance|family|rivals.
+- tab must be one of: friends|associates|romance|family|rivals.
 - role is a short label like friend|romance|family|rival|npc|enemy|ally|mentioned.
 - affinity is an integer 0-100.
-- met is true ONLY if they directly interacted (spoke, was addressed, was physically present). If only mentioned, met must be false.`;
+- presence must be one of:
+  - "present" (physically present / interacted in scene)
+  - "known_past" (user knows them from the past, but they are not present in scene)
+  - "mentioned" (only mentioned, not known, not present)`;
 
     let verified = [];
     try {
@@ -924,7 +946,7 @@ Rules:
         return "friends";
     };
 
-    const existingLower = new Set(["friends","romance","family","rivals"].flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").toLowerCase()).filter(Boolean)));
+    const existingLower = new Set(["friends","associates","romance","family","rivals"].flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").toLowerCase()).filter(Boolean)));
     let added = 0;
     for (const v of verified.slice(0, 24)) {
         const nm = String(v?.name || "").trim();
@@ -932,12 +954,15 @@ Rules:
         const key = nm.toLowerCase();
         if (deleted.has(key)) continue;
         if (existingLower.has(key)) continue;
+        const presence = String(v?.presence || "").toLowerCase().trim();
+        const met = presence === "present";
+        const knownPast = presence === "known_past";
         const tabRaw = String(v?.tab || "").toLowerCase().trim();
-        const tab = (tabRaw === "romance" || tabRaw === "family" || tabRaw === "rivals" || tabRaw === "friends") ? tabRaw : normalizeRoleToTab(v?.role);
+        const tabFromAi = (tabRaw === "romance" || tabRaw === "family" || tabRaw === "rivals" || tabRaw === "friends" || tabRaw === "associates") ? tabRaw : "";
+        const tab = (met || knownPast) ? (tabFromAi || normalizeRoleToTab(v?.role)) : "associates";
         const aff = Math.max(0, Math.min(100, Math.round(Number(v?.affinity ?? 50))));
-        const met = v?.met === true;
-        const role = String(v?.role || (met ? "npc" : "mentioned")).trim().slice(0, 80);
-        const p = { id: newId("person"), name: nm, affinity: aff, thoughts: "", avatar: "", likes: "", dislikes: "", birthday: "", location: "", age: "", knownFamily: "", familyRole: "", relationshipStatus: role, url: "", tab, memories: [], met_physically: met };
+        const role = String(v?.role || (met ? "npc" : (knownPast ? "known" : "mentioned"))).trim().slice(0, 80);
+        const p = { id: newId("person"), name: nm, affinity: aff, thoughts: "", avatar: "", likes: "", dislikes: "", birthday: "", location: "", age: "", knownFamily: "", familyRole: "", relationshipStatus: role, url: "", tab, memories: [], met_physically: met, known_from_past: knownPast };
         s.social[tab].push(p);
         existingLower.add(key);
         added++;
@@ -958,7 +983,7 @@ export async function updateRelationshipScore(name, text, source) {
     const deleted = deletedNameSet(s);
     if (deleted.has(nm.toLowerCase())) return;
 
-    const tabs = ["friends", "romance", "family", "rivals"];
+    const tabs = ["friends", "associates", "romance", "family", "rivals"];
     let curTab = tabs.find(k => (s.social[k] || []).some(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase())) || "friends";
     let idx = (s.social[curTab] || []).findIndex(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase());
     if (idx < 0) {

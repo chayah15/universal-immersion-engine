@@ -182,6 +182,7 @@
     
     <div class="uie-inv-tabs" style="border-top:1px solid rgba(0,0,0,0.25);">
         <div class="uie-tab active" data-tab="friends">FRIENDS</div>
+        <div class="uie-tab" data-tab="associates">ASSOCIATES</div>
         <div class="uie-tab" data-tab="romance">RELATIONSHIPS</div>
         <div class="uie-tab" data-tab="family">FAMILY</div>
         <div class="uie-tab" data-tab="rivals">RIVALS</div>
@@ -223,10 +224,22 @@
             <label class="uie-add-label">Relationship Type</label>
             <select id="uie-add-tab" class="uie-add-select">
                 <option value="friends">Friend</option>
+                <option value="associates">Associate</option>
                 <option value="romance">Relationship</option>
                 <option value="family">Family</option>
                 <option value="rivals">Rival</option>
             </select>
+        </div>
+
+        <div class="uie-add-row" style="display:flex; gap:10px; align-items:center;">
+            <label style="display:flex; gap:8px; align-items:center; font-weight:900; color:#4a2e16; flex:1;">
+                <input type="checkbox" id="uie-add-known-past">
+                User knows from the past (not present)
+            </label>
+            <label style="display:flex; gap:8px; align-items:center; font-weight:900; color:#4a2e16;">
+                <input type="checkbox" id="uie-add-met-phys">
+                Met in scene
+            </label>
         </div>
 
         <div class="uie-add-row">
@@ -301,6 +314,7 @@
                     <div class="uie-p-row"><strong>Known Family:</strong> <span id="p-val-family">???</span></div>
                     <div class="uie-p-row"><strong>Family Role:</strong> <span id="p-val-family-role">—</span></div>
                     <div class="uie-p-row"><strong>Status:</strong> <span id="p-val-rel-status">—</span></div>
+                    <div class="uie-p-row"><strong>Presence:</strong> <span id="p-val-presence">—</span></div>
                 </div>
 
                 <div class="uie-p-lists-container">

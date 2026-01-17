@@ -32,6 +32,11 @@
             <div style="font-size:0.75em; color:#aaa;">Timezone: <span id="cal-tz">In-world</span></div>
         </div>
         <div class="uie-controls">
+            <button id="cal-sparkle" title="Generate" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+            <button id="cal-refresh" title="Scan chat log" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-rotate-right"></i></button>
+            <button id="cal-rp-open" title="RP Date" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-calendar-day"></i></button>
+            <button id="cal-import" title="Import Calendar" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-file-import"></i></button>
+            <button id="cal-export" title="Export Calendar" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-file-export"></i></button>
             <i class="fa-solid fa-xmark uie-close-btn"></i>
         </div>
     </div>
@@ -43,11 +48,6 @@
                 <div id="cal-title" style="font-weight:900; letter-spacing:0.5px; color:#fff;"></div>
                 <div style="opacity:0.7; font-size:12px; color:#ddd;">Click a day to view/add events.</div>
             </div>
-            <button id="cal-sparkle" title="Generate" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
-            <button id="cal-refresh" title="Scan chat log" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-rotate-right"></i></button>
-            <button id="cal-rp-open" title="RP Date" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-calendar-day"></i></button>
-            <button id="cal-import" title="Import Calendar" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-file-import"></i></button>
-            <button id="cal-export" title="Export Calendar" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-file-export"></i></button>
             <button id="cal-next" style="height:34px; width:40px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;"><i class="fa-solid fa-chevron-right"></i></button>
         </div>
         <input type="file" id="cal-import-file" accept=".json" style="display:none;">
