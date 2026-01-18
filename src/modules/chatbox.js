@@ -1,5 +1,6 @@
 import { getSettings, saveSettings } from "./core.js";
 import { notify } from "./notifications.js";
+import { getContext } from "../../../../../extensions.js";
 
 let bound = false;
 let observer = null;
@@ -259,6 +260,37 @@ function renderList({ reset } = {}) {
 }
 
 function refreshCache() {
+    // 1. Try Data
+    let data = null;
+    if (typeof window !== "undefined" && Array.isArray(window.chat) && window.chat.length > 0) data = window.chat;
+    else {
+        try {
+            const ctx = getContext ? getContext() : null;
+            if (ctx && Array.isArray(ctx.chat) && ctx.chat.length > 0) data = ctx.chat;
+        } catch (_) {}
+    }
+
+    if (data) {
+        const msgs = data.map((m, idx) => {
+            const isUser = m.is_user;
+            const name = m.name || (isUser ? "You" : "Story");
+            const raw = String(m.mes || m.message || "").trim();
+            return {
+                id: String(idx),
+                isUser: !!isUser,
+                name: String(name || "").trim(),
+                raw,
+                clean: stripTags(raw),
+                mood: extractTagValue(raw, "mood"),
+                sound: extractTagValue(raw, "sound"),
+                ts: Date.now()
+            };
+        });
+        cache = msgs.slice(-800);
+        return;
+    }
+
+    // 2. Fallback to DOM
     const nodes = getChatNodes();
     const msgs = [];
     for (const n of nodes) {

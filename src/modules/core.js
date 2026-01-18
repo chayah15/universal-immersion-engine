@@ -1,5 +1,5 @@
 import { extension_settings, getContext } from "../../../../../extensions.js";
-import { saveSettingsDebounced } from "../../../../../../script.js";
+import { saveSettingsDebounced, chat } from "../../../../../../script.js";
 
 export const EXT_ID = "universal-immersion-engine";
 
@@ -250,6 +250,127 @@ export function startChatStateWatcher() {
     uieChatStateWatch = setInterval(() => {
         try { ensureChatStateLoaded(); } catch (_) {}
     }, 900);
+}
+
+function stripCssBlocks(text) {
+    const src = String(text || "").replace(/\r/g, "");
+    const lines = src.split("\n");
+    const out = [];
+    let depth = 0;
+    for (const line of lines) {
+        const t = String(line || "");
+        const s = t.trim();
+        if (!s) {
+            if (depth === 0) out.push("");
+            continue;
+        }
+        const opens = (s.match(/\{/g) || []).length;
+        const closes = (s.match(/\}/g) || []).length;
+        if (depth > 0) {
+            depth = Math.max(0, depth + opens - closes);
+            continue;
+        }
+        const looksCssStart =
+            /^(\.|\#|:root\b|@keyframes\b|@media\b|@font-face\b)/i.test(s) ||
+            (s.includes("--") && s.includes(":")) ||
+            (s.includes("{") && s.includes(":") && !/\bhttps?:\/\//i.test(s));
+        if (looksCssStart) {
+            depth = Math.max(1, opens - closes);
+            continue;
+        }
+        out.push(t);
+    }
+    return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Robustly fetches the recent chat history.
+ * PRIORITY 1: SillyTavern 'chat' array (Complete history, correct order).
+ * PRIORITY 2: DOM scraping (Fallback).
+ */
+export function getRecentChat(maxMessages = 60) {
+    try {
+        let sourceChat = null;
+        
+        // 1. Try window.chat (Global variable in SillyTavern)
+        if (typeof window !== "undefined" && Array.isArray(window.chat) && window.chat.length > 0) {
+            sourceChat = window.chat;
+        }
+        // 2. Try imported 'chat' variable
+        else if (Array.isArray(chat) && chat.length > 0) {
+            sourceChat = chat;
+        }
+        // 3. Try getContext()
+        else {
+            try {
+                const ctx = getContext ? getContext() : null;
+                if (ctx && Array.isArray(ctx.chat) && ctx.chat.length > 0) {
+                    sourceChat = ctx.chat;
+                }
+            } catch (_) {}
+        }
+
+        if (sourceChat) {
+            // SillyTavern chat is usually 0=oldest, length-1=newest.
+            // We want the last N messages.
+            const slice = sourceChat.slice(-1 * Math.max(1, maxMessages));
+            return slice.map(m => {
+                const name = m.name || (m.is_user ? "You" : "Story");
+                const text = m.mes || m.message || "";
+                const cleanText = stripCssBlocks(text);
+                return `${name}: ${cleanText.trim()}`;
+            }).join("\n");
+        }
+    } catch (e) {
+        console.warn("UIE: Failed to read global 'chat' array:", e);
+    }
+
+    // 4. Fallback to DOM Scraping
+    try {
+        let raw = "";
+        const chatEl = document.querySelector("#chat");
+        if (chatEl) {
+            // Query all messages
+            const allMsgs = Array.from(chatEl.querySelectorAll(".mes"));
+            // Take the LAST N messages
+            const msgs = allMsgs.slice(-1 * Math.max(1, Number(maxMessages || 50)));
+            
+            for (const m of msgs) {
+                const isUser =
+                    m.classList?.contains("is_user") ||
+                    m.getAttribute?.("is_user") === "true" ||
+                    m.getAttribute?.("data-is-user") === "true" ||
+                    m.dataset?.isUser === "true";
+                
+                const el = m.querySelector?.(".mes_text") || m.querySelector?.(".mes-text") || null;
+                let t = "";
+                if (el) {
+                    const clone = el.cloneNode(true);
+                    try { clone.querySelectorAll?.("style, script, noscript, template, button, input, textarea").forEach(n => n.remove()); } catch (_) {}
+                    t = (clone.innerText != null ? clone.innerText : clone.textContent) || "";
+                } else {
+                    t = String(m.textContent || "");
+                }
+                t = stripCssBlocks(String(t || "").trim());
+                if (!t) continue;
+                raw += `${isUser ? "You" : "Story"}: ${t}\n`;
+            }
+            if (raw.trim()) return raw.trim();
+        }
+        
+        // Final Fallback (legacy selectors)
+        const $txt = $(".chat-msg-txt");
+        if ($txt.length) {
+            // slice(-N) selects from the end
+            $txt.slice(-1 * Math.max(1, Number(maxMessages || 50))).each(function () { 
+                raw += stripCssBlocks($(this).text()) + "\n"; 
+            });
+            return raw.trim();
+        }
+        return "";
+    } catch (_) {
+        return "";
+    }
 }
 
 export function isMobileUI() {

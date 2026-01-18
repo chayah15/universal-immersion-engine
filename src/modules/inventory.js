@@ -1,5 +1,5 @@
 
-import { getSettings, saveSettings, updateLayout } from "./core.js";
+import { getSettings, saveSettings, updateLayout, getRecentChat } from "./core.js";
 import { loadFeatureTemplate } from "./featureLoader.js";
 import { getContext } from "../../../../../extensions.js";
 import { generateContent, cleanOutput } from "./apiClient.js";
@@ -408,26 +408,8 @@ export async function scanLootAndStatus(force = false) {
     }
 
     // Transcript (Fetch last 60 messages from the DOM properly)
-    let transcript = "";
-    try {
-        const chatEl = document.querySelector("#chat");
-        if (chatEl) {
-            // Get all message nodes
-            const allMsgs = Array.from(chatEl.querySelectorAll(".mes"));
-            // Take the last 60 messages (reverse order for processing, but we want chronological for AI)
-            const msgs = allMsgs.slice(-60);
-            
-            for (const m of msgs) {
-                const isUser = m.classList?.contains("is_user") || m.dataset?.isUser === "true";
-                const name = m.querySelector(".ch_name")?.textContent || (isUser ? "You" : "Story");
-                const t = m.querySelector(".mes_text")?.textContent || m.textContent || "";
-                transcript += `${name}: ${String(t || "").trim()}\n`;
-            }
-        }
-    } catch (e) {
-        console.warn("Error reading chat transcript:", e);
-    }
-
+    let transcript = getRecentChat(60);
+    
     if (!transcript.trim()) {
         if (force) notify("warning", "No chat content.", "Inventory", "scan");
         return;
@@ -1562,33 +1544,7 @@ export function initInventory() {
       }
       if (st) st.textContent = "Creating…";
 
-      const chat = (() => {
-        try {
-          let raw = "";
-          const $txt = $(".chat-msg-txt");
-          if ($txt.length) {
-            $txt.slice(-20).each(function () { raw += $(this).text() + "\n"; });
-            return raw.trim().slice(0, 2600);
-          }
-          const chatEl = document.querySelector("#chat");
-          if (!chatEl) return "";
-          const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-20);
-          for (const m of msgs) {
-            const isUser =
-              m.classList?.contains("is_user") ||
-              m.getAttribute("is_user") === "true" ||
-              m.getAttribute("data-is-user") === "true" ||
-              m.dataset?.isUser === "true";
-            const t =
-              m.querySelector(".mes_text")?.textContent ||
-              m.querySelector(".mes-text")?.textContent ||
-              m.textContent ||
-              "";
-            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
-          }
-          return raw.trim().slice(0, 2600);
-        } catch (_) { return ""; }
-      })();
+      const chat = getRecentChat(20);
 
       const persona = (() => { try { const ctx = getContext?.(); return String(ctx?.name1 || "You").trim() || "You"; } catch (_) { return "You"; } })();
       const base = desc ? `User request: ${desc}\n\n` : "";

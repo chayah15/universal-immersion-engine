@@ -1,4 +1,4 @@
-import { getSettings, saveSettings, updateLayout } from "./core.js";
+import { getSettings, saveSettings, updateLayout, getRecentChat } from "./core.js";
 import { getContext } from "../../../../../extensions.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
@@ -115,71 +115,13 @@ export async function scanEverything() {
     if (!gate.ok) return;
     try {
 
-    const readChatSnippet = (max) => {
-        try {
-            let raw = "";
-            const chatEl = document.querySelector("#chat");
-            if (chatEl) {
-                const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-1 * Math.max(1, Number(max || 50)));
-                for (const m of msgs) {
-                    const isUser =
-                        m.classList?.contains("is_user") ||
-                        m.getAttribute?.("is_user") === "true" ||
-                        m.getAttribute?.("data-is-user") === "true" ||
-                        m.dataset?.isUser === "true";
-                    
-                    const el = m.querySelector?.(".mes_text") || m.querySelector?.(".mes-text") || null;
-                    let t = "";
-                    if (el) {
-                        const clone = el.cloneNode(true);
-                        try { clone.querySelectorAll?.("style, script, noscript, template, button, input, textarea").forEach(n => n.remove()); } catch (_) {}
-                        t = (clone.innerText != null ? clone.innerText : clone.textContent) || "";
-                    } else {
-                        t = String(m.textContent || "");
-                    }
-                    t = stripCssBlocks(String(t || "").trim());
-                    if (!t) continue;
-                    raw += `${isUser ? "You" : "Story"}: ${t}\n`;
-                }
-                if (raw.trim()) return stripCssBlocks(raw).trim().slice(0, 30000);
-            }
-            
-            // Fallback
-            const $txt = $(".chat-msg-txt");
-            if ($txt.length) {
-                $txt.slice(-1 * Math.max(1, Number(max || 50))).each(function () { raw += stripCssBlocks($(this).text()) + "\n"; });
-                return stripCssBlocks(raw).trim().slice(0, 30000);
-            }
-            return "";
-        } catch (_) {
-            return "";
-        }
-    };
-
-    const chatSnippet = readChatSnippet(50);
+    const chatSnippet = getRecentChat(50);
 
     if (!chatSnippet) return;
 
     // --- PHASE 1: FREE REGEX CHECKS (Currency) ---
     // We check the LAST message for instant currency updates (avoids AI cost/latency for simple gold)
-    const lastMsg = (() => {
-        try {
-            const $txt = $(".chat-msg-txt");
-            if ($txt.length) return String($txt.last().text() || "");
-            const chatEl = document.getElementById("chat");
-            if (!chatEl) return "";
-            const last = chatEl.querySelector(".mes:last-child") || chatEl.lastElementChild;
-            if (!last) return "";
-            return String(
-                last.querySelector?.(".mes_text")?.textContent ||
-                last.querySelector?.(".mes-text")?.textContent ||
-                last.textContent ||
-                ""
-            );
-        } catch (_) {
-            return "";
-        }
-    })();
+    const lastMsg = getRecentChat(1);
     const currencyGain = lastMsg.match(/(?:found|received|gained|picked up|looted|loot|earned|rewarded|added)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
     const currencyLoss = lastMsg.match(/(?:lost|paid|spent|gave|removed|pay|subtracted)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
     

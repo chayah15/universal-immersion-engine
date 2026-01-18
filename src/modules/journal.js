@@ -1,4 +1,4 @@
-import { getSettings, saveSettings } from "./core.js";
+import { getSettings, saveSettings, getRecentChat } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { injectRpEvent } from "./features/rp_log.js";
@@ -100,9 +100,8 @@ function startChatIngest() {
     if (!chatEl) return;
 
     chatObserver = new MutationObserver(() => {
-        const last = $(".chat-msg-txt").last();
-        if (!last.length) return;
-        const txt = last.text() || "";
+        const txt = getRecentChat(1);
+        if (!txt) return;
         const h = simpleHash(txt);
         if (h === lastSeenHash) return;
         lastSeenHash = h;
@@ -135,9 +134,8 @@ async function autoUpdateQuests() {
     window.UIE_questAutoRunning = true;
     
     try {
-        let raw = "";
-        $(".chat-msg-txt").slice(-15).each(function() { raw += $(this).text() + "\n"; });
-        if (!raw.trim()) return;
+        let raw = getRecentChat(15);
+        if (!raw || !raw.trim()) return;
 
         const active = (s.journal.active || []).map(q => String(q.title).slice(0,50));
         const pending = (s.journal.pending || []).map(q => String(q.title).slice(0,50));
@@ -518,32 +516,7 @@ export function initJournal() {
         btn.addClass("fa-spin");
         notify("info", "Analyzing timeline for opportunities...", "Journal", "api");
 
-        let rawLog = "";
-        try {
-            const $txt = $(".chat-msg-txt");
-            if ($txt.length) {
-                $txt.slice(-30).each(function () { rawLog += $(this).text() + "\n"; });
-            } else {
-                const chatEl = document.querySelector("#chat");
-                if (chatEl) {
-                    const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-20);
-                    for (const m of msgs) {
-                        const isUser =
-                            m.classList?.contains("is_user") ||
-                            m.getAttribute("is_user") === "true" ||
-                            m.getAttribute("data-is-user") === "true" ||
-                            m.dataset?.isUser === "true";
-                        const t =
-                            m.querySelector(".mes_text")?.textContent ||
-                            m.querySelector(".mes-text")?.textContent ||
-                            m.textContent ||
-                            "";
-                        rawLog += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
-                    }
-                }
-            }
-        } catch (_) {}
-        rawLog = String(rawLog || "").trim();
+        let rawLog = getRecentChat(30);
 
         const prompt = [
             "Generate 1-2 quests/objectives for the player based on the available context.",
@@ -620,8 +593,7 @@ export function initJournal() {
         e.preventDefault();
         e.stopPropagation();
         $("#uie-journal-menu").hide();
-        let raw = "";
-        $(".chat-msg-txt").slice(-30).each(function() { raw += $(this).text() + "\n"; });
+        let raw = getRecentChat(30);
         const added = ingestQuestsFromChatText(raw);
         if (!added) notify("info", "No quests found to extract.", "Journal", "questsAccepted");
         else $(".uie-journal-sidebar .uie-tab[data-tab='pending']").click();
@@ -771,8 +743,7 @@ async function extractCodexFromChat() {
     const s = getSettings();
     ensureCodex(s);
 
-    let raw = "";
-    $(".chat-msg-txt").slice(-60).each(function () { raw += $(this).text() + "\n"; });
+    let raw = getRecentChat(60);
     raw = raw.trim().slice(0, 5000);
     if (!raw) return;
 

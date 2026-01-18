@@ -1,4 +1,4 @@
-import { getSettings, saveSettings } from "./core.js";
+import { getSettings, saveSettings, getRecentChat } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getContext } from "../../../../../extensions.js"; 
 import { injectRpEvent } from "./features/rp_log.js";
@@ -14,32 +14,8 @@ let arrivalLastMesId = null;
 let callChatContext = "";
 
 function getMainChatContext(lines) {
-    try {
-        const max = Math.max(3, Number(lines || 10));
-        const nodes = Array.from(document.querySelectorAll("#chat .mes")).slice(-1 * max);
-        const out = [];
-        for (const m of nodes) {
-            const name =
-                m.querySelector(".mes_name")?.textContent ||
-                m.querySelector(".name_text")?.textContent ||
-                m.querySelector(".name")?.textContent ||
-                "";
-            const text =
-                m.querySelector(".mes_text")?.textContent ||
-                m.querySelector(".mes-text")?.textContent ||
-                m.querySelector(".message")?.textContent ||
-                m.textContent ||
-                "";
-            const nm = String(name || "").trim() || "Unknown";
-            const tx = String(text || "").trim();
-            if (!tx) continue;
-            out.push(`${nm}: ${tx}`.slice(0, 360));
-        }
-        if (!out.length) return "";
-        return `[Recent RP]\n${out.join("\n")}`.slice(0, 2200);
-    } catch (_) {
-        return "";
-    }
+    const raw = getRecentChat(lines || 10);
+    return raw ? `[Recent RP]\n${raw}`.slice(0, 2200) : "";
 }
 
 async function relayRelationship(name, text, source) {
@@ -267,33 +243,7 @@ export function initPhone() {
     setInterval(updateClock, 15000);
 
     const getChatSnippet = (n = 20) => {
-        try {
-            let raw = "";
-            const $txt = $(".chat-msg-txt");
-            if ($txt.length) {
-                $txt.slice(-Math.max(1, Number(n) || 20)).each(function () { raw += $(this).text() + "\n"; });
-                return raw.trim().slice(0, 5200);
-            }
-            const chatEl = document.querySelector("#chat");
-            if (!chatEl) return "";
-            const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-Math.max(1, Number(n) || 20));
-            for (const m of msgs) {
-                const isUser =
-                    m.classList?.contains("is_user") ||
-                    m.getAttribute("is_user") === "true" ||
-                    m.getAttribute("data-is-user") === "true" ||
-                    m.dataset?.isUser === "true";
-                const t =
-                    m.querySelector(".mes_text")?.textContent ||
-                    m.querySelector(".mes-text")?.textContent ||
-                    m.textContent ||
-                    "";
-                raw += `${isUser ? "You" : "Story"}: ${String(t).trim()}\n`;
-            }
-            return raw.trim().slice(0, 5200);
-        } catch (_) {
-            return "";
-        }
+        return getRecentChat(n).slice(0, 5200);
     };
 
     const scheduleArrival = (who, turns = 1, reason = "") => {

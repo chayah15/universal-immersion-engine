@@ -125,7 +125,7 @@ Rules:
 - Use conservative numbers; if unknown, keep previous values by omitting or setting null.
 - statusEffects are short labels.
 
-CHAT (last 20 messages):
+CHAT (recent messages):
 ${chat}`,
 
         rewards: (chat) => `[UIE_LOCKED]

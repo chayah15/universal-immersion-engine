@@ -1,4 +1,4 @@
-import { getSettings, saveSettings, ensureChatStateLoaded } from "./core.js";
+import { getSettings, saveSettings, ensureChatStateLoaded, getRecentChat } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getWorldState, scanEverything } from "./stateTracker.js";
 import { getContext } from "../../../../../extensions.js";
@@ -19,41 +19,8 @@ function newId(prefix) {
     return `${String(prefix || "id")}_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}`;
 }
 
-function getChatSnippet(max) {
-    try {
-        let raw = "";
-        const chatEl = document.querySelector("#chat");
-        if (chatEl) {
-            const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-1 * Math.max(1, Number(max || 50)));
-            for (const m of msgs) {
-                const isUser =
-                    m.classList?.contains("is_user") ||
-                    m.getAttribute?.("is_user") === "true" ||
-                    m.getAttribute?.("data-is-user") === "true" ||
-                    m.dataset?.isUser === "true";
-                const t =
-                    m.querySelector?.(".mes_text")?.textContent ||
-                    m.querySelector?.(".mes-text")?.textContent ||
-                    m.textContent ||
-                    "";
-                const line = `${isUser ? "You" : "Story"}: ${String(t || "").trim()}`;
-                if (!line.trim()) continue;
-                raw += line.slice(0, 1000) + "\n";
-            }
-            if (raw.trim()) return raw.trim().slice(0, 8000);
-        }
-        
-        // Fallback
-        const $txt = $(".chat-msg-txt");
-        if ($txt.length) {
-            $txt.slice(-1 * Math.max(1, Number(max || 50))).each(function () { raw += $(this).text() + "\n"; });
-            return raw.trim().slice(0, 8000);
-        }
-        return "";
-    } catch (_) {
-        return "";
-    }
-}
+// Deprecated local helper, use getRecentChat
+function getChatSnippet(max) { return getRecentChat(max); }
 
 function ensureDatabank(s) {
     if (!s.databank) s.databank = [];
@@ -381,33 +348,8 @@ function renderSocialMemoriesModal() {
 async function scanMemoriesForPerson(person) {
     const ctx = getContext ? getContext() : {};
     const user = String(ctx?.name1 || "User");
-    const transcript = (() => {
-        const out = [];
-        try {
-            const chatEl = document.querySelector("#chat");
-            if (chatEl) {
-                const nodes = Array.from(chatEl.querySelectorAll(".mes")).slice(-90);
-                for (const m of nodes) {
-                    const name =
-                        m.querySelector(".mes_name")?.textContent ||
-                        m.querySelector(".name_text")?.textContent ||
-                        m.querySelector(".name")?.textContent ||
-                        "";
-                    const text =
-                        m.querySelector(".mes_text")?.textContent ||
-                        m.querySelector(".message")?.textContent ||
-                        "";
-                    const nm = String(name || "").trim() || "Unknown";
-                    const tx = String(text || "").trim();
-                    if (!tx) continue;
-                    out.push(`${nm}: ${tx}`);
-                }
-            } else {
-                 $(".chat-msg-txt").slice(-90).each(function() { out.push($(this).text().trim()); });
-            }
-        } catch (_) {}
-        return out.join("\n").slice(-14000);
-    })();
+    const transcript = getRecentChat(90);
+
     if (!transcript) return;
 
     const prompt = SCAN_TEMPLATES.socialMemories.scan(person.name, user, transcript);
