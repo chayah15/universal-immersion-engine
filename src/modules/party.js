@@ -669,9 +669,26 @@ async function scanPartyFromChat() {
     const s = getSettings();
     ensureParty(s);
     
-    // Gather Chat Context
+    // Gather Chat Context (Last 60 messages strict)
     let raw = "";
-    $(".chat-msg-txt").slice(-25).each(function() { raw += $(this).text() + "\n"; });
+    try {
+        const chatEl = document.querySelector("#chat");
+        if (chatEl) {
+            const allMsgs = Array.from(chatEl.querySelectorAll(".mes"));
+            const msgs = allMsgs.slice(-60);
+            for (const m of msgs) {
+                const isUser = m.classList?.contains("is_user") || m.dataset?.isUser === "true";
+                const name = m.querySelector(".ch_name")?.textContent || (isUser ? "You" : "Story");
+                const t = m.querySelector(".mes_text")?.textContent || m.textContent || "";
+                raw += `${name}: ${String(t || "").trim()}\n`;
+            }
+        }
+    } catch (_) {}
+
+    if (!raw.trim()) {
+        // Fallback if .mes selector fails (some themes)
+        $(".chat-msg-txt").slice(-60).each(function() { raw += $(this).text() + "\n"; });
+    }
     if (!raw.trim()) {
         notify("warning", "Not enough chat history to scan.", "Party", "scan");
         return;

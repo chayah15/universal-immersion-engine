@@ -3,6 +3,7 @@ import { getContext } from "../../../../../extensions.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { normalizeStatusList, normalizeStatusEffect, statusKey } from "./statusFx.js";
+import { SCAN_TEMPLATES } from "./scanTemplates.js";
 
 import { getST } from "./interaction.js";
 
@@ -117,34 +118,39 @@ export async function scanEverything() {
     const readChatSnippet = (max) => {
         try {
             let raw = "";
+            const chatEl = document.querySelector("#chat");
+            if (chatEl) {
+                const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-1 * Math.max(1, Number(max || 50)));
+                for (const m of msgs) {
+                    const isUser =
+                        m.classList?.contains("is_user") ||
+                        m.getAttribute?.("is_user") === "true" ||
+                        m.getAttribute?.("data-is-user") === "true" ||
+                        m.dataset?.isUser === "true";
+                    
+                    const el = m.querySelector?.(".mes_text") || m.querySelector?.(".mes-text") || null;
+                    let t = "";
+                    if (el) {
+                        const clone = el.cloneNode(true);
+                        try { clone.querySelectorAll?.("style, script, noscript, template, button, input, textarea").forEach(n => n.remove()); } catch (_) {}
+                        t = (clone.innerText != null ? clone.innerText : clone.textContent) || "";
+                    } else {
+                        t = String(m.textContent || "");
+                    }
+                    t = stripCssBlocks(String(t || "").trim());
+                    if (!t) continue;
+                    raw += `${isUser ? "You" : "Story"}: ${t}\n`;
+                }
+                if (raw.trim()) return stripCssBlocks(raw).trim().slice(0, 30000);
+            }
+            
+            // Fallback
             const $txt = $(".chat-msg-txt");
             if ($txt.length) {
                 $txt.slice(-1 * Math.max(1, Number(max || 50))).each(function () { raw += stripCssBlocks($(this).text()) + "\n"; });
                 return stripCssBlocks(raw).trim().slice(0, 30000);
             }
-            const chatEl = document.getElementById("chat");
-            if (!chatEl) return "";
-            const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-1 * Math.max(1, Number(max || 50)));
-            for (const m of msgs) {
-                const isUser =
-                    m.classList?.contains("is_user") ||
-                    m.getAttribute?.("is_user") === "true" ||
-                    m.getAttribute?.("data-is-user") === "true" ||
-                    m.dataset?.isUser === "true";
-                const el = m.querySelector?.(".mes_text") || m.querySelector?.(".mes-text") || null;
-                let t = "";
-                if (el) {
-                    const clone = el.cloneNode(true);
-                    try { clone.querySelectorAll?.("style, script, noscript, template, button, input, textarea").forEach(n => n.remove()); } catch (_) {}
-                    t = (clone.innerText != null ? clone.innerText : clone.textContent) || "";
-                } else {
-                    t = String(m.textContent || "");
-                }
-                t = stripCssBlocks(String(t || "").trim());
-                if (!t) continue;
-                raw += `${isUser ? "You" : "Story"}: ${t}\n`;
-            }
-            return stripCssBlocks(raw).trim().slice(0, 30000);
+            return "";
         } catch (_) {
             return "";
         }
@@ -210,41 +216,12 @@ export async function scanEverything() {
     const userName = String(ctx.name1 || "User").trim();
     const charName = String(ctx.name2 || "Character").trim();
 
-    const prompt = `[UIE_LOCKED]
-Analyze the chat history to update the RPG State.
-Current World: ${JSON.stringify(s.worldState)}
-Current HP: ${Number(s.hp ?? 100)} / ${Number(s.maxHp ?? 100)}
-Current MP: ${Number(s.mp ?? 50)} / ${Number(s.maxMp ?? 50)}
-Life Trackers: ${JSON.stringify((s.life?.trackers || []).slice(0, 30).map(t => ({ name: t.name, current: t.current, max: t.max })))}
-Current Status Effects: ${JSON.stringify((s.character?.statusEffects || []).slice(0, 30))}
-Existing Social Names: ${JSON.stringify((() => { try { ensureSocial(s); const arr = ["friends","romance","family","rivals"].flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").trim()).filter(Boolean)); return Array.from(new Set(arr)).slice(0, 120); } catch (_) { return []; } })())}
-Deleted Social Names: ${JSON.stringify((() => { try { ensureSocial(s); return (s.socialMeta.deletedNames || []).slice(-120); } catch (_) { return []; } })())}
+    const lifeTrackers = (s.life?.trackers || []).slice(0, 30).map(t => ({ name: t.name, current: t.current, max: t.max }));
+    const statusEffects = (s.character?.statusEffects || []).slice(0, 30);
+    const socialNames = (() => { try { ensureSocial(s); const arr = ["friends","romance","family","rivals"].flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").trim()).filter(Boolean)); return Array.from(new Set(arr)).slice(0, 120); } catch (_) { return []; } })();
+    const deletedNames = (() => { try { ensureSocial(s); return (s.socialMeta.deletedNames || []).slice(-120); } catch (_) { return []; } })();
 
-Task: Return a SINGLE JSON object with these keys:
-1. "world": Update location, threat, status, time, weather.
-2. "inventory": Lists of "added" (items found/acquired/created) and "removed" (items lost/used/given). Ignore currency.
-3. "stats": Integer deltas for "hp" and "mp" (e.g. -10, +5).
-4. "quests": List of new quest objects { "title": "...", "desc": "...", "type": "main|side" } if a NEW quest is explicitly given.
-5. "lore": List of new lore objects { "key": "Term", "entry": "Description" } if NEW important lore is revealed.
-6. "messages": List of { "from": "Name", "text": "..." } if a character sends a text message/SMS in the chat.
-7. "life": (optional) { "lifeUpdates":[{"name":"","delta":0,"set":null,"max":null}], "newTrackers":[{"name":"","current":0,"max":100,"color":"#89b4fa","notes":""}] }
-8. "statusEffects": (optional) { "add":[""], "remove":[""] } (NO EMOJIS)
-9. "social": (optional) { "add":[{"name":"","role":"","affinity":50}], "remove":[""] } for ANY character present in the scene.
-
-Rules:
-- "inventory": CHECK AGGRESSIVELY. If the user picks up, buys, is given, or creates an item, ADD IT. Even if implied.
-- "added": [{ "name": "Item Name", "type": "item|weapon|armor", "qty": 1, "desc": "Description" }]
-- "removed": ["Item Name"]
-- "social": Scan for ANY character names in the chat who are not in 'Existing Social Names'. If a character speaks or is described, ADD THEM.
-- "social.add": [{ "name": "Name", "role": "friend|rival|romance|family", "affinity": 50 }]
-- EXCLUDE from social: "${userName}", "System", "Narrator", "Game", "Omniscient", or any metadata card names.
-- "world": Keep values short.
-- If no change, omit the key or leave empty.
-- Status effects should be short labels like "Tired", "Poisoned", "Smells like smoke". No emojis.
-
-Chat:
-${chatSnippet}
-`;
+    const prompt = SCAN_TEMPLATES.worldState.unified(s, lifeTrackers, statusEffects, socialNames, deletedNames, userName, chatSnippet);
 
     const res = await generateContent(prompt, "Unified State Scan");
     if (!res) return;

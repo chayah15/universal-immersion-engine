@@ -129,28 +129,38 @@ function pct(cur, max) {
 function readChatTail(n = 20) {
   try {
     let raw = "";
+    const chatEl = document.querySelector("#chat");
+    
+    if (chatEl) {
+        // Strict fetch from #chat .mes nodes
+        const allMsgs = Array.from(chatEl.querySelectorAll(".mes"));
+        // Slice the last N messages from the array
+        const msgs = allMsgs.slice(-n);
+        
+        for (const m of msgs) {
+            const isUser =
+                m.classList?.contains("is_user") ||
+                m.getAttribute("is_user") === "true" ||
+                m.getAttribute("data-is-user") === "true" ||
+                m.dataset?.isUser === "true";
+            const t =
+                m.querySelector(".mes_text")?.textContent ||
+                m.querySelector(".mes-text")?.textContent ||
+                m.textContent ||
+                "";
+            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+        }
+        if (raw.trim()) return raw.trim();
+    }
+    
+    // Fallback for themes without #chat .mes
     const $txt = $(".chat-msg-txt");
     if ($txt.length) {
       $txt.slice(-n).each(function () { raw += $(this).text() + "\n"; });
-      return raw.trim().slice(0, 4200);
+      return raw.trim();
     }
-    const chatEl = document.querySelector("#chat");
-    if (!chatEl) return "";
-    const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-n);
-    for (const m of msgs) {
-      const isUser =
-        m.classList?.contains("is_user") ||
-        m.getAttribute("is_user") === "true" ||
-        m.getAttribute("data-is-user") === "true" ||
-        m.dataset?.isUser === "true";
-      const t =
-        m.querySelector(".mes_text")?.textContent ||
-        m.querySelector(".mes-text")?.textContent ||
-        m.textContent ||
-        "";
-      raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
-    }
-    return raw.trim().slice(0, 4200);
+    
+    return "";
   } catch (_) {
     return "";
   }

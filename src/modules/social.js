@@ -181,31 +181,47 @@ function unforgetDeletedName(s, name) {
 function getChatTranscript(maxMessages) {
     const out = [];
     try {
-        const nodes = getChatMessageNodes(maxMessages || 5000);
-        for (const m of nodes) {
-            const name =
-                m.querySelector?.(".mes_name")?.textContent ||
-                m.querySelector?.(".name_text")?.textContent ||
-                m.querySelector?.(".name")?.textContent ||
-                m.querySelector?.(".ch_name")?.textContent ||
-                m.getAttribute?.("ch_name") ||
-                m.getAttribute?.("data-name") ||
-                m.dataset?.name ||
-                m.dataset?.chName ||
-                "";
-            const text =
-                m.querySelector?.(".mes_text")?.textContent ||
-                m.querySelector?.(".mes-text")?.textContent ||
-                m.querySelector?.(".message")?.textContent ||
-                m.textContent ||
-                "";
-            const nm = String(name || "").trim() || "Unknown";
-            const tx = String(text || "").trim();
-            if (!tx) continue;
-            out.push(`${nm}: ${tx}`);
+        const chatEl = document.querySelector("#chat");
+        if (chatEl) {
+            const allMsgs = Array.from(chatEl.querySelectorAll(".mes"));
+            // Strictly take the last N messages
+            const msgs = allMsgs.slice(-(maxMessages || 60));
+            
+            for (const m of msgs) {
+                const name =
+                    m.querySelector?.(".mes_name")?.textContent ||
+                    m.querySelector?.(".name_text")?.textContent ||
+                    m.querySelector?.(".name")?.textContent ||
+                    m.querySelector?.(".ch_name")?.textContent ||
+                    m.getAttribute?.("ch_name") ||
+                    m.getAttribute?.("data-name") ||
+                    m.dataset?.name ||
+                    m.dataset?.chName ||
+                    "";
+                const text =
+                    m.querySelector?.(".mes_text")?.textContent ||
+                    m.querySelector?.(".mes-text")?.textContent ||
+                    m.querySelector?.(".message")?.textContent ||
+                    m.textContent ||
+                    "";
+                const nm = String(name || "").trim() || "Unknown";
+                const tx = String(text || "").trim();
+                if (!tx) continue;
+                out.push(`${nm}: ${tx}`);
+            }
         }
     } catch (_) {}
-    return out.join("\n").slice(-150000);
+    
+    // Fallback if .mes fails
+    if (out.length === 0) {
+        try {
+            $(".chat-msg-txt").slice(-(maxMessages || 60)).each(function() { 
+                out.push($(this).text().trim()); 
+            });
+        } catch(_) {}
+    }
+    
+    return out.join("\n");
 }
 
 function getChatMessageNodes(maxMessages) {

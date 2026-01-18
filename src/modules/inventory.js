@@ -407,14 +407,25 @@ export async function scanLootAndStatus(force = false) {
             .join("\n\n");
     }
 
-    // Transcript (Last 60 messages)
-    const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-60);
+    // Transcript (Fetch last 60 messages from the DOM properly)
     let transcript = "";
-    for (const m of msgs) {
-        const isUser = m.classList?.contains("is_user") || m.dataset?.isUser === "true";
-        const name = m.querySelector(".ch_name")?.textContent || (isUser ? "You" : "Story");
-        const t = m.querySelector(".mes_text")?.textContent || m.textContent || "";
-        transcript += `${name}: ${String(t || "").trim()}\n`;
+    try {
+        const chatEl = document.querySelector("#chat");
+        if (chatEl) {
+            // Get all message nodes
+            const allMsgs = Array.from(chatEl.querySelectorAll(".mes"));
+            // Take the last 60 messages (reverse order for processing, but we want chronological for AI)
+            const msgs = allMsgs.slice(-60);
+            
+            for (const m of msgs) {
+                const isUser = m.classList?.contains("is_user") || m.dataset?.isUser === "true";
+                const name = m.querySelector(".ch_name")?.textContent || (isUser ? "You" : "Story");
+                const t = m.querySelector(".mes_text")?.textContent || m.textContent || "";
+                transcript += `${name}: ${String(t || "").trim()}\n`;
+            }
+        }
+    } catch (e) {
+        console.warn("Error reading chat transcript:", e);
     }
 
     if (!transcript.trim()) {
