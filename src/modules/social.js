@@ -1,9 +1,8 @@
-import { getSettings, saveSettings, getRecentChat } from "./core.js";
+import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
-const getContext = window.getContext; 
+import { getContext } from "../../../../../extensions.js"; 
 import { notify } from "./notifications.js";
 import { injectRpEvent } from "./features/rp_log.js";
-import { SCAN_TEMPLATES } from "./scanTemplates.js";
 
 let currentTab = "friends";
 let deleteMode = false;
@@ -180,10 +179,68 @@ function unforgetDeletedName(s, name) {
 }
 
 function getChatTranscript(maxMessages) {
-    return getRecentChat(maxMessages || 60);
+    const out = [];
+    try {
+        const nodes = getChatMessageNodes(maxMessages || 5000);
+        for (const m of nodes) {
+            const name =
+                m.querySelector?.(".mes_name")?.textContent ||
+                m.querySelector?.(".name_text")?.textContent ||
+                m.querySelector?.(".name")?.textContent ||
+                m.querySelector?.(".ch_name")?.textContent ||
+                m.getAttribute?.("ch_name") ||
+                m.getAttribute?.("data-name") ||
+                m.dataset?.name ||
+                m.dataset?.chName ||
+                "";
+            const text =
+                m.querySelector?.(".mes_text")?.textContent ||
+                m.querySelector?.(".mes-text")?.textContent ||
+                m.querySelector?.(".message")?.textContent ||
+                m.textContent ||
+                "";
+            const nm = String(name || "").trim() || "Unknown";
+            const tx = String(text || "").trim();
+            if (!tx) continue;
+            out.push(`${nm}: ${tx}`);
+        }
+    } catch (_) {}
+    return out.join("\n").slice(-150000);
 }
 
-
+function getChatMessageNodes(maxMessages) {
+    const max = Math.max(20, Number(maxMessages || 5000));
+    try {
+        const sels = [
+            "#chat .mes",
+            "#chat .mes_block",
+            "#chat .mes_wrap",
+            "#chat .chat-message",
+            "#chat .chat_message",
+            "#chat .message",
+        ];
+        const all = [];
+        for (const sel of sels) {
+            try {
+                const nodes = Array.from(document.querySelectorAll(sel));
+                for (const n of nodes) all.push(n);
+            } catch (_) {}
+        }
+        const uniq = [];
+        const seen = new Set();
+        for (const n of all) {
+            if (!n || !n.getBoundingClientRect) continue;
+            const key = n.dataset?.mesId || n.getAttribute?.("mesid") || n.id || `${n.className}-${uniq.length}`;
+            const k = `${key}-${n.tagName}`;
+            if (seen.has(k)) continue;
+            seen.add(k);
+            uniq.push(n);
+        }
+        return uniq.slice(-1 * max);
+    } catch (_) {
+        return [];
+    }
+}
 
 function getActivePerson() {
     const s = getSettings();
@@ -359,13 +416,13 @@ export function renderSocial() {
 
             const avatarHtml = avatar
                 ? `<img src="${esc(avatar)}" style="width:100%; height:100%; object-fit:cover;">`
-                : `<i class="fa-solid fa-user" style="font-size: 2em; opacity: 0.5;"></i>`;
+                : `<i class="fa-solid fa-user"></i>`;
 
             const tag = (person?.met_physically === true) ? "" : (person?.known_from_past === true ? "PAST" : "MENTION");
             const tagHtml = tag ? `<div style="font-size:10px; opacity:0.75; border:1px solid rgba(255,255,255,0.18); padding:2px 8px; border-radius:999px;">${tag}</div>` : "";
             const card = $(`
                 <div class="uie-social-card ${isSel ? 'delete-selected' : ''}" data-idx="${index}">
-                    <div class="uie-s-avatar" style="overflow:hidden; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.2); width:100%; height:100%;">${avatarHtml}</div>
+                    <div class="uie-s-avatar">${avatarHtml}</div>
                     <div class="uie-s-name">${esc(person.name)}</div>
                     ${tagHtml}
                 </div>
@@ -593,20 +650,29 @@ function cancelMassDelete() {
 function extractNamesFromChatDom(maxMessages) {
     const names = new Set();
     try {
-        const txt = getRecentChat(maxMessages || 180);
-        const lines = txt.split("\n");
+        const nodes = getChatMessageNodes(maxMessages || 180);
         const ctx = getContext ? getContext() : {};
         const userName = String(ctx?.name1 || "").trim().toLowerCase();
-        
-        for (const line of lines) {
-            const m = line.match(/^([^:]+):/);
-            if (m) {
-                const n = m[1].trim();
-                // "You" and "Story" are labels from getRecentChat
-                if (n && n.toLowerCase() !== "you" && n.toLowerCase() !== "story" && n.toLowerCase() !== userName) {
-                     if (n.length <= 64) names.add(n);
-                }
-            }
+        for (const m of nodes) {
+            const isUser =
+                m.classList?.contains("is_user") ||
+                m.getAttribute?.("is_user") === "true" ||
+                m.getAttribute?.("data-is-user") === "true" ||
+                m.dataset?.isUser === "true";
+            if (isUser) continue;
+            const nm =
+                m.querySelector(".mes_name")?.textContent ||
+                m.querySelector(".name_text")?.textContent ||
+                m.querySelector(".name")?.textContent ||
+                m.querySelector(".ch_name")?.textContent ||
+                m.getAttribute?.("ch_name") ||
+                m.getAttribute?.("data-name") ||
+                m.dataset?.name ||
+                m.dataset?.chName ||
+                "";
+            const n = String(nm || "").trim();
+            if (userName && n.toLowerCase() === userName) continue;
+            if (n && n.length <= 64) names.add(n);
         }
     } catch (_) {}
     return Array.from(names);
@@ -615,8 +681,9 @@ function extractNamesFromChatDom(maxMessages) {
 function extractTaggedNamesFromChatText(maxMessages) {
     const names = new Set();
     try {
-        const txt = getRecentChat(maxMessages || 120);
-        const lines = txt.split("\n");
+        const nodes = Array.from(document.querySelectorAll("#chat .mes_text, #chat .mes_text *")).map(n => n.textContent).filter(Boolean);
+        const blob = nodes.join("\n");
+        const lines = blob.split("\n").slice(-1 * Math.max(20, Number(maxMessages || 120)));
         const reA = /<char:([^>]{2,48})>/ig;
         const reB = /<npc:([^>]{2,48})>/ig;
         const reC = /^<([^>]{2,48})>:\s/;
@@ -694,8 +761,9 @@ async function promptOrganizationForNewContacts(names) {
 function extractNamesFromTextHeuristics(maxMessages) {
     const names = new Set();
     try {
-        const txt = getRecentChat(maxMessages || 80);
-        const lines = txt.split("\n");
+        const nodes = Array.from(document.querySelectorAll("#chat .mes_text, #chat .mes_text *")).map(n => n.textContent).filter(Boolean);
+        const blob = nodes.join("\n");
+        const lines = blob.split("\n").slice(-1 * Math.max(20, Number(maxMessages || 80)));
         const re1 = /^([A-Za-z][A-Za-z0-9' -]{2,48}):\s/;
         const re2 = /\b(?:NPC|Character|Speaker|Name)\s*[:=-]\s*([A-Za-z][A-Za-z0-9' -]{2,48})\b/;
         for (const line of lines) {
@@ -710,7 +778,25 @@ function extractNamesFromTextHeuristics(maxMessages) {
 
 async function aiExtractNamesFromChat(maxMessages) {
     try {
-        const transcript = getRecentChat(maxMessages || 140).slice(-14000);
+        const msgs = [];
+        const nodes = getChatMessageNodes(maxMessages || 140);
+        for (const m of nodes) {
+            const nm =
+                m.querySelector(".mes_name")?.textContent ||
+                m.querySelector(".name_text")?.textContent ||
+                m.querySelector(".name")?.textContent ||
+                "";
+            const tx =
+                m.querySelector(".mes_text")?.textContent ||
+                m.querySelector(".mes-text")?.textContent ||
+                m.textContent ||
+                "";
+            const n = String(nm || "").trim() || "Unknown";
+            const t = String(tx || "").trim();
+            if (!t) continue;
+            msgs.push(`${n}: ${t}`);
+        }
+        const transcript = msgs.join("\n").slice(-14000);
         if (!transcript) return { names: [], questions: [] };
 
         const ctx = getContext ? getContext() : {};

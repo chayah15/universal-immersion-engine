@@ -1,5 +1,5 @@
 import { getSettings, saveSettings } from "./core.js";
-const getContext = window.getContext;
+import { getContext } from "../../../../../extensions.js";
 
 const PENDING_KEY = "__uiePendingSystemEvents";
 
@@ -90,15 +90,7 @@ function extractNsfwSystemRules(ctx) {
     hit.push(key);
   };
 
-  const looksRelevantKey = (k) => {
-    const s = String(k || "").toLowerCase();
-    if (/(system|prompt|nsfw|rules)/i.test(s)) {
-        // Blacklist pipeline junk
-        if (s.includes("sd_") || s.includes("diffusion") || s.includes("processing") || s.includes("pipeline")) return false;
-        return true;
-    }
-    return false;
-  };
+  const looksRelevantKey = (k) => /(system|prompt|nsfw|rules)/i.test(String(k || ""));
   const looksNsfw = (v) => /\bnsfw\b/i.test(String(v || ""));
 
   try {
@@ -119,17 +111,6 @@ function extractNsfwSystemRules(ctx) {
   const combined = hit.join("\n\n").trim();
   if (!combined) return "";
   return combined.slice(0, 2400);
-}
-
-function getUserNsfwRulesText(s) {
-  const manual = String(s?.generation?.nsfwRulesText || "").trim();
-  if (manual) return manual;
-  try {
-    const ctx = getContext ? getContext() : {};
-    return extractNsfwSystemRules(ctx);
-  } catch (_) {
-    return "";
-  }
 }
 
 export function buildSystemPrompt() {
@@ -172,7 +153,7 @@ export function buildSystemPrompt() {
     lines.push("");
   }
 
-  const nsfwRules = getUserNsfwRulesText(s);
+  const nsfwRules = extractNsfwSystemRules(ctx);
   if (nsfwRules) {
     lines.push("**NSFW / Consent Rules (Priority):**");
     lines.push("- Follow the user's NSFW rules exactly as written in the system prompt.");

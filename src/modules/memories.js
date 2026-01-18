@@ -1,15 +1,5 @@
 import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
-const getContext = window.getContext;
-
-function getChatArray() {
-    if (typeof window !== "undefined" && Array.isArray(window.chat) && window.chat.length > 0) return window.chat;
-    try {
-        const ctx = getContext ? getContext() : null;
-        if (ctx && Array.isArray(ctx.chat) && ctx.chat.length > 0) return ctx.chat;
-    } catch (_) {}
-    return null;
-}
 
 function ensureMem(s) {
     if (!s.memories || typeof s.memories !== "object") s.memories = {};
@@ -44,22 +34,6 @@ function textForMes(m) {
 }
 
 function sliceChat(start, count) {
-    const arr = getChatArray();
-    if (arr) {
-        const out = [];
-        const limit = Math.min(arr.length, start + count);
-        for (let i = start; i < limit; i++) {
-            const m = arr[i];
-            const name = m.name || (m.is_user ? "You" : "Story");
-            const text = String(m.mes || m.message || "").trim();
-            if (!text) continue;
-            // Basic cleanup
-            const clean = text.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<script[\s\S]*?<\/script>/gi, "");
-            out.push(`${name}: ${clean.slice(0, 520)}`);
-        }
-        return { lines: out, total: arr.length };
-    }
-
     const els = getChatMesElements();
     const out = [];
     for (let i = start; i < Math.min(els.length, start + count); i++) {
@@ -162,10 +136,8 @@ export async function scanRecentMemories() {
     if (!s) return;
     ensureMem(s);
     if (s.memories.auto !== true) return;
-    
-    const arr = getChatArray();
-    const total = arr ? arr.length : getChatMesElements().length;
-
+    const els = getChatMesElements();
+    const total = els.length;
     const lastLen = Number(s.memories.lastLen || 0);
     if (total <= lastLen) return;
     await scanNextChunkInternal(false);

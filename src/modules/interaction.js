@@ -80,16 +80,19 @@ let ST = null;
 
 export async function getST() {
     if (ST) return ST;
-    ST = {
-        ext: { 
-            getContext: window.getContext,
-            extension_settings: window.extension_settings
-        },
-        getContext: window.getContext,
-        extension_settings: window.extension_settings,
-        saveSettingsDebounced: window.saveSettingsDebounced,
-        eventSource: window.eventSource
-    };
+    try {
+        const ext = await import("/scripts/extensions.js");
+        ST = {
+            ext,
+            getContext: ext.getContext ? ext.getContext : null,
+            extension_settings: ext.extension_settings ?? null,
+            saveSettingsDebounced: ext.saveSettingsDebounced ?? null,
+            eventSource: ext.eventSource ?? null,
+        };
+    } catch (e) {
+        console.warn("UIE: /scripts/extensions.js import failed", e);
+        ST = {};
+    }
     return ST;
 }
 
@@ -617,7 +620,7 @@ export function initInteractions() {
                     } catch (_) {}
                     return null;
                 };
-                Promise.resolve({ getContext: window.getContext }).then((mod) => {
+                import("../../../../../extensions.js").then((mod) => {
                     const ctx = mod?.getContext?.() || {};
                     const raw =
                         ctx?.connection_profiles ||
@@ -2237,7 +2240,7 @@ export function initInteractions() {
 
     if (window.UIE_triggerPromptInjected !== true) {
         window.UIE_triggerPromptInjected = true;
-        Promise.resolve({ getContext: window.getContext }).then((mod) => {
+        import("../../../../../extensions.js").then((mod) => {
             const ctx = mod?.getContext?.();
             if (!ctx) return;
             const prompt = [
@@ -2261,7 +2264,7 @@ export function initInteractions() {
 
     if (window.UIE_relationshipPromptInjected !== true) {
         window.UIE_relationshipPromptInjected = true;
-        Promise.resolve({ getContext: window.getContext }).then((mod) => {
+        import("../../../../../extensions.js").then((mod) => {
             const getCtx = mod?.getContext;
             if (typeof getCtx !== "function") return;
             const ctx0 = getCtx();

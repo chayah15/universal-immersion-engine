@@ -1,7 +1,6 @@
 import { getSettings, saveSettings } from "./core.js";
 import { scanEverything } from "./stateTracker.js";
 import { notify } from "./notifications.js";
-const getContext = window.getContext;
 
 let reBound = false;
 let reObserver = null;
@@ -51,24 +50,6 @@ function hash(str) {
 
 function readLastChatMessage() {
     try {
-        // 1. Try Data
-        let m = null;
-        if (typeof window !== "undefined" && Array.isArray(window.chat) && window.chat.length > 0) {
-            m = window.chat[window.chat.length - 1];
-        } else {
-             const ctx = getContext ? getContext() : null;
-             if (ctx && Array.isArray(ctx.chat) && ctx.chat.length > 0) {
-                 m = ctx.chat[ctx.chat.length - 1];
-             }
-        }
-
-        if (m) {
-            const name = m.name || (m.is_user ? "You" : "Story");
-            const text = m.mes || m.message || "";
-            return { name: String(name || "").slice(0, 80), text: String(text || "").slice(0, 6000) };
-        }
-
-        // 2. Fallback to DOM
         const chatEl = document.getElementById("chat");
         if (!chatEl) return null;
         const last = chatEl.querySelector(".mes:last-child") || chatEl.lastElementChild;

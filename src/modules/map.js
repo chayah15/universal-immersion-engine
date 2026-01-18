@@ -1,6 +1,6 @@
-import { getSettings, saveSettings, getRecentChat } from "./core.js";
+import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
-const getContext = window.getContext;
+import { getContext } from "../../../../../extensions.js";
 import { generateImageAPI } from "./imageGen.js";
 
 let viewDraft = { tx: 0, ty: 0, scale: 1 };
@@ -66,7 +66,33 @@ function getLoreKeys() {
 }
 
 function getChatSnippet() {
-    return getRecentChat(12).slice(0, 1400);
+    try {
+        let raw = "";
+        const $txt = $(".chat-msg-txt");
+        if ($txt.length) {
+            $txt.slice(-12).each(function () { raw += $(this).text() + "\n"; });
+            return raw.trim().slice(0, 1400);
+        }
+        const chatEl = document.getElementById("chat");
+        if (!chatEl) return "";
+        const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-12);
+        for (const m of msgs) {
+            const isUser =
+                m.classList?.contains("is_user") ||
+                m.getAttribute?.("is_user") === "true" ||
+                m.getAttribute?.("data-is-user") === "true" ||
+                m.dataset?.isUser === "true";
+            const t =
+                m.querySelector?.(".mes_text")?.textContent ||
+                m.querySelector?.(".mes-text")?.textContent ||
+                m.textContent ||
+                "";
+            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+        }
+        return raw.trim().slice(0, 1400);
+    } catch (_) {
+        return "";
+    }
 }
 
 function hash32(str) {

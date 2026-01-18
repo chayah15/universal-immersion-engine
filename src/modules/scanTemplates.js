@@ -125,7 +125,7 @@ Rules:
 - Use conservative numbers; if unknown, keep previous values by omitting or setting null.
 - statusEffects are short labels.
 
-CHAT (recent messages):
+CHAT (last 20 messages):
 ${chat}`,
 
         rewards: (chat) => `[UIE_LOCKED]
@@ -141,79 +141,5 @@ Rules:
 - currency and xp are integers >= 0.
 CHAT:
 ${chat}`
-    },
-
-    // --- DATABANK ---
-    databank: {
-        archive: (rawLog) => `[UIE_LOCKED]
-Task: Summarize this RP segment into a concise "Memory File" for long-term storage.
-Input:
-${rawLog}
-
-Output JSON (No markdown, no commentary):
-{ "title": "Short Title", "summary": "3-4 sentence summary of key events, names, and locations." }`
-    },
-
-    // --- WORLD STATE ---
-    worldState: {
-        unified: (s, lifeTrackers, statusEffects, socialNames, deletedNames, userName, chatSnippet) => `[UIE_LOCKED]
-Analyze the chat history to update the RPG State.
-Current World: ${JSON.stringify(s.worldState)}
-Current HP: ${Number(s.hp ?? 100)} / ${Number(s.maxHp ?? 100)}
-Current MP: ${Number(s.mp ?? 50)} / ${Number(s.maxMp ?? 50)}
-Life Trackers: ${JSON.stringify(lifeTrackers)}
-Current Status Effects: ${JSON.stringify(statusEffects)}
-Existing Social Names: ${JSON.stringify(socialNames)}
-Deleted Social Names: ${JSON.stringify(deletedNames)}
-
-Task: Return a SINGLE JSON object with these keys:
-1. "world": Update location, threat, status, time, weather.
-2. "inventory": Object containing "added" (items found/acquired/created) and "removed" (items lost/used/given). Ignore currency.
-3. "stats": { "hp": delta, "mp": delta, "xp": delta, "attributes": { "str": 0, "dex": 0, "con": 0, "int": 0, "wis": 0, "cha": 0 } } (Integer deltas)
-4. "quests": List of new quest objects { "title": "...", "desc": "...", "type": "main|side" } if a NEW quest is explicitly given.
-5. "lore": List of new lore objects { "key": "Term", "entry": "Description" } if NEW important lore is revealed.
-6. "messages": List of { "from": "Name", "text": "..." } if a character sends a text message/SMS in the chat.
-7. "life": (optional) { "lifeUpdates":[{"name":"","delta":0,"set":null,"max":null}], "newTrackers":[{"name":"","current":0,"max":100,"color":"#89b4fa","notes":""}] }
-8. "statusEffects": (optional) { "add":[""], "remove":[""] } (NO EMOJIS)
-9. "social": (optional) { "add":[{"name":"","role":"","affinity":50}], "remove":[""] } for ANY character present in the scene.
-10. "skills": List of new skills learned/gained: [{ "name": "Name", "type": "active|passive", "desc": "Description" }]
-11. "battle": (optional) { "active": true/false, "enemies": [{"name":"","hp":0,"maxHp":0,"statusEffects":[""]}], "turnOrder":[""] } if combat is happening.
-12. "contacts": List of new phone contacts: [{ "name": "Name", "number": "123-456-7890", "avatar": "" }]
-
-Rules:
-- "inventory": CHECK AGGRESSIVELY. If the user picks up, buys, is given, creates, or finds an item, ADD IT. Examples: "grabbed wood", "found a lighter", "bought a sword".
-- Structure for inventory: { "added": [{ "name": "Item Name", "type": "item|weapon|armor", "qty": 1, "desc": "Description" }], "removed": ["Item Name"] }
-- "skills": CHECK AGGRESSIVELY. If the user learns, demonstrates, or is granted a new ability/skill, ADD IT.
-- "social": Scan for ANY character names in the chat who are not in 'Existing Social Names'. If a character speaks or is described, ADD THEM.
-- "social.add": [{ "name": "Name", "role": "friend|rival|romance|family", "affinity": 50 }]
-- "battle": CHECK AGGRESSIVELY. If there is a fight, attack, or hostile entity, set "active": true and list enemies.
-- "contacts": If the user saves a number, exchanges contacts, or receives a number, ADD IT.
-- EXCLUDE from social: "${userName}", "System", "Narrator", "Game", "Omniscient", or any metadata card names.
-- "world": Keep values short.
-- If no change, omit the key or leave empty.
-- Status effects should be short labels like "Tired", "Poisoned", "Smells like smoke". No emojis.
-- Return ONLY JSON (No markdown, no commentary).
-
-Chat:
-${chatSnippet}`
-    },
-    
-    // --- SOCIAL MEMORIES ---
-    socialMemories: {
-        scan: (personName, userName, transcript) => `[UIE_LOCKED]
-You are extracting ONLY vital, relationship-relevant memories for the character "${personName}" about interactions with "${userName}".
-
-Input transcript (may include omniscient tool cards / metadata; ignore anything that is not an in-world event or a durable fact):
-${transcript}
-
-Return ONLY valid JSON (no markdown, no extra keys):
-{"memories":[{"text":"...","impact":"...","tags":["..."]}]}
-
-Rules:
-- 3 to 8 memories max. If none, return {"memories":[]}.
-- Each memory must be a durable fact that CHANGED something: trust, fear, loyalty, obligation, romance, rivalry, plans, secrets, injuries, promises, betrayals, gifts, major discoveries.
-- No trivial entries (no greetings, walking in, “they talked”, generic vibes).
-- Be specific and consequence-based. 1–2 sentences per memory.
-- Tags are short (e.g., "promise", "betrayal", "injury", "secret", "favor", "trauma", "trust").`
     }
 };

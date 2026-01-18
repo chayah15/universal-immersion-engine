@@ -1,9 +1,7 @@
 import { getSettings, saveSettings } from "./core.js";
-import { getRecentChat } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { injectRpEvent } from "./features/rp_log.js";
-import { SCAN_TEMPLATES } from "./scanTemplates.js";
 
 let bound = false;
 let observer = null;
@@ -129,7 +127,33 @@ function pct(cur, max) {
 }
 
 function readChatTail(n = 20) {
-  return getRecentChat(n);
+  try {
+    let raw = "";
+    const $txt = $(".chat-msg-txt");
+    if ($txt.length) {
+      $txt.slice(-n).each(function () { raw += $(this).text() + "\n"; });
+      return raw.trim().slice(0, 4200);
+    }
+    const chatEl = document.querySelector("#chat");
+    if (!chatEl) return "";
+    const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-n);
+    for (const m of msgs) {
+      const isUser =
+        m.classList?.contains("is_user") ||
+        m.getAttribute("is_user") === "true" ||
+        m.getAttribute("data-is-user") === "true" ||
+        m.dataset?.isUser === "true";
+      const t =
+        m.querySelector(".mes_text")?.textContent ||
+        m.querySelector(".mes-text")?.textContent ||
+        m.textContent ||
+        "";
+      raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+    }
+    return raw.trim().slice(0, 4200);
+  } catch (_) {
+    return "";
+  }
 }
 
 function mergeEnemies(existing, incoming) {
@@ -278,7 +302,8 @@ function startAuto() {
         if (autoInFlight) return;
         if (now - autoLastAt < min) return;
         if (s?.generation?.scanOnlyOnGenerateButtons === true) return;
-        const txt = getRecentChat(1);
+        const last = $(".chat-msg-txt").last();
+        const txt = last.length ? (last.text() || "") : "";
         const h = simpleHash(txt);
         if (h === lastHash) return;
         lastHash = h;

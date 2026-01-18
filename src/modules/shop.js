@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
-const getContext = window.getContext;
+import { getContext } from "../../../../../extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
 
 function ensureShop(s) {

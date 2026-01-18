@@ -1,6 +1,6 @@
-const generateRaw = window.generateRaw;
-import { getSettings, getRecentChat } from "./core.js";
-const getContext = window.getContext;
+import { generateRaw } from "../../../../../../script.js";
+import { getSettings } from "./core.js";
+import { getContext } from "../../../../../extensions.js";
 import { buildSystemPrompt, consumePendingSystemEvents, validateResponse } from "./logicEnforcer.js";
 import { notify } from "./notifications.js";
 
@@ -38,16 +38,34 @@ function ensureConfirmModal() {
     `);
 }
 
-export function chatLogCheck() {
-    const s = getSettings() || {};
-    const g = s.generation || {};
-
-    const mode = String(g.chatLogMode || "lastN"); // "lastN" | "full" | "off"
-    if (mode === "off") return "";
-
-    // Force cap even on "full" to prevent timeouts
-    const limit = mode === "full" ? 100 : Number(g.chatLogLimit || 50);
-    return getRecentChat(Number.isFinite(limit) ? Math.min(limit, 100) : 50);
+function chatLogCheck() {
+    try {
+        let raw = "";
+        const $txt = $(".chat-msg-txt");
+        if ($txt.length) {
+            $txt.slice(-20).each(function () { raw += $(this).text() + "\n"; });
+            return raw.trim().slice(0, 2600);
+        }
+        const chatEl = document.querySelector("#chat");
+        if (!chatEl) return "";
+        const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-20);
+        for (const m of msgs) {
+            const isUser =
+                m.classList?.contains("is_user") ||
+                m.getAttribute("is_user") === "true" ||
+                m.getAttribute("data-is-user") === "true" ||
+                m.dataset?.isUser === "true";
+            const t =
+                m.querySelector(".mes_text")?.textContent ||
+                m.querySelector(".mes-text")?.textContent ||
+                m.textContent ||
+                "";
+            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+        }
+        return raw.trim().slice(0, 2600);
+    } catch (_) {
+        return "";
+    }
 }
 
 function loreCheck() {
@@ -380,10 +398,10 @@ Before generating output, the AI MUST execute the following Reality Check sequen
 Failure to connect these data points is a system failure.
 
 1) CHAT LOG SYNC (MANDATORY)
-Scan the available chat history.
+Scan the last 20 messages.
 Current action MUST flow logically from recent events.
 Do not reset the scene.
---- CHAT LOG (recent messages) ---
+--- CHAT LOG (last messages) ---
 ${chat}
 
 1B) OMNISCIENT GAME STATE (High Priority Overrides)
@@ -1186,8 +1204,27 @@ export async function generateContent(prompt, type) {
         const allowCtx = !lockedPrompt && !wantsJson && type !== "Shop";
         const ctxBlock = allowCtx ? (() => {
             try {
-                const recent = getRecentChat(25);
-                return recent ? `[CHAT CONTEXT]\n${recent}` : "";
+                const chatEl = document.querySelector("#chat");
+                if (!chatEl) return "";
+                const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-18);
+                let ctx = "";
+                for (const m of msgs) {
+                    const isUser =
+                        m.classList?.contains("is_user") ||
+                        m.getAttribute("is_user") === "true" ||
+                        m.getAttribute("data-is-user") === "true" ||
+                        m.dataset?.isUser === "true";
+                    const t =
+                        m.querySelector(".mes_text")?.textContent ||
+                        m.querySelector(".mes-text")?.textContent ||
+                        m.textContent ||
+                        "";
+                    const line = `${isUser ? "You" : "Story"}: ${String(t || "").trim()}`;
+                    if (!line.trim()) continue;
+                    ctx += line.slice(0, 420) + "\n";
+                }
+                ctx = ctx.trim();
+                return ctx ? `[CHAT CONTEXT]\n${ctx}` : "";
             } catch (_) {
                 return "";
             }

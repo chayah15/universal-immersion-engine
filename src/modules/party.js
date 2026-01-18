@@ -1,5 +1,5 @@
-import { getSettings, saveSettings, getRecentChat } from "./core.js";
-const getContext = window.getContext;
+import { getSettings, saveSettings } from "./core.js";
+import { getContext } from "../../../../../extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
@@ -669,10 +669,10 @@ async function scanPartyFromChat() {
     const s = getSettings();
     ensureParty(s);
     
-    // Gather Chat Context (Last 60 messages strict)
-    let raw = getRecentChat(60);
-    
-    if (!raw || !raw.trim()) {
+    // Gather Chat Context
+    let raw = "";
+    $(".chat-msg-txt").slice(-25).each(function() { raw += $(this).text() + "\n"; });
+    if (!raw.trim()) {
         notify("warning", "Not enough chat history to scan.", "Party", "scan");
         return;
     }

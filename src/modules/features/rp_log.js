@@ -12,13 +12,15 @@ export async function injectRpEvent(text, opts = {}) {
 
   // Prefer: add as a "system" style message, but use whatever exists.
   try {
-    // Look at global window object
+    const mod = await import("../../../../../../script.js").catch(() => null);
+
+    // Common function names across versions/builds (best-effort)
     const candidates = [
-      window.addOneMessage,
-      window.appendOneMessage,
-      window.addMessage,
-      window.pushMessage,
-      window.sendSystemMessage,
+      mod?.addOneMessage,
+      mod?.appendOneMessage,
+      mod?.addMessage,
+      mod?.pushMessage,
+      mod?.sendSystemMessage,
     ].filter(Boolean);
 
     // If ST exports a chat message helper, use it

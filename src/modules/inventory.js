@@ -1,7 +1,7 @@
 
-import { getSettings, saveSettings, updateLayout, getRecentChat } from "./core.js";
+import { getSettings, saveSettings, updateLayout } from "./core.js";
 import { loadFeatureTemplate } from "./featureLoader.js";
-const getContext = window.getContext;
+import { getContext } from "../../../../../extensions.js";
 import { generateContent, cleanOutput } from "./apiClient.js";
 import { notify, notifyLowHpIfNeeded } from "./notifications.js";
 import { normalizeStatusList, statusName, statusKey, formatRemaining, summarizeMods, computeStatusTotals, applyStatusTickToVitals, parseDurationToMs } from "./statusFx.js";
@@ -407,9 +407,16 @@ export async function scanLootAndStatus(force = false) {
             .join("\n\n");
     }
 
-    // Transcript (Fetch last 60 messages from the DOM properly)
-    let transcript = getRecentChat(60);
-    
+    // Transcript (Last 60 messages)
+    const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-60);
+    let transcript = "";
+    for (const m of msgs) {
+        const isUser = m.classList?.contains("is_user") || m.dataset?.isUser === "true";
+        const name = m.querySelector(".ch_name")?.textContent || (isUser ? "You" : "Story");
+        const t = m.querySelector(".mes_text")?.textContent || m.textContent || "";
+        transcript += `${name}: ${String(t || "").trim()}\n`;
+    }
+
     if (!transcript.trim()) {
         if (force) notify("warning", "No chat content.", "Inventory", "scan");
         return;
@@ -1544,7 +1551,33 @@ export function initInventory() {
       }
       if (st) st.textContent = "Creating…";
 
-      const chat = getRecentChat(20);
+      const chat = (() => {
+        try {
+          let raw = "";
+          const $txt = $(".chat-msg-txt");
+          if ($txt.length) {
+            $txt.slice(-20).each(function () { raw += $(this).text() + "\n"; });
+            return raw.trim().slice(0, 2600);
+          }
+          const chatEl = document.querySelector("#chat");
+          if (!chatEl) return "";
+          const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-20);
+          for (const m of msgs) {
+            const isUser =
+              m.classList?.contains("is_user") ||
+              m.getAttribute("is_user") === "true" ||
+              m.getAttribute("data-is-user") === "true" ||
+              m.dataset?.isUser === "true";
+            const t =
+              m.querySelector(".mes_text")?.textContent ||
+              m.querySelector(".mes-text")?.textContent ||
+              m.textContent ||
+              "";
+            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+          }
+          return raw.trim().slice(0, 2600);
+        } catch (_) { return ""; }
+      })();
 
       const persona = (() => { try { const ctx = getContext?.(); return String(ctx?.name1 || "You").trim() || "You"; } catch (_) { return "You"; } })();
       const base = desc ? `User request: ${desc}\n\n` : "";

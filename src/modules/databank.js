@@ -1,10 +1,9 @@
-import { getSettings, saveSettings, ensureChatStateLoaded, getRecentChat } from "./core.js";
+import { getSettings, saveSettings, ensureChatStateLoaded } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getWorldState, scanEverything } from "./stateTracker.js";
-const getContext = window.getContext;
+import { getContext } from "../../../../../extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { parseJsonLoose, normalizeDatabankArrayInPlace, toDatabankDisplayEntries } from "./databankModel.js";
-import { SCAN_TEMPLATES } from "./scanTemplates.js";
 
 function esc(s) {
     return String(s ?? "")
@@ -19,8 +18,37 @@ function newId(prefix) {
     return `${String(prefix || "id")}_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}`;
 }
 
-// Deprecated local helper, use getRecentChat
-function getChatSnippet(max) { return getRecentChat(max); }
+function getChatSnippet(max) {
+    try {
+        let raw = "";
+        const $txt = $(".chat-msg-txt");
+        if ($txt.length) {
+            $txt.slice(-1 * Math.max(1, Number(max || 50))).each(function () { raw += $(this).text() + "\n"; });
+            return raw.trim().slice(0, 6000);
+        }
+        const chatEl = document.getElementById("chat");
+        if (!chatEl) return "";
+        const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-1 * Math.max(1, Number(max || 50)));
+        for (const m of msgs) {
+            const isUser =
+                m.classList?.contains("is_user") ||
+                m.getAttribute?.("is_user") === "true" ||
+                m.getAttribute?.("data-is-user") === "true" ||
+                m.dataset?.isUser === "true";
+            const t =
+                m.querySelector?.(".mes_text")?.textContent ||
+                m.querySelector?.(".mes-text")?.textContent ||
+                m.textContent ||
+                "";
+            const line = `${isUser ? "You" : "Story"}: ${String(t || "").trim()}`;
+            if (!line.trim()) continue;
+            raw += line.slice(0, 520) + "\n";
+        }
+        return raw.trim().slice(0, 6000);
+    } catch (_) {
+        return "";
+    }
+}
 
 function ensureDatabank(s) {
     if (!s.databank) s.databank = [];
@@ -88,7 +116,7 @@ export function initDatabank() {
         
         if(rawLog.length < 50) { alert("Not enough chat data to archive."); btn.removeClass("fa-spin"); return; }
 
-        const prompt = SCAN_TEMPLATES.databank.archive(rawLog);
+        const prompt = `Task: Summarize this RP segment into a concise "Memory File" for long-term storage.\nInput:\n${rawLog.substring(0, 4000)}\n\nOutput JSON: { "title": "Short Title", "summary": "3-4 sentence summary of key events, names, and locations." }`;
 
         try {
             const res = await generateContent(prompt, "System Check");
@@ -112,22 +140,6 @@ export function initDatabank() {
         try { await scanEverything(); } catch (_) {}
         try { renderState(); } catch (_) {}
         btn.removeClass("fa-spin");
-    });
-
-    // Edit Memory
-    doc.off("click", ".db-edit").on("click", ".db-edit", function() {
-        const id = String($(this).data("id") || "");
-        const s = getSettings();
-        const mem = (s.databank || []).find(m => String(m?.id || "") === id);
-        if (!mem) return;
-
-        const newText = prompt("Edit Memory Summary:", mem.summary || mem.body || "");
-        if (newText === null) return;
-        
-        mem.summary = String(newText || "").trim();
-        // Also update title if they want? Maybe later.
-        saveSettings();
-        render();
     });
 
     // Delete Memory
@@ -157,7 +169,7 @@ export function initDatabank() {
         const pid = String($(this).data("pid") || "");
         if (!pid) return;
         dbSocialActivePersonId = pid;
-        $("#uie-db-social-mem-overlay").css("display", "flex");
+        $("#uie-db-social-mem-overlay").show();
         renderSocialMemoriesModal();
     });
 
@@ -222,28 +234,6 @@ export function initDatabank() {
         const { person } = getSocialPersonById(dbSocialActivePersonId);
         if (!person || !mid) return;
         person.memories = (Array.isArray(person.memories) ? person.memories : []).filter(m => String(m?.id || "") !== mid);
-        saveSettings();
-        renderSocialMemoriesModal();
-    });
-
-    doc.off("click.uieDbSocialMemEdit").on("click.uieDbSocialMemEdit", ".uie-db-social-mem-edit", function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const mid = String($(this).data("mid") || "");
-        const { person } = getSocialPersonById(dbSocialActivePersonId);
-        if (!person || !mid) return;
-        const mem = (person.memories || []).find(m => String(m?.id || "") === mid);
-        if (!mem) return;
-
-        const text = prompt("Edit Memory:", mem.text || "");
-        if (text === null) return;
-        const t = String(text || "").trim();
-        if (!t) return;
-        
-        const impact = prompt("Edit Impact:", mem.impact || "");
-        
-        mem.text = t;
-        if (impact !== null) mem.impact = String(impact || "").trim();
         saveSettings();
         renderSocialMemoriesModal();
     });
@@ -338,7 +328,6 @@ function renderSocialMemoriesModal() {
                 <div style="font-weight:900; color:#fff; font-size:13px; line-height:1.35;">${esc(text)}</div>
                 ${impact ? `<div style="margin-top:6px; font-size:12px; color:rgba(255,255,255,0.75);"><strong style="color:rgba(0,240,255,0.9);">Impact:</strong> ${esc(impact)}</div>` : ""}
                 ${tagHtml}
-                <i class="fa-solid fa-pen-to-square uie-db-social-mem-edit" data-mid="${esc(id)}" style="position:absolute; top:10px; right:30px; color:#00f0ff; cursor:pointer; font-size:12px; opacity:0.85;"></i>
                 <i class="fa-solid fa-trash uie-db-social-mem-del" data-mid="${esc(id)}" style="position:absolute; top:10px; right:10px; color:#ff3b30; cursor:pointer; font-size:12px; opacity:0.85;"></i>
             </div>
         `);
@@ -348,11 +337,45 @@ function renderSocialMemoriesModal() {
 async function scanMemoriesForPerson(person) {
     const ctx = getContext ? getContext() : {};
     const user = String(ctx?.name1 || "User");
-    const transcript = getRecentChat(90);
-
+    const transcript = (() => {
+        const out = [];
+        try {
+            const nodes = Array.from(document.querySelectorAll("#chat .mes")).slice(-90);
+            for (const m of nodes) {
+                const name =
+                    m.querySelector(".mes_name")?.textContent ||
+                    m.querySelector(".name_text")?.textContent ||
+                    m.querySelector(".name")?.textContent ||
+                    "";
+                const text =
+                    m.querySelector(".mes_text")?.textContent ||
+                    m.querySelector(".message")?.textContent ||
+                    "";
+                const nm = String(name || "").trim() || "Unknown";
+                const tx = String(text || "").trim();
+                if (!tx) continue;
+                out.push(`${nm}: ${tx}`);
+            }
+        } catch (_) {}
+        return out.join("\n").slice(-14000);
+    })();
     if (!transcript) return;
 
-    const prompt = SCAN_TEMPLATES.socialMemories.scan(person.name, user, transcript);
+    const prompt = `[UIE_LOCKED]
+You are extracting ONLY vital, relationship-relevant memories for the character "${person.name}" about interactions with "${user}".
+
+Input transcript (may include omniscient tool cards / metadata; ignore anything that is not an in-world event or a durable fact):
+${transcript}
+
+Return ONLY valid JSON (no markdown, no extra keys):
+{"memories":[{"text":"...","impact":"...","tags":["..."]}]}
+
+Rules:
+- 3 to 8 memories max. If none, return {"memories":[]}.
+- Each memory must be a durable fact that CHANGED something: trust, fear, loyalty, obligation, romance, rivalry, plans, secrets, injuries, promises, betrayals, gifts, major discoveries.
+- No trivial entries (no greetings, walking in, “they talked”, generic vibes).
+- Be specific and consequence-based. 1–2 sentences per memory.
+- Tags are short (e.g., "promise", "betrayal", "injury", "secret", "favor", "trauma", "trust").`;
 
     try { window.toastr?.info?.("Scanning memories..."); } catch (_) {}
     const res = await generateContent(prompt.slice(0, 16000), "System Check");
@@ -428,7 +451,6 @@ function render() {
                     </div>
                 </div>
                 <div style="font-size:12px; color:rgba(255,255,255,0.88); line-height:1.45; white-space:pre-wrap; word-break:break-word;">${esc(body || "(empty)")}</div>
-                <i class="fa-solid fa-pen-to-square db-edit" data-id="${esc(String(m.id || ""))}" style="position:absolute; bottom:10px; right:35px; color:#00f0ff; cursor:pointer; font-size:12px; opacity:0.7;"></i>
                 <i class="fa-solid fa-trash db-delete" data-id="${esc(String(m.id || ""))}" style="position:absolute; bottom:10px; right:10px; color:#ff3b30; cursor:pointer; font-size:12px; opacity:0.7;"></i>
             </div>
         `);
