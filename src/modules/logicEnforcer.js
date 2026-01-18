@@ -153,7 +153,7 @@ export function buildSystemPrompt() {
     lines.push("");
   }
 
-  const nsfwRules = extractNsfwSystemRules(ctx);
+  const nsfwRules = getUserNsfwRulesText(s);
   if (nsfwRules) {
     lines.push("**NSFW / Consent Rules (Priority):**");
     lines.push("- Follow the user's NSFW rules exactly as written in the system prompt.");

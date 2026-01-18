@@ -33,7 +33,19 @@ export const SETTINGS_DEFAULT = {
         shop: true,
         loot: true
     },
-    generation: { requireConfirm: false, promptUI: true, aiConfirm: false, scanOnlyOnGenerateButtons: false, systemCheckMinIntervalMs: 20000, autoScanMinIntervalMs: 8000, customSystemPrompt: "", promptPrefixes: { global: "", byType: {} } },
+    generation: { 
+        requireConfirm: false, 
+        promptUI: true, 
+        aiConfirm: false, 
+        scanOnlyOnGenerateButtons: false, 
+        systemCheckMinIntervalMs: 20000, 
+        autoScanMinIntervalMs: 8000, 
+        customSystemPrompt: "", 
+        promptPrefixes: { global: "", byType: {} },
+        chatLogMode: "lastN", 
+        chatLogLimit: 50, 
+        nsfwRulesText: "" 
+    },
     party: {
         name: "My Party",
         banner: "",

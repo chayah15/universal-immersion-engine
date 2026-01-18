@@ -1,5 +1,5 @@
 import { getSettings, saveSettings, getRecentChat } from "./core.js";
-import { generateContent } from "./apiClient.js";
+import { generateContent, chatLogCheck } from "./apiClient.js";
 import { getContext } from "../../../../../extensions.js"; 
 import { injectRpEvent } from "./features/rp_log.js";
 import { notify } from "./notifications.js";
@@ -1354,6 +1354,21 @@ ${chat}`.slice(0, 6000);
         const rawName = String(name || "").trim();
         const dir = String(opts?.dir || "out").trim() || "out";
         $("#call-name-disp").text(rawName || "Unknown");
+        
+        // Inject Avatar
+        try {
+            const s = getSettings();
+            const allPeople = getSocialPeople(s);
+            const person = allPeople.find(p => String(p.name || "").trim().toLowerCase() === rawName.toLowerCase());
+            const avatarUrl = person ? (person.avatar || "") : "";
+            const avatarEl = $("#call-avatar-img");
+            if (avatarUrl) {
+                avatarEl.html(`<img src="${String(avatarUrl)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`);
+            } else {
+                avatarEl.html(`<i class="fa-solid fa-user" style="font-size:3em; color:#ccc;"></i>`);
+            }
+        } catch (_) {}
+
         $(".call-status").text("Dialing...");
         $("#call-transcript").empty();
         try {

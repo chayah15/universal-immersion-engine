@@ -38,8 +38,15 @@ function ensureConfirmModal() {
     `);
 }
 
-function chatLogCheck() {
-    return getRecentChat(60);
+export function chatLogCheck() {
+    const s = getSettings() || {};
+    const g = s.generation || {};
+
+    const mode = String(g.chatLogMode || "lastN"); // "lastN" | "full" | "off"
+    if (mode === "off") return "";
+
+    const limit = mode === "full" ? 2000 : Number(g.chatLogLimit || 50);
+    return getRecentChat(Number.isFinite(limit) ? limit : 50);
 }
 
 function loreCheck() {
