@@ -60,14 +60,15 @@
     </div>
 </div>
 
-<div id="uie-db-social-mem-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10080; display:flex; align-items:center; justify-content:center;">
-    <div style="position:relative; width:90vw; max-width:900px; height:80vh; max-height:800px; overflow:auto; background:#0b101c; border:1px solid rgba(0,240,255,0.35); box-shadow:0 0 30px rgba(0,240,255,0.15); padding:20px; border-radius:8px;">
-        <div style="display:flex; align-items:center; gap:10px;">
-            <div style="font-weight:900; letter-spacing:1px; color:#00f0ff;">SOCIAL MEMORIES</div>
+<div id="uie-db-social-mem-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10080; align-items:flex-start; justify-content:center; padding-top: 80px;">
+    <div style="position:relative; width:90vw; max-width:900px; height:80vh; max-height:800px; overflow:hidden; display:flex; flex-direction:column; background:#0b101c; color:#00f0ff; border:1px solid #00f0ff; box-shadow:0 0 15px rgba(0,240,255,0.2); padding:0; border-radius:0;">
+        <div style="padding:12px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #00f0ff; background:rgba(0,240,255,0.1); flex-shrink:0;">
+            <div style="font-weight:900; letter-spacing:1px; color:#00f0ff; font-size:16px;">SOCIAL MEMORIES</div>
             <div id="uie-db-social-mem-sub" style="margin-left:auto; font-size:12px; color:rgba(0,240,255,0.65);"></div>
-            <i class="fa-solid fa-xmark" id="uie-db-social-mem-close" style="cursor:pointer; color:#00f0ff;"></i>
+            <i class="fa-solid fa-xmark" id="uie-db-social-mem-close" style="cursor:pointer; color:#00f0ff; font-size:18px;"></i>
         </div>
-        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+        <div style="padding:15px; overflow-y:auto; flex:1;">
+            <div style="display:flex; gap:8px; margin-bottom:15px; flex-wrap:wrap;">
             <button id="uie-db-social-mem-scan" style="background:rgba(0,240,255,0.1); border:1px solid rgba(0,240,255,0.35); color:#00f0ff; padding:6px 10px; cursor:pointer; font-weight:900; font-size:12px;">SCAN FROM CHAT</button>
             <button id="uie-db-social-mem-add" style="background:rgba(0,240,255,0.1); border:1px solid rgba(0,240,255,0.35); color:#00f0ff; padding:6px 10px; cursor:pointer; font-weight:900; font-size:12px;">ADD</button>
             <button id="uie-db-social-mem-inject" style="background:rgba(0,240,255,0.1); border:1px solid rgba(0,240,255,0.35); color:#00f0ff; padding:6px 10px; cursor:pointer; font-weight:900; font-size:12px;">INJECT TO CHAT</button>
@@ -75,5 +76,6 @@
         </div>
         <div id="uie-db-social-mem-list" style="margin-top:12px;"></div>
         <div id="uie-db-social-mem-empty" style="display:none; text-align:center; color:rgba(0,240,255,0.55); margin-top:18px;">NO MEMORIES SAVED</div>
+    </div>
     </div>
 </div>

@@ -190,7 +190,7 @@ export function initDatabank() {
         const pid = String($(this).data("pid") || "");
         if (!pid) return;
         dbSocialActivePersonId = pid;
-        $("#uie-db-social-mem-overlay").show();
+        $("#uie-db-social-mem-overlay").css("display", "flex");
         renderSocialMemoriesModal();
     });
 
