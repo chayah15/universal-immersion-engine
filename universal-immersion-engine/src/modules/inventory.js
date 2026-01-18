@@ -862,6 +862,96 @@ export function initInventory() {
   };
 
   $(document)
+    .off("click.uieLootScan", "#uie-create-scan-loot")
+    .on("click.uieLootScan", "#uie-create-scan-loot", async function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeCreateStation();
+      
+      const s = getSettings();
+      ensureModel(s);
+      
+      const transcript = (() => {
+        try {
+          let raw = "";
+          const chatEl = document.querySelector("#chat");
+          if (!chatEl) return "";
+          const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-60);
+          for (const m of msgs) {
+            const isUser = m.classList?.contains("is_user") || m.dataset?.isUser === "true";
+            const t = m.querySelector(".mes_text")?.textContent || m.textContent || "";
+            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+          }
+          return raw.trim().slice(0, 8000);
+        } catch (_) { return ""; }
+      })();
+
+      if (!transcript) {
+        notify("info", "No chat found to scan.", "Inventory", "loot");
+        return;
+      }
+
+      notify("info", "Scanning chat for loot...", "Inventory", "api");
+
+      const prompt = `[UIE_LOCKED]
+Analyze the chat transcript to find new ITEMS, WEAPONS, or CURRENCY acquired by the user/character.
+Transcript:
+${transcript}
+
+Task: Return a JSON object with a list of "items" added.
+Rules:
+- Include items found, bought, looted, gifted, or crafted.
+- Ignore items already in possession or just mentioned.
+- Ignore currency if it's just a number (handled by regex), but include "Credit Chip" or "Gold Bar" items.
+- Return ONLY JSON: {"items":[{"name":"","type":"item|weapon|armor","qty":1,"desc":"..."}]}
+`;
+
+      try {
+        const res = await generateContent(prompt, "Loot Scan");
+        if (!res) { notify("warning", "No loot found (AI silent).", "Inventory", "loot"); return; }
+        
+        const obj = JSON.parse(String(res).replace(/```json|```/g, "").trim());
+        const items = Array.isArray(obj?.items) ? obj.items : [];
+        
+        if (!items.length) {
+            notify("info", "No new loot detected.", "Inventory", "loot");
+            return;
+        }
+
+        let addedCount = 0;
+        for (const it of items) {
+            if (!it.name) continue;
+            const exist = s.inventory.items.find(x => x.name === it.name);
+            if (exist) {
+                exist.qty = (exist.qty || 1) + (it.qty || 1);
+            } else {
+                s.inventory.items.push({
+                    kind: "item",
+                    name: it.name,
+                    type: it.type || "item",
+                    description: it.desc || "Found item.",
+                    qty: it.qty || 1,
+                    rarity: "common",
+                    mods: {},
+                    statusEffects: []
+                });
+            }
+            addedCount++;
+        }
+        
+        if (addedCount > 0) {
+            saveSettings();
+            notify("success", `Added ${addedCount} item(s) to inventory.`, "Inventory", "loot");
+            try { (await import("./features/items.js")).render?.(); } catch (_) {}
+        }
+
+      } catch (e) {
+        console.warn("Loot Scan Error", e);
+        notify("error", "Failed to process loot scan.", "Inventory", "api");
+      }
+    });
+
+  $(document)
     .off("click.uieWarRoomScan", "#uie-create-scan-warroom")
     .on("click.uieWarRoomScan", "#uie-create-scan-warroom", async function (e) {
       e.preventDefault();

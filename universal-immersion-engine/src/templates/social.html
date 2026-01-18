@@ -15,51 +15,54 @@
 
         .uie-social-grid{
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 12px;
         }
         .uie-social-card{
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            gap: 8px;
-            padding: 10px;
-            border-radius: 12px;
+            gap: 0;
+            padding: 0;
+            border-radius: 8px;
             border: 1px solid rgba(255,255,255,0.10);
-            background: rgba(0,0,0,0.22);
+            background: rgba(0,0,0,0.4);
             color: #fff;
             cursor: pointer;
             user-select: none;
-            min-height: 112px;
-            text-align: center;
+            overflow: hidden;
+            aspect-ratio: 3/4;
+            position: relative;
         }
-        .uie-social-card:hover{ border-color: rgba(225,193,122,0.35); }
+        .uie-social-card:hover{ border-color: rgba(225,193,122,0.6); }
         .uie-social-card.delete-selected{
-            border-color: rgba(231,76,60,0.55);
-            box-shadow: 0 0 0 2px rgba(231,76,60,0.22);
+            border-color: rgba(231,76,60,0.8);
+            box-shadow: 0 0 0 3px rgba(231,76,60,0.4);
         }
         .uie-s-avatar{
-            width: 64px;
-            height: 64px;
-            border-radius: 12px;
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.12);
-            background: rgba(0,0,0,0.35);
-            display: grid;
-            place-items: center;
-            flex: 0 0 auto;
+            width: 100%;
+            height: 100%;
+            flex: 1;
+            display: block;
+            background: rgba(0,0,0,0.2);
         }
-        .uie-s-avatar i{ opacity: 0.55; }
+        .uie-s-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
         .uie-s-name{
-            font-weight: 900;
-            letter-spacing: 0.2px;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(4px);
+            padding: 6px 4px;
+            font-weight: 700;
+            font-size: 11px;
+            text-align: center;
+            white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            white-space: nowrap;
-            min-width: 0;
-            width: 100%;
-            font-size: 12px;
+            z-index: 2;
         }
 
         #uie-delete-controls{

@@ -840,103 +840,52 @@ async function scanChatIntoSocial({ silent } = {}) {
     const userName = String(ctx?.name1 || "").trim();
     const deleted = deletedNameSet(s);
 
-    const purgeTerms = ["HP:", "MP:", "Level:", "XP:", "System:", "Objective:", "Inventory:"];
-    const roleBlock = new Set(["narrator", "game master", "gm", "you", "system"]);
-
-    const nodes = getChatMessageNodes(240);
-    const transcriptLines = [];
-    const candidates = new Set();
-    for (const m of nodes) {
-        const nm =
-            m.querySelector(".mes_name")?.textContent ||
-            m.querySelector(".name_text")?.textContent ||
-            m.querySelector(".name")?.textContent ||
-            m.querySelector(".ch_name")?.textContent ||
-            m.getAttribute?.("ch_name") ||
-            m.getAttribute?.("data-name") ||
-            m.dataset?.name ||
-            m.dataset?.chName ||
-            "";
-        const tx =
-            m.querySelector(".mes_text")?.textContent ||
-            m.querySelector(".mes-text")?.textContent ||
-            m.querySelector(".message")?.textContent ||
-            m.textContent ||
-            "";
-        const name = String(nm || "").trim() || "Unknown";
-        const text = String(tx || "").trim();
-        if (!text) continue;
-        const low = text.toLowerCase();
-        if (purgeTerms.some(k => text.includes(k))) continue;
-        if (low.includes("omniscient") || low.includes("character sheet") || low.includes("stat block")) continue;
-        if (/^\s*\{[\s\S]*\}\s*$/.test(text.slice(0, 800))) continue;
-        transcriptLines.push(`${name}: ${text}`.slice(0, 520));
-        if (name && name !== "Unknown") candidates.add(name);
-        const reA = /<char:([^>]{2,48})>/ig;
-        const reB = /<npc:([^>]{2,48})>/ig;
-        let x = null;
-        while ((x = reA.exec(text)) !== null) candidates.add(String(x[1] || "").trim());
-        while ((x = reB.exec(text)) !== null) candidates.add(String(x[1] || "").trim());
-    }
-
-    let list = Array.from(candidates)
-        .map(n => String(n || "").trim())
-        .filter(Boolean)
-        .filter(n => {
-            const k = n.toLowerCase();
-            if (deleted.has(k)) return false;
-            if (roleBlock.has(k)) return false;
-            if (userName && k === userName.toLowerCase()) return false;
-            if (k === "<user>" || k === "user") return false;
-            if (/^<.*>$/.test(n) && n.toLowerCase() !== "<char>") return false;
-            if (/\b(hp|mp|xp|level)\b/i.test(n)) return false;
-            return true;
-        })
-        .slice(0, 40);
-
-    if (!list.length) {
-        if (!silent) notify("info", filteredLines.length ? "Chat found, but all candidate names were filtered (stat blocks/roles/user/deleted)." : "No chat transcript found.", "Social", "social");
+    // Grab raw text logic
+    const transcript = getChatTranscript(240);
+    if (!transcript) {
+        if (!silent) notify("info", "No chat transcript found.", "Social", "social");
         return;
     }
 
-    const contextSnippet = transcriptLines.slice(-90).join("\n").slice(-9000);
     const prompt = `[UIE_LOCKED]
-Analyze these names found in the chat:
-${JSON.stringify(list)}
+Analyze the following chat transcript to find characters/people for the Social Contacts list.
+User Name: "${userName}"
 
-Based ONLY on the transcript below, determine:
-- whether each person was MET/INTERACTED WITH in the scene, or only MENTIONED.
-- the best relationship category for UIE Social: friends|romance|family|rivals.
+Transcript:
+${transcript.slice(-14000)}
 
-Do NOT use omniscient cards, stat blocks, or OOC/system metadata as evidence.
-
-Context:
-${contextSnippet}
-
+Task: Identify all characters (NPCs, people) mentioned or present in the story.
 Return ONLY valid JSON:
-{"verified":[{"name":"","tab":"","role":"","affinity":50,"presence":"present"}]}
+{"found":[{"name":"Name","role":"friend|rival|romance|family|associate|npc","affinity":50,"presence":"present|mentioned"}]}
 
 Rules:
-- verified: 0-24 entries max.
-- name must be from the provided list exactly (case-insensitive ok, but do not invent new names).
-- tab must be one of: friends|associates|romance|family|rivals.
-- role is a short label like friend|romance|family|rival|npc|enemy|ally|mentioned.
-- affinity is an integer 0-100.
-- presence must be one of:
-  - "present" (physically present / interacted in scene)
-  - "known_past" (user knows them from the past, but they are not present in scene)
-  - "mentioned" (only mentioned, not known, not present)`;
+- "name": Extract the name exactly as it appears (e.g. "The Shopkeeper" -> "Shopkeeper", "John Doe" -> "John Doe").
+- "presence": "present" if they are physically in the scene interacting. "mentioned" if only talked about/remembered.
+- "role": Guess the relationship role based on context.
+- Exclude: The user ("${userName}"), "System", "Narrator", "Game Master".
+- Include everyone else found in the text, even if they didn't speak (e.g. "Bob stood silently in the corner").
+`;
 
-    let verified = [];
+    try { window.toastr?.info?.("Scanning story for characters..."); } catch (_) {}
+
+    let found = [];
     try {
-        const res = await generateContent(prompt, "System Check");
+        const res = await generateContent(prompt, "Social Scan");
+        if (!res) {
+            if (!silent) notify("warning", "AI returned no response.", "Social", "api");
+            return;
+        }
         const obj = JSON.parse(String(res || "").replace(/```json|```/g, "").trim());
-        verified = Array.isArray(obj?.verified) ? obj.verified : [];
-    } catch (_) {
-        verified = [];
+        found = Array.isArray(obj?.found) ? obj.found : [];
+    } catch (e) {
+        console.warn("Social Scan Parse Error", e);
+        if (!silent) notify("error", "Failed to parse AI response.", "Social", "api");
+        return;
     }
-    if (!Array.isArray(verified) || !verified.length) {
-        verified = list.slice(0, 14).map(n => ({ name: n, role: "npc", affinity: 50 }));
+
+    if (!found.length) {
+        if (!silent) notify("info", "No new characters found in chat.", "Social", "social");
+        return;
     }
 
     const normalizeRoleToTab = (role) => {
@@ -949,29 +898,62 @@ Rules:
 
     const existingLower = new Set(["friends","associates","romance","family","rivals"].flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").toLowerCase()).filter(Boolean)));
     let added = 0;
-    for (const v of verified.slice(0, 24)) {
+    
+    for (const v of found.slice(0, 30)) {
         const nm = String(v?.name || "").trim();
         if (!nm) continue;
         const key = nm.toLowerCase();
         if (deleted.has(key)) continue;
         if (existingLower.has(key)) continue;
+        if (key === "you" || key === "user" || key === "me" || key === userName.toLowerCase()) continue;
+
         const presence = String(v?.presence || "").toLowerCase().trim();
         const met = presence === "present";
-        const knownPast = presence === "known_past";
-        const tabRaw = String(v?.tab || "").toLowerCase().trim();
-        const tabFromAi = (tabRaw === "romance" || tabRaw === "family" || tabRaw === "rivals" || tabRaw === "friends" || tabRaw === "associates") ? tabRaw : "";
-        const tab = (met || knownPast) ? (tabFromAi || normalizeRoleToTab(v?.role)) : "associates";
+        const knownPast = presence === "known_past"; // AI might infer this
+        const tabRaw = String(v?.role || "").toLowerCase().trim(); // v.role mapped to tab sometimes
+        
+        // Logic to decide tab
+        const tab = normalizeRoleToTab(v?.role || "associate");
         const aff = Math.max(0, Math.min(100, Math.round(Number(v?.affinity ?? 50))));
-        const role = String(v?.role || (met ? "npc" : (knownPast ? "known" : "mentioned"))).trim().slice(0, 80);
-        const p = { id: newId("person"), name: nm, affinity: aff, thoughts: "", avatar: "", likes: "", dislikes: "", birthday: "", location: "", age: "", knownFamily: "", familyRole: "", relationshipStatus: role, url: "", tab, memories: [], met_physically: met, known_from_past: knownPast };
+        const role = String(v?.role || (met ? "npc" : "mentioned")).trim().slice(0, 80);
+        
+        const p = { 
+            id: newId("person"), 
+            name: nm, 
+            affinity: aff, 
+            thoughts: "", 
+            avatar: "", 
+            likes: "", 
+            dislikes: "", 
+            birthday: "", 
+            location: "", 
+            age: "", 
+            knownFamily: "", 
+            familyRole: "", 
+            relationshipStatus: role, 
+            url: "", 
+            tab, 
+            memories: [], 
+            met_physically: met, 
+            known_from_past: knownPast 
+        };
+        
+        // If "associate" but affinity is high/low, maybe move? For now stick to AI guess.
+        // But force "associates" if just mentioned?
+        // User wants "PULLING CHARACTERS FROM STORY". So if they are in story, add them.
+        
         s.social[tab].push(p);
         existingLower.add(key);
         added++;
     }
 
-    saveSettings();
-    renderSocial();
-    if (!silent) notify("success", added ? `Added ${added} verified character(s).` : "No new verified characters to add.", "Social", "social");
+    if (added) {
+        saveSettings();
+        renderSocial();
+        if (!silent) notify("success", `Added ${added} character(s) from story.`, "Social", "social");
+    } else {
+        if (!silent) notify("info", "No new characters added (all exist or ignored).", "Social", "social");
+    }
 }
 
 export async function updateRelationshipScore(name, text, source) {
