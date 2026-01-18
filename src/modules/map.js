@@ -3,6 +3,8 @@ import { generateContent } from "./apiClient.js";
 import { getContext } from "../../../../../extensions.js";
 import { generateImageAPI } from "./imageGen.js";
 
+let viewDraft = { tx: 0, ty: 0, scale: 1 };
+
 function ensureMap(s) {
     if (!s.map) s.map = { mode: "procedural", html: "", data: null, seed: "", scope: "local", prompt: "", location: "Unknown", marker: { x: 0.5, y: 0.5 }, grid: false };
     if (!s.map.marker) s.map.marker = { x: 0.5, y: 0.5 };
@@ -435,12 +437,12 @@ export function initMap() {
     if (!s) return;
     ensureMap(s);
 
-    $(document).off("click.map");
+    $(document).off("click.map pointerup.map");
     $(document).off("change.mapBg", "#uie-map-bg-file");
-    $(document).off("click.mapBg", "#uie-map-bg-pick");
-    $(document).off("click.mapSparkle", "#uie-map-sparkle");
-    $(document).off("click.mapMenu", "#uie-map-menu .uie-dd-item");
-    $(document).off("click.mapMenuClose");
+    $(document).off("pointerup.mapBg", "#uie-map-bg-pick");
+    $(document).off("pointerup.mapSparkle", "#uie-map-sparkle");
+    $(document).off("pointerup.mapMenu", "#uie-map-menu .uie-dd-item");
+    $(document).off("pointerup.mapMenuClose");
 
     const readFileAsBase64 = (file) => new Promise((resolve) => {
         if (!file) return resolve("");
@@ -450,14 +452,14 @@ export function initMap() {
         r.readAsDataURL(file);
     });
 
-    $(document).on("click.mapBg", "#uie-map-bg-pick", function(e){
+    $(document).on("pointerup.mapBg click.mapBg", "#uie-map-bg-pick", function(e){
         e.preventDefault();
         e.stopPropagation();
         const inp = document.getElementById("uie-map-bg-file");
         if (inp) inp.click();
     });
 
-    $(document).on("click.mapSparkle", "#uie-map-sparkle", function(e){
+    $(document).on("pointerup.mapSparkle click.mapSparkle", "#uie-map-sparkle", function(e){
         e.preventDefault();
         e.stopPropagation();
         const m = document.getElementById("uie-map-menu");
@@ -466,7 +468,7 @@ export function initMap() {
         m.style.display = open ? "none" : "flex";
     });
 
-    $(document).on("click.mapMenu", "#uie-map-menu .uie-dd-item", function(e){
+    $(document).on("pointerup.mapMenu click.mapMenu", "#uie-map-menu .uie-dd-item", async function(e){
         e.preventDefault();
         e.stopPropagation();
         const id = String(this && this.id || "");
@@ -482,10 +484,7 @@ export function initMap() {
             const p = document.getElementById("uie-map-prompt");
             const scope = String(scopeSel?.value || "local");
             const prompt = String(p?.value || "").trim();
-            if (!prompt) {
-                try { if (window.toastr) toastr.info("Describe the map first."); } catch (_) {}
-                return;
-            }
+            if (!prompt) return;
             await generateMap({ prompt, scope, forceProcedural: true });
         }
         if (id === "uie-map-act-location") {
@@ -505,7 +504,7 @@ export function initMap() {
         }
     });
 
-    $(document).on("click.mapMenuClose", function(e){
+    $(document).on("pointerup.mapMenuClose click.mapMenuClose", function(e){
         if ($(e.target).closest("#uie-map-sparkle, #uie-map-menu").length) return;
         const m = document.getElementById("uie-map-menu");
         if (m) m.style.display = "none";
@@ -524,24 +523,21 @@ export function initMap() {
         try { (await import("./core.js")).updateLayout?.(); } catch (_) {}
     });
 
-    $(document).on("click.map", "#uie-btn-open-map", (e) => {
+    $(document).on("pointerup.map click.map", "#uie-btn-open-map", (e) => {
         e.preventDefault();
         e.stopPropagation();
     });
 
-    $(document).on("click.map", "#uie-map-generate", async (e) => {
+    $(document).on("pointerup.map click.map", "#uie-map-generate", async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const scope = String($("#uie-map-scope").val() || "local");
         const prompt = String($("#uie-map-prompt").val() || "").trim();
-        if (!prompt) {
-            try { if (window.toastr) toastr.info("Describe the map first."); } catch (_) {}
-            return;
-        }
+        if (!prompt) return;
         await generateMap({ prompt, scope });
     });
 
-    $(document).on("click.map", "#uie-map-refresh", async (e) => {
+    $(document).on("pointerup.map click.map", "#uie-map-refresh", async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();
@@ -552,7 +548,7 @@ export function initMap() {
         await generateMap({ prompt, scope });
     });
 
-    $(document).on("click.map", "#uie-map-set-location", (e) => {
+    $(document).on("pointerup.map click.map", "#uie-map-set-location", (e) => {
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();
@@ -568,7 +564,7 @@ export function initMap() {
     let start = null;
     let pinchStart = null;
     let raf = 0;
-    let viewDraft = { tx: Number(s.map.view?.tx || 0), ty: Number(s.map.view?.ty || 0), scale: Number(s.map.view?.scale || 1) };
+    viewDraft = { tx: Number(s.map.view?.tx || 0), ty: Number(s.map.view?.ty || 0), scale: Number(s.map.view?.scale || 1) };
     const applyDraftTransform = () => {
         raf = 0;
         const root = document.querySelector("#uie-map-render #uie-map-root");
@@ -692,7 +688,7 @@ export function initMap() {
         }
     });
     
-    $(document).on("click", "#uie-map-card-close", function(e) {
+    $(document).on("pointerup.map click.map", "#uie-map-card-close", function(e) {
         e.preventDefault();
         e.stopPropagation();
         $("#uie-map-info-card").fadeOut(200);

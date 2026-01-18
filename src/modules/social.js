@@ -419,11 +419,12 @@ export function renderSocial() {
                 : `<i class="fa-solid fa-user"></i>`;
 
             const tag = (person?.met_physically === true) ? "" : (person?.known_from_past === true ? "PAST" : "MENTION");
-            const tagHtml = tag ? `<span style="margin-left:8px; font-size:10px; opacity:0.75; border:1px solid rgba(255,255,255,0.18); padding:2px 6px; border-radius:999px;">${tag}</span>` : "";
+            const tagHtml = tag ? `<div style="font-size:10px; opacity:0.75; border:1px solid rgba(255,255,255,0.18); padding:2px 8px; border-radius:999px;">${tag}</div>` : "";
             const card = $(`
                 <div class="uie-social-card ${isSel ? 'delete-selected' : ''}" data-idx="${index}">
                     <div class="uie-s-avatar">${avatarHtml}</div>
-                    <div class="uie-s-name">${esc(person.name)}${tagHtml}</div>
+                    <div class="uie-s-name">${esc(person.name)}</div>
+                    ${tagHtml}
                 </div>
             `);
             grid.append(card);

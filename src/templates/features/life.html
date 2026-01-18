@@ -62,6 +62,18 @@
   .life-modal .colorwrap{display:flex;align-items:center;gap:10px;}
   .life-modal input[type="color"]{width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.10);background:transparent;padding:0;}
   .life-help{margin-top:10px;color:rgba(255,255,255,.72);font-size:12px;font-weight:800;line-height:1.35;}
+
+  @media (max-width: 700px), (pointer: coarse) {
+    .life-modal{
+      align-items:flex-start;
+      padding-top:max(12px, env(safe-area-inset-top));
+      padding-bottom:max(12px, env(safe-area-inset-bottom));
+      height:100dvh;
+    }
+    .life-modal .box{
+      max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    }
+  }
 </style>
 
 <div class="uie-life">

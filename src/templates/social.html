@@ -20,8 +20,10 @@
         }
         .uie-social-card{
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 10px;
+            justify-content: flex-start;
+            gap: 8px;
             padding: 10px;
             border-radius: 12px;
             border: 1px solid rgba(255,255,255,0.10);
@@ -29,7 +31,8 @@
             color: #fff;
             cursor: pointer;
             user-select: none;
-            min-height: 64px;
+            min-height: 112px;
+            text-align: center;
         }
         .uie-social-card:hover{ border-color: rgba(225,193,122,0.35); }
         .uie-social-card.delete-selected{
@@ -37,8 +40,8 @@
             box-shadow: 0 0 0 2px rgba(231,76,60,0.22);
         }
         .uie-s-avatar{
-            width: 54px;
-            height: 54px;
+            width: 64px;
+            height: 64px;
             border-radius: 12px;
             overflow: hidden;
             border: 1px solid rgba(255,255,255,0.12);
@@ -55,7 +58,8 @@
             text-overflow: ellipsis;
             white-space: nowrap;
             min-width: 0;
-            flex: 1;
+            width: 100%;
+            font-size: 12px;
         }
 
         #uie-delete-controls{

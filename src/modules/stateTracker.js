@@ -56,6 +56,37 @@ function roleToTab(role) {
     return "friends";
 }
 
+function stripCssBlocks(text) {
+    const src = String(text || "").replace(/\r/g, "");
+    const lines = src.split("\n");
+    const out = [];
+    let depth = 0;
+    for (const line of lines) {
+        const t = String(line || "");
+        const s = t.trim();
+        if (!s) {
+            if (depth === 0) out.push("");
+            continue;
+        }
+        const opens = (s.match(/\{/g) || []).length;
+        const closes = (s.match(/\}/g) || []).length;
+        if (depth > 0) {
+            depth = Math.max(0, depth + opens - closes);
+            continue;
+        }
+        const looksCssStart =
+            /^(\.|\#|:root\b|@keyframes\b|@media\b|@font-face\b)/i.test(s) ||
+            (s.includes("--") && s.includes(":")) ||
+            (s.includes("{") && s.includes(":") && !/\bhttps?:\/\//i.test(s));
+        if (looksCssStart) {
+            depth = Math.max(1, opens - closes);
+            continue;
+        }
+        out.push(t);
+    }
+    return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 /**
  * UNIFIED SCANNER: Scans World State, Loot, and Status in ONE call.
  */
@@ -85,8 +116,8 @@ export async function scanEverything() {
             let raw = "";
             const $txt = $(".chat-msg-txt");
             if ($txt.length) {
-                $txt.slice(-1 * Math.max(1, Number(max || 10))).each(function () { raw += $(this).text() + "\n"; });
-                return raw.trim().slice(0, 4200);
+                $txt.slice(-1 * Math.max(1, Number(max || 10))).each(function () { raw += stripCssBlocks($(this).text()) + "\n"; });
+                return stripCssBlocks(raw).trim().slice(0, 7000);
             }
             const chatEl = document.getElementById("chat");
             if (!chatEl) return "";
@@ -97,20 +128,26 @@ export async function scanEverything() {
                     m.getAttribute?.("is_user") === "true" ||
                     m.getAttribute?.("data-is-user") === "true" ||
                     m.dataset?.isUser === "true";
-                const t =
-                    m.querySelector?.(".mes_text")?.textContent ||
-                    m.querySelector?.(".mes-text")?.textContent ||
-                    m.textContent ||
-                    "";
-                raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+                const el = m.querySelector?.(".mes_text") || m.querySelector?.(".mes-text") || null;
+                let t = "";
+                if (el) {
+                    const clone = el.cloneNode(true);
+                    try { clone.querySelectorAll?.("style, script, noscript, template, button, input, textarea").forEach(n => n.remove()); } catch (_) {}
+                    t = (clone.innerText != null ? clone.innerText : clone.textContent) || "";
+                } else {
+                    t = String(m.textContent || "");
+                }
+                t = stripCssBlocks(String(t || "").trim());
+                if (!t) continue;
+                raw += `${isUser ? "You" : "Story"}: ${t}\n`;
             }
-            return raw.trim().slice(0, 4200);
+            return stripCssBlocks(raw).trim().slice(0, 7000);
         } catch (_) {
             return "";
         }
     };
 
-    const chatSnippet = readChatSnippet(10);
+    const chatSnippet = readChatSnippet(28);
 
     if (!chatSnippet) return;
 
@@ -166,10 +203,11 @@ export async function scanEverything() {
     // Only proceed if AI features are enabled
     if (s.enabled === false) return; 
 
-    const prompt = `
+    const prompt = `[UIE_LOCKED]
 Analyze the chat history to update the RPG State.
 Current World: ${JSON.stringify(s.worldState)}
-Current HP: ${s.stats?.hp || "100"} / ${s.stats?.maxHp || "100"}
+Current HP: ${Number(s.hp ?? 100)} / ${Number(s.maxHp ?? 100)}
+Current MP: ${Number(s.mp ?? 50)} / ${Number(s.maxMp ?? 50)}
 Life Trackers: ${JSON.stringify((s.life?.trackers || []).slice(0, 30).map(t => ({ name: t.name, current: t.current, max: t.max })))}
 Current Status Effects: ${JSON.stringify((s.character?.statusEffects || []).slice(0, 30))}
 Existing Social Names: ${JSON.stringify((() => { try { ensureSocial(s); const arr = ["friends","romance","family","rivals"].flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").trim()).filter(Boolean)); return Array.from(new Set(arr)).slice(0, 120); } catch (_) { return []; } })())}
@@ -178,7 +216,7 @@ Deleted Social Names: ${JSON.stringify((() => { try { ensureSocial(s); return (s
 Task: Return a SINGLE JSON object with these keys:
 1. "world": Update location, threat, status, time, weather.
 2. "inventory": Lists of "added" (items found) and "removed" (items lost/used). Ignore currency.
-3. "stats": Integer changes for "hp" and "mp" (e.g. -10, +5).
+3. "stats": Integer deltas for "hp" and "mp" (e.g. -10, +5).
 4. "quests": List of new quest objects { "title": "...", "desc": "...", "type": "main|side" } if a NEW quest is explicitly given.
 5. "lore": List of new lore objects { "key": "Term", "entry": "Description" } if NEW important lore is revealed.
 6. "messages": List of { "from": "Name", "text": "..." } if a character sends a text message/SMS in the chat.
@@ -203,7 +241,14 @@ ${chatSnippet}
     if (!res) return;
 
     try {
-        const data = JSON.parse(String(res).replace(/```json|```/g, "").trim());
+        const raw = String(res).replace(/```json|```/g, "").trim();
+        const jsonText = (() => {
+            const a = raw.indexOf("{");
+            const b = raw.lastIndexOf("}");
+            if (a >= 0 && b > a) return raw.slice(a, b + 1);
+            return raw;
+        })();
+        const data = JSON.parse(jsonText);
         if (!data || typeof data !== "object") return;
 
         let needsSave = false;

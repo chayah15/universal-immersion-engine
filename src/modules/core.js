@@ -11,6 +11,7 @@ export const SETTINGS_DEFAULT = {
     rpg: { mode: "adventurer" },
     launcherX: 100, launcherY: 100,
     launcherIcon: "",
+    launcher: { name: "", src: "", hidden: false, savedIcons: [], lastUploadName: "" },
     menuX: null,
     menuY: null,
     posX: 100, posY: 100, 
@@ -111,6 +112,7 @@ export const SETTINGS_DEFAULT = {
     turbo: { enabled: false, url: "https://openrouter.ai/api/v1/chat/completions", key: "", model: "google/gemini-2.0-flash-exp" },
     image: { enabled: false, url: "https://api.openai.com/v1/images/generations", key: "", model: "dall-e-3", negativePrompt: "", features: { map: true, doll: true, social: true, phoneBg: true, msg: true, party: true, items: true }, comfy: { workflow: "", checkpoint: "", quality: "balanced", positiveNodeId: "", negativeNodeId: "", outputNodeId: "" } },
     connections: { activeProfileId: "", profiles: [] },
+    chatbox: { theme: "visual_novel", textScale: 1.0, highContrast: false, bgUrl: "" },
     chatState: { activeKey: "", states: {} }
 };
 
@@ -147,11 +149,25 @@ function deepClone(v) {
     try { return JSON.parse(JSON.stringify(v)); } catch (_) { return v; }
 }
 
-function getChatKeySafe() {
+function getChatKeyCandidatesSafe() {
     try {
         const ctx = getContext ? getContext() : null;
-        const chatId = String(ctx?.chatId || "").trim();
-        if (chatId) return `chat:${chatId}`;
+        const chatId =
+            String(ctx?.chatId || ctx?.chat_id || ctx?.chatID || ctx?.chat?.id || ctx?.chat?.chatId || ctx?.chat?.chat_id || ctx?.saveId || "").trim();
+        const chatName =
+            String(ctx?.chatName || ctx?.chat_name || ctx?.chat?.name || ctx?.chat?.chatName || "").trim();
+        const chatFile =
+            String(ctx?.chatFile || ctx?.chat_file || ctx?.chat?.file || ctx?.chat?.filename || ctx?.chat?.path || "").trim();
+        const cands = [];
+        const add = (k) => {
+            const v = String(k || "").trim();
+            if (!v) return;
+            if (!cands.includes(v)) cands.push(v);
+        };
+        if (chatFile) add(`chat:${chatFile}`);
+        if (chatId) add(`chat:${chatId}`);
+        if (chatName) add(`chat:${chatName}`);
+
         const groupId = String(ctx?.groupId || "").trim();
         const characterId = String(ctx?.characterId || "").trim();
         const name1 = String(ctx?.name1 || "").trim();
@@ -161,9 +177,10 @@ function getChatKeySafe() {
         if (characterId) parts.push(`char:${characterId}`);
         if (name1) parts.push(`n1:${name1}`);
         if (name2) parts.push(`n2:${name2}`);
-        return parts.length ? parts.join("|") : "";
+        if (parts.length) add(parts.join("|"));
+        return cands;
     } catch (_) {
-        return "";
+        return [];
     }
 }
 
@@ -206,12 +223,14 @@ export function ensureChatStateLoaded() {
         try { s.chatState.states[s.chatState.legacyKey] = snapshotChatState(s); } catch (_) {}
     }
 
-    const key = getChatKeySafe();
-    if (!key) return;
+    const candidates = getChatKeyCandidatesSafe();
+    if (!candidates.length) return;
+    const key = candidates.find((k) => s.chatState.states[k]) || candidates[0];
     const cur = String(s.chatState.activeKey || "").trim();
     if (!cur) {
         s.chatState.activeKey = key;
-        if (!s.chatState.states[key]) s.chatState.states[key] = snapshotChatState(s);
+        if (s.chatState.states[key]) applyChatState(s, s.chatState.states[key]);
+        else s.chatState.states[key] = snapshotChatState(s);
         return;
     }
     if (cur === key) return;
@@ -219,9 +238,7 @@ export function ensureChatStateLoaded() {
     try { s.chatState.states[cur] = snapshotChatState(s); } catch (_) {}
     const next = s.chatState.states[key];
     applyChatState(s, next);
-    if (!s.chatState.states[key]) {
-        try { s.chatState.states[key] = snapshotChatState(s); } catch (_) {}
-    }
+    if (!s.chatState.states[key]) try { s.chatState.states[key] = snapshotChatState(s); } catch (_) {}
     s.chatState.activeKey = key;
     saveSettings();
 }
@@ -380,8 +397,20 @@ export function sanitizeSettings() {
         }))
         .filter(p => p.id && p.name);
     if (s.connections.activeProfileId && !s.connections.profiles.find(p => p.id === s.connections.activeProfileId)) s.connections.activeProfileId = "";
+
+    if (!s.chatbox || typeof s.chatbox !== "object") s.chatbox = { ...SETTINGS_DEFAULT.chatbox };
+    if (typeof s.chatbox.theme !== "string") s.chatbox.theme = SETTINGS_DEFAULT.chatbox.theme;
+    if (!Number.isFinite(Number(s.chatbox.textScale))) s.chatbox.textScale = SETTINGS_DEFAULT.chatbox.textScale;
+    if (typeof s.chatbox.highContrast !== "boolean") s.chatbox.highContrast = SETTINGS_DEFAULT.chatbox.highContrast;
+    if (typeof s.chatbox.bgUrl !== "string") s.chatbox.bgUrl = String(s.chatbox.bgUrl || "");
     if (!s.features) s.features = SETTINGS_DEFAULT.features;
     if (!s.menuHidden) s.menuHidden = SETTINGS_DEFAULT.menuHidden;
+    if (!s.launcher || typeof s.launcher !== "object") s.launcher = { ...SETTINGS_DEFAULT.launcher };
+    if (typeof s.launcher.name !== "string") s.launcher.name = String(s.launcher.name || "");
+    if (typeof s.launcher.src !== "string") s.launcher.src = String(s.launcher.src || "");
+    if (typeof s.launcher.hidden !== "boolean") s.launcher.hidden = false;
+    if (!Array.isArray(s.launcher.savedIcons)) s.launcher.savedIcons = [];
+    if (typeof s.launcher.lastUploadName !== "string") s.launcher.lastUploadName = String(s.launcher.lastUploadName || "");
     if (s.menuX === undefined) s.menuX = SETTINGS_DEFAULT.menuX;
     if (s.menuY === undefined) s.menuY = SETTINGS_DEFAULT.menuY;
     if (!s.party) s.party = SETTINGS_DEFAULT.party;
@@ -494,6 +523,10 @@ export function updateLayout() {
     } catch (_) {
         $("#uie-launcher").css({ top: s.launcherY, left: s.launcherX });
     }
+    try {
+        if (s.launcher?.hidden === true) $("#uie-launcher").hide();
+        else $("#uie-launcher").show();
+    } catch (_) {}
     const baseUrl = (() => {
         try {
             const u = String(window.UIE_BASEURL || "");
@@ -646,7 +679,6 @@ export function updateLayout() {
             $el.css("transform-origin", useTranslate ? "" : "top left");
         });
     }
-    $("#uie-launcher").show();
     if (s.enabled === false) $("#uie-launcher").css({ opacity: 0.6, filter: "grayscale(1)" });
     else $("#uie-launcher").css({ opacity: "", filter: "" });
 

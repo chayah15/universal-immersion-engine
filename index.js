@@ -54,6 +54,8 @@ jQuery(async () => {
         await import("./src/modules/party.js").then(m => m.initParty?.());
         await import("./src/modules/social.js").then(m => m.initSocial?.());
         await import("./src/modules/world.js").then(m => m.initWorld?.());
+        await import("./src/modules/chatbox.js").then(m => m.initChatbox?.());
+        await import("./src/modules/sprites.js").then(m => m.initSprites?.());
         
         // Phone placeholder
         try { (await import("./src/modules/phone.js")).initPhone(); } catch(e){}

@@ -20,11 +20,17 @@
       <h2 style="margin:0; font-family:serif; color:#cba35c; letter-spacing:1px;">War Room</h2>
       <div style="font-size:12px; color:#aaa;" id="uie-battle-sub">Battle tracker</div>
     </div>
-    <button id="uie-battle-scan" style="margin-left:auto; height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Scan</button>
-    <button id="uie-battle-auto" style="margin-left:10px; height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Auto: OFF</button>
-    <button id="uie-battle-dice-toggle" style="margin-left:10px; height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Dice: OFF</button>
-    <button id="uie-battle-dice-roll" style="margin-left:10px; height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(203,163,92,0.18); color:#cba35c; font-weight:900; cursor:pointer;">Roll</button>
-    <i class="fa-solid fa-xmark uie-close-btn" id="uie-battle-close"></i>
+    <div class="uie-controls" style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+      <button id="uie-battle-wand" title="Tools" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; touch-action:manipulation;"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+      <button id="uie-battle-dice-roll" title="Roll Dice" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(203,163,92,0.18); color:#cba35c; font-weight:900; cursor:pointer; touch-action:manipulation;"><i class="fa-solid fa-dice-d20"></i></button>
+      <button id="uie-battle-close" title="Close" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; touch-action:manipulation;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <div class="uie-dropdown" id="uie-battle-menu" style="position:absolute; top:44px; right:44px; background:#111; border:1px solid rgba(203,163,92,0.5); border-radius:10px; padding:6px; display:none; flex-direction:column; gap:6px; z-index:2147483647; min-width:210px;">
+      <div class="uie-dd-item" id="uie-battle-scan" style="display:flex; gap:10px; align-items:center; padding:10px 10px; border-radius:10px; cursor:pointer; font-weight:900; color:#fff; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08);"><i class="fa-solid fa-users-viewfinder"></i> Scan</div>
+      <div class="uie-dd-item" id="uie-battle-auto" style="display:flex; gap:10px; align-items:center; padding:10px 10px; border-radius:10px; cursor:pointer; font-weight:900; color:#fff; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08);"><i class="fa-solid fa-robot"></i> Auto Scan: <span id="uie-battle-auto-state" style="margin-left:auto; opacity:0.85;">OFF</span></div>
+      <div class="uie-dd-item" id="uie-battle-dice-toggle" style="display:flex; gap:10px; align-items:center; padding:10px 10px; border-radius:10px; cursor:pointer; font-weight:900; color:#fff; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08);"><i class="fa-solid fa-dice-d20"></i> Dice: <span id="uie-battle-dice-state" style="margin-left:auto; opacity:0.85;">OFF</span></div>
+    </div>
   </div>
 
   <div class="uie-content" style="padding:12px; overflow:auto; height:calc(100% - 54px); display:grid; grid-template-columns: 1fr; gap:12px;">

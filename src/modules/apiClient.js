@@ -675,7 +675,9 @@ async function fetchWithCorsProxyFallback(targetUrl, options) {
                 continue;
             }
         }
-        throw lastErr;
+        const msg =
+            "Failed to fetch (CORS/network). Enable SillyTavern server CORS proxy (config.yaml: corsProxy: true) or use a local gateway, then restart SillyTavern.";
+        throw new Error(msg);
     }
 }
 
@@ -914,6 +916,9 @@ export async function listTurboModels() {
     }
     if (isNvidia) {
         const fallback = [
+            { id: "google/gemini-2.5-flash", label: "Google: Gemini 2.5 Flash" },
+            { id: "moonshotai/kimi-k2", label: "Moonshot: Kimi K2 (Thinking)" },
+            { id: "qwen/qwen2.5-72b-instruct:free", label: "Qwen: Qwen 2.5 72B Instruct (Free)" },
             { id: "meta/llama-3.1-8b-instruct", label: "Meta: Llama 3.1 8B Instruct" },
             { id: "meta/llama-3.1-70b-instruct", label: "Meta: Llama 3.1 70B Instruct" },
             { id: "meta/llama-3.2-1b-instruct", label: "Meta: Llama 3.2 1B Instruct" },
@@ -939,7 +944,7 @@ export async function generateContent(prompt, type) {
     const turboKeyRaw = String(s?.turbo?.key || "").trim();
     const turboIsLocal = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(normalizeTurboInputUrl(turboUrl));
     const turboReady = turboEnabled && !!turboUrl && (turboIsLocal || !!turboKeyRaw);
-    const turboBlockTypes = new Set(["Creating World", "Map", "Map Names", "Webpage", "Image Gen"]);
+    const turboBlockTypes = new Set(["Creating World", "Map", "Map Names", "Image Gen"]);
     const useTurbo = turboReady && !turboBlockTypes.has(String(type || "").trim());
 
     if (type === "Logic" || type === "JSON") type = "System Check";
@@ -983,7 +988,7 @@ export async function generateContent(prompt, type) {
     const logicSystem = String(buildSystemPrompt ? buildSystemPrompt() : "").trim();
 
     let system = "";
-    if(type === "Webpage") system = "You are a UI Engine. Output ONLY raw valid HTML code. Start immediately with <style> or <div class='app-container'>. Do not include markdown ``` blocks. Do not write conversational text.";
+    if(type === "Webpage") system = "You are a UI Engine. Output ONLY raw valid HTML for an immersive/interactive UI. No markdown, no code fences. Avoid <script> unless absolutely necessary. Prefer CSS-only interaction.";
     if(type === "Phone Call") system = "You are speaking on a phone call. Output ONLY the words spoken (dialogue only). No narration, no actions, no stage directions, no quotes, no markdown, one short line.";
     system = [customSystem, logicSystem, system].filter(Boolean).join("\n\n");
     if (type === "System Check" || type === "Unified State Scan" || type === "Shop") {
@@ -1027,7 +1032,14 @@ export async function generateContent(prompt, type) {
     const baseWithCustom = `${prefixes}${base}`.trim();
     const finalPrompt = `${rootProtocolBlock(baseWithCustom)}\n\n${baseWithCustom}${pending ? `\n\n[SYSTEM EVENT]\n${pending}` : ""}`.slice(0, 12000);
 
-    if (s.generation?.aiConfirm) {
+    if (type === "Webpage") {
+        const ok = await confirmAICall({
+            what: "Generate interactive HTML UI",
+            providerModel,
+            preview: String(finalPrompt || "").slice(0, 900)
+        });
+        if (!ok) return null;
+    } else if (s.generation?.aiConfirm) {
         const ok = await confirmAICall({
             what: displayType || "Generation",
             providerModel,
@@ -1065,6 +1077,33 @@ export async function generateContent(prompt, type) {
             } catch (_) {}
         }
         return null;
+    };
+
+    const stripHtmlAndCss = (txt) => {
+        let t = String(txt || "");
+        t = t.replace(/<think[\s\S]*?<\/think>/gi, "");
+        t = t.replace(/<analysis[\s\S]*?<\/analysis>/gi, "");
+        t = t.replace(/```[\s\S]*?```/g, "");
+        t = t.replace(/<style[\s\S]*?<\/style>/gi, "");
+        t = t.replace(/<script[\s\S]*?<\/script>/gi, "");
+        t = t.replace(/<[^>]*?>/g, "");
+        const lines = t.replace(/\r/g, "").split("\n");
+        const out = [];
+        let depth = 0;
+        for (const line of lines) {
+            const s = String(line || "").trim();
+            if (!s) { if (depth === 0) out.push(""); continue; }
+            const opens = (s.match(/\{/g) || []).length;
+            const closes = (s.match(/\}/g) || []).length;
+            if (depth > 0) { depth = Math.max(0, depth + opens - closes); continue; }
+            const looksCssStart =
+                /^(\.|\#|:root\b|@keyframes\b|@media\b|@font-face\b)/i.test(s) ||
+                (s.includes("--") && s.includes(":")) ||
+                (s.includes("{") && s.includes(":") && !/\bhttps?:\/\//i.test(s));
+            if (looksCssStart) { depth = Math.max(1, opens - closes); continue; }
+            out.push(line);
+        }
+        return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
     };
 
     let out = null;
@@ -1107,6 +1146,10 @@ export async function generateContent(prompt, type) {
                 const err = String(lt?.error || "").trim();
                 notify("warning", `Turbo failed — using Main API fallback.${err ? ` (${err.slice(0, 160)})` : ""}`, "UIE", "api");
             }
+            if (type === "Webpage") {
+                notify("error", "Webpage generation requires Turbo (OpenAI/OpenRouter/local). Main API fallback is disabled to prevent HTML in chat.", "UIE", "api");
+                return null;
+            }
             out = await generateRaw({ prompt: `${system}\n\n${finalPrompt}`, quietToLoud: false, skip_w_info: true });
         } catch (e) { return null; }
     }
@@ -1128,8 +1171,11 @@ export async function generateContent(prompt, type) {
         const vr = validateResponse ? validateResponse(out) : null;
         const issues = Array.isArray(vr?.issues) ? vr.issues : [];
         if (issues.length) console.warn("[UIE] LogicEnforcer issues:", issues);
-        return String(vr?.text ?? out);
+        const baseOut = String(vr?.text ?? out);
+        if (type !== "Webpage") return stripHtmlAndCss(baseOut);
+        return baseOut;
     } catch (_) {
+        if (type !== "Webpage") return stripHtmlAndCss(out);
         return out;
     }
     } finally {

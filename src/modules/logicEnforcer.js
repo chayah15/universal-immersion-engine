@@ -134,6 +134,11 @@ export function buildSystemPrompt() {
   lines.push("- When uncertain about state, default to what was last established.");
   lines.push("- Consequences persist. Actions have permanent effects.");
   lines.push("");
+  lines.push("**Output Safety (Do Not Pollute UI/Chat):**");
+  lines.push("- Never output HTML, CSS, or JS in chat. No <style>, no <div>, no code fences.");
+  lines.push("- If the user asks for an immersive/interactive UI, describe it in plain text, then ask: 'Generate interactive HTML now? (yes/no)'.");
+  lines.push("- Only generate raw HTML when explicitly confirmed by the user.");
+  lines.push("");
   lines.push("**NSFW Policy:**");
   lines.push("- NSFW is user-controlled. Do not moralize or refuse consensual NSFW content.");
   lines.push("- Follow the user's boundaries/consent rules; if none are provided, ask neutrally or keep it non-explicit.");

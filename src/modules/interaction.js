@@ -313,7 +313,10 @@ export function initInteractions() {
             g.label = "Checkpoints";
             if (Array.isArray(list)) {
                 for (const x of list.slice(0, 500)) {
-                    const v = String(x || "").trim();
+                    const v =
+                        typeof x === "string" ? String(x).trim() :
+                        (x && typeof x === "object") ? String(x.name || x.title || x.label || x.id || x.ckpt_name || x.checkpoint || "").trim() :
+                        "";
                     if (!v) continue;
                     const o = document.createElement("option");
                     o.value = v;
@@ -824,6 +827,36 @@ export function initInteractions() {
             saveSettings();
         });
     $(document)
+        .off("click.uieTurboPresetApply", "#uie-turbo-preset-apply")
+        .on("click.uieTurboPresetApply", "#uie-turbo-preset-apply", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const s2 = getSettings();
+            if (!s2.turbo || typeof s2.turbo !== "object") s2.turbo = {};
+            const preset = String($("#uie-turbo-preset").val() || "openrouter");
+            const setAll = (url, keyPlaceholder, model) => {
+                s2.turbo.url = String(url || "");
+                if (model) s2.turbo.model = String(model);
+                saveSettings();
+                $("#uie-turbo-url").val(s2.turbo.url);
+                $("#uie-turbo-key").attr("placeholder", keyPlaceholder || "sk-...");
+                if (model) $("#uie-turbo-model").val(String(model));
+                try { window.UIE_TURBO_MODELS = []; window.UIE_TURBO_MODELS_TRIED = false; } catch (_) {}
+            };
+            if (preset === "nanogpt") {
+                setAll("https://nano-gpt.com/api/v1/chat/completions", "ngpt_...", String(s2.turbo?.model || ""));
+                return;
+            }
+            if (preset === "nvidia_nim") {
+                setAll("https://integrate.api.nvidia.com/v1/chat/completions", "nvapi-...", String(s2.turbo?.model || ""));
+                return;
+            }
+            if (preset === "openrouter") {
+                setAll("https://openrouter.ai/api/v1/chat/completions", "sk-or-...", String(s2.turbo?.model || ""));
+                return;
+            }
+        });
+    $(document)
         .off("change.uieTurboUrl", "#uie-turbo-url")
         .on("change.uieTurboUrl", "#uie-turbo-url", function () {
             const s2 = getSettings();
@@ -1108,15 +1141,13 @@ export function initInteractions() {
         });
 
     $(document)
-        .off("input.uieImgComfyEasy", "#uie-img-comfy-sampler, #uie-img-comfy-scheduler, #uie-img-comfy-steps, #uie-img-comfy-cfg, #uie-img-comfy-width, #uie-img-comfy-height, #uie-img-comfy-denoise, #uie-img-comfy-seed, #uie-img-comfy-common, #uie-img-comfy-common-neg")
-        .on("input.uieImgComfyEasy", "#uie-img-comfy-sampler, #uie-img-comfy-scheduler, #uie-img-comfy-steps, #uie-img-comfy-cfg, #uie-img-comfy-width, #uie-img-comfy-height, #uie-img-comfy-denoise, #uie-img-comfy-seed, #uie-img-comfy-common, #uie-img-comfy-common-neg", function () {
+        .off("input.uieImgComfyEasy", "#uie-img-comfy-steps, #uie-img-comfy-cfg, #uie-img-comfy-width, #uie-img-comfy-height, #uie-img-comfy-denoise, #uie-img-comfy-seed, #uie-img-comfy-common, #uie-img-comfy-common-neg")
+        .on("input.uieImgComfyEasy", "#uie-img-comfy-steps, #uie-img-comfy-cfg, #uie-img-comfy-width, #uie-img-comfy-height, #uie-img-comfy-denoise, #uie-img-comfy-seed, #uie-img-comfy-common, #uie-img-comfy-common-neg", function () {
             const s2 = getSettings();
             if (!s2.image || typeof s2.image !== "object") s2.image = {};
             if (!s2.image.comfy || typeof s2.image.comfy !== "object") s2.image.comfy = {};
             if (!s2.image.comfy.easy || typeof s2.image.comfy.easy !== "object") s2.image.comfy.easy = {};
             const ez = s2.image.comfy.easy;
-            ez.sampler = String($("#uie-img-comfy-sampler").val() || ez.sampler || "euler_ancestral").trim();
-            ez.scheduler = String($("#uie-img-comfy-scheduler").val() || ez.scheduler || "normal").trim();
             ez.steps = Math.max(1, Math.round(Number($("#uie-img-comfy-steps").val() || ez.steps || 24)));
             ez.cfg = Math.max(0, Number($("#uie-img-comfy-cfg").val() || ez.cfg || 7));
             ez.width = Math.max(64, Math.round(Number($("#uie-img-comfy-width").val() || ez.width || 768)));
@@ -1125,6 +1156,18 @@ export function initInteractions() {
             ez.seed = Math.round(Number($("#uie-img-comfy-seed").val() ?? ez.seed ?? -1));
             ez.common = String($("#uie-img-comfy-common").val() || ez.common || "");
             ez.commonNeg = String($("#uie-img-comfy-common-neg").val() || ez.commonNeg || "");
+            saveSettings();
+        });
+    $(document)
+        .off("change.uieImgComfyEasySel", "#uie-img-comfy-sampler, #uie-img-comfy-scheduler")
+        .on("change.uieImgComfyEasySel", "#uie-img-comfy-sampler, #uie-img-comfy-scheduler", function () {
+            const s2 = getSettings();
+            if (!s2.image || typeof s2.image !== "object") s2.image = {};
+            if (!s2.image.comfy || typeof s2.image.comfy !== "object") s2.image.comfy = {};
+            if (!s2.image.comfy.easy || typeof s2.image.comfy.easy !== "object") s2.image.comfy.easy = {};
+            const ez = s2.image.comfy.easy;
+            ez.sampler = String($("#uie-img-comfy-sampler").val() || ez.sampler || "euler_ancestral").trim();
+            ez.scheduler = String($("#uie-img-comfy-scheduler").val() || ez.scheduler || "normal").trim();
             saveSettings();
         });
 
@@ -1153,13 +1196,37 @@ export function initInteractions() {
                 const r = await fetch(url, { method: "GET" });
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 const j = await r.json().catch(() => null);
+                const renderSelectList = (id, list, current) => {
+                    try {
+                        const sel = document.getElementById(id);
+                        if (!sel) return;
+                        const cur = String(current || sel.value || "");
+                        const next = Array.from(new Set((Array.isArray(list) ? list : []).map(x => String(x || "").trim()).filter(Boolean)));
+                        if (!next.length) return;
+                        sel.innerHTML = "";
+                        for (const v of next.slice(0, 300)) {
+                            const o = document.createElement("option");
+                            o.value = v;
+                            o.textContent = v;
+                            sel.appendChild(o);
+                        }
+                        const has = next.includes(cur);
+                        sel.value = has ? cur : next[0];
+                    } catch (_) {}
+                };
                 const list = (() => {
+                    const norm = (x) => {
+                        if (!x) return "";
+                        if (typeof x === "string") return x.trim();
+                        const name = x?.name || x?.title || x?.label || x?.id || x?.ckpt_name || x?.checkpoint || "";
+                        return String(name || "").trim();
+                    };
                     const tryPick = (obj) => {
                         const node = obj?.CheckpointLoaderSimple || obj?.checkpointloadersimple || null;
                         const req = node?.input?.required || node?.input?.Required || null;
                         const ck = req?.ckpt_name || req?.checkpoint || null;
                         const arr = Array.isArray(ck) ? ck : (Array.isArray(ck?.[0]) ? ck[0] : (Array.isArray(ck?.values) ? ck.values : null));
-                        if (Array.isArray(arr)) return arr.map(x => String(x || "").trim()).filter(Boolean);
+                        if (Array.isArray(arr)) return arr.map(norm).filter(Boolean);
                         return null;
                     };
                     const a = tryPick(j);
@@ -1172,12 +1239,43 @@ export function initInteractions() {
                     }
                     return [];
                 })();
+
+                const ks = (() => {
+                    const norm = (x) => (typeof x === "string" ? x.trim() : String(x?.name || x?.label || x || "").trim());
+                    const pick = (node) => {
+                        const req = node?.input?.required || node?.input?.Required || null;
+                        const sampler = req?.sampler_name || null;
+                        const scheduler = req?.scheduler || null;
+                        const toList = (v) => {
+                            const arr = Array.isArray(v) ? v : (Array.isArray(v?.[0]) ? v[0] : (Array.isArray(v?.values) ? v.values : null));
+                            if (!Array.isArray(arr)) return [];
+                            return arr.map(norm).filter(Boolean);
+                        };
+                        return { samplers: toList(sampler), schedulers: toList(scheduler) };
+                    };
+                    const n = j?.KSampler || j?.ksampler || null;
+                    if (n) return pick(n);
+                    if (j && typeof j === "object") {
+                        for (const v of Object.values(j)) {
+                            const cls = String(v?.name || v?.class_type || "").toLowerCase();
+                            if (cls.includes("ksampler") || cls === "ksampler") return pick(v);
+                        }
+                    }
+                    return { samplers: [], schedulers: [] };
+                })();
+
                 window.UIE_COMFY_CKPTS = Array.from(new Set(list)).sort((a, b) => String(a).localeCompare(String(b)));
                 const cur = String(getSettings()?.image?.comfy?.checkpoint || "");
                 renderComfyCkpts(window.UIE_COMFY_CKPTS, cur);
-                try { window.toastr?.success?.(`Detected ${window.UIE_COMFY_CKPTS.length} checkpoints.`); } catch (_) {}
+                try {
+                    const s3 = getSettings();
+                    const ez = s3?.image?.comfy?.easy || {};
+                    if (ks.samplers.length) renderSelectList("uie-img-comfy-sampler", ks.samplers, ez.sampler);
+                    if (ks.schedulers.length) renderSelectList("uie-img-comfy-scheduler", ks.schedulers, ez.scheduler);
+                } catch (_) {}
+                try { notify("success", `Detected ${window.UIE_COMFY_CKPTS.length} checkpoints.`, "UIE", "api"); } catch (_) {}
             } catch (err) {
-                try { window.toastr?.error?.(`ComfyUI detect failed: ${String(err?.message || err || "Error")}`); } catch (_) {}
+                try { notify("error", `ComfyUI detect failed: ${String(err?.message || err || "Error")}`, "UIE", "api"); } catch (_) {}
             } finally {
                 btn.prop("disabled", false);
             }
@@ -1194,7 +1292,7 @@ export function initInteractions() {
             const base = String($("#uie-img-comfy-base").val() || "http://127.0.0.1:8188").trim().replace(/\/prompt\s*$/i, "").replace(/\/+$/g, "");
             const ckpt = String($("#uie-img-comfy-ckpt").val() || s2.image.comfy.checkpoint || "").trim();
             if (!ckpt) {
-                try { window.toastr?.error?.("Pick a checkpoint (refresh first)."); } catch (_) {}
+                try { notify("error", "Pick a checkpoint (refresh first).", "UIE", "api"); } catch (_) {}
                 return;
             }
             const q = String($("#uie-img-comfy-quality").val() || "balanced");
@@ -2103,6 +2201,161 @@ export function initInteractions() {
             await openMainMenu();
         });
 
+    const ensureLauncherOptionsShell = async () => {
+        if ($("#uie-launcher-options-window").length) return true;
+        let root = "";
+        try { root = String(window.UIE_BASEPATH || "scripts/extensions/third-party/universal-immersion-engine"); } catch (_) { root = "scripts/extensions/third-party/universal-immersion-engine"; }
+        root = root.replace(/^\/+|\/+$/g, "");
+        const urls = [
+            `${baseUrl}src/templates/launcher_options.html`,
+            `/${root}/src/templates/launcher_options.html`,
+            `/scripts/extensions/third-party/universal-immersion-engine/src/templates/launcher_options.html`
+        ];
+        let html = "";
+        for (const url of urls) {
+            try { html = await fetchTemplateHtml(url); if (html) break; } catch (_) {}
+        }
+        if (!html) return false;
+        $("body").append(html);
+        return true;
+    };
+
+    const openLauncherOptions = async () => {
+        const ok = await ensureLauncherOptionsShell();
+        if (!ok) return;
+        const s = getSettings();
+        ensureLauncherStore(s);
+        $("#uie-launcher-opt-hide").prop("checked", s.launcher?.hidden === true);
+        $("#uie-launcher-opt-name").val(String(s.launcher?.name || ""));
+        const curSrc = String(s.launcher?.src || s.launcherIcon || "");
+        $("#uie-launcher-opt-icon").val(curSrc || "custom");
+        if ($("#uie-launcher-opt-icon").val() !== (curSrc || "custom") && curSrc) {
+            $("#uie-launcher-opt-icon").append(`<option value="${curSrc}">${curSrc.split("/").pop()}</option>`).val(curSrc);
+        }
+        if (curSrc && curSrc.startsWith("data:")) $("#uie-launcher-opt-preview").css("backgroundImage", `url("${curSrc}")`).show();
+        else $("#uie-launcher-opt-preview").hide();
+        openWindow("#uie-launcher-options-window");
+        try {
+            requestAnimationFrame(() => {
+                const launcher = document.getElementById("uie-launcher");
+                const win = document.getElementById("uie-launcher-options-window");
+                const rect = launcher ? launcher.getBoundingClientRect() : null;
+                if (!rect || !win) return;
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const w = win.getBoundingClientRect().width || 420;
+                const h = win.getBoundingClientRect().height || 360;
+                let left = rect.right + 10;
+                let top = rect.top;
+                if (left + w > vw - 6) left = Math.max(6, rect.left - w - 10);
+                if (top + h > vh - 6) top = Math.max(6, vh - h - 6);
+                $("#uie-launcher-options-window").css({ left, top, transform: "none" });
+            });
+        } catch (_) {}
+    };
+
+    $(document)
+        .off("contextmenu.uieLauncherOptions", "#uie-launcher")
+        .on("contextmenu.uieLauncherOptions", "#uie-launcher", async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            await openLauncherOptions();
+        });
+
+    $(document)
+        .off("pointerup.uieLauncherOptions", "#uie-launcher-opt-close")
+        .on("pointerup.uieLauncherOptions", "#uie-launcher-opt-close", function (e) {
+            e.preventDefault(); e.stopPropagation();
+            $("#uie-launcher-options-window").hide();
+        })
+        .off("change.uieLauncherOptHide", "#uie-launcher-opt-hide")
+        .on("change.uieLauncherOptHide", "#uie-launcher-opt-hide", function () {
+            const s2 = getSettings();
+            ensureLauncherStore(s2);
+            s2.launcher.hidden = $(this).is(":checked");
+            saveSettings();
+            updateLayout();
+        })
+        .off("input.uieLauncherOptName", "#uie-launcher-opt-name")
+        .on("input.uieLauncherOptName", "#uie-launcher-opt-name", function () {
+            const s2 = getSettings();
+            ensureLauncherStore(s2);
+            s2.launcher.name = String($(this).val() || "").slice(0, 60);
+            saveSettings();
+            updateLayout();
+        })
+        .off("change.uieLauncherOptIcon", "#uie-launcher-opt-icon")
+        .on("change.uieLauncherOptIcon", "#uie-launcher-opt-icon", function () {
+            const v = String($(this).val() || "");
+            if (v === "custom") {
+                $("#uie-launcher-opt-file").trigger("click");
+                return;
+            }
+            const s2 = getSettings();
+            ensureLauncherStore(s2);
+            s2.launcher.src = v;
+            saveSettings();
+            updateLayout();
+            $("#uie-launcher-opt-preview").hide();
+        })
+        .off("change.uieLauncherOptFile", "#uie-launcher-opt-file")
+        .on("change.uieLauncherOptFile", "#uie-launcher-opt-file", function (e) {
+            const f = e.target && e.target.files ? e.target.files[0] : null;
+            if (!f) return;
+            const r = new FileReader();
+            r.onload = () => {
+                const dataUrl = String(r.result || "");
+                if (!dataUrl.startsWith("data:")) return;
+                const s2 = getSettings();
+                ensureLauncherStore(s2);
+                s2.launcher.src = dataUrl;
+                s2.launcher.lastUploadName = String(f.name || "").slice(0, 80);
+                saveSettings();
+                updateLayout();
+                $("#uie-launcher-opt-preview").css("backgroundImage", `url("${dataUrl}")`).show();
+            };
+            r.readAsDataURL(f);
+        })
+        .off("pointerup.uieLauncherOptSave", "#uie-launcher-opt-save")
+        .on("pointerup.uieLauncherOptSave", "#uie-launcher-opt-save", function (e) {
+            e.preventDefault(); e.stopPropagation();
+            const s2 = getSettings();
+            ensureLauncherStore(s2);
+            const src = String(s2.launcher?.src || "");
+            if (!src.startsWith("data:")) return;
+            const name = String(s2.launcher.lastUploadName || `Icon ${new Date().toLocaleString()}`).slice(0, 60);
+            const id = `ico_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}`;
+            const next = [{ id, name, dataUrl: src }, ...s2.launcher.savedIcons.filter(x => x && x.dataUrl !== src)].slice(0, 40);
+            s2.launcher.savedIcons = next;
+            saveSettings();
+        })
+        .off("pointerup.uieLauncherOptDelete", "#uie-launcher-opt-delete")
+        .on("pointerup.uieLauncherOptDelete", "#uie-launcher-opt-delete", function (e) {
+            e.preventDefault(); e.stopPropagation();
+            const s2 = getSettings();
+            ensureLauncherStore(s2);
+            const src = String(s2.launcher?.src || "");
+            if (!src.startsWith("data:")) return;
+            s2.launcher.savedIcons = (s2.launcher.savedIcons || []).filter(x => String(x?.dataUrl || "") !== src);
+            saveSettings();
+        })
+        .off("pointerup.uieLauncherOptResetPos", "#uie-launcher-opt-resetpos")
+        .on("pointerup.uieLauncherOptResetPos", "#uie-launcher-opt-resetpos", function (e) {
+            e.preventDefault(); e.stopPropagation();
+            const s2 = getSettings();
+            s2.launcherX = 20;
+            s2.launcherY = 120;
+            saveSettings();
+            updateLayout();
+        })
+        .off("pointerup.uieLauncherOptOpenSettings", "#uie-launcher-opt-open-settings")
+        .on("pointerup.uieLauncherOptOpenSettings", "#uie-launcher-opt-open-settings", function (e) {
+            e.preventDefault(); e.stopPropagation();
+            $("#uie-launcher-options-window").hide();
+            $("#uie-btn-open-settings").trigger("click");
+        });
+
     // Main Menu Buttons
     onActivate("#uie-btn-inventory", (e) => {
         e.preventDefault();
@@ -2164,7 +2417,7 @@ export function initInteractions() {
     });
     $(document).on("click.uie", "#uie-btn-social", (e) => { e.stopPropagation(); openWindow("#uie-social-window", "./social.js", "renderSocial"); });
     $(document).on("click.uie", "#uie-btn-party", (e) => { e.stopPropagation(); openWindow("#uie-party-window", "./party.js", "initParty"); });
-    $(document).on("click.uie", "#uie-btn-battle", (e) => { e.stopPropagation(); openWindow("#uie-battle-window", "./battle.js", "renderBattle"); });
+    $(document).on("click.uie", "#uie-btn-battle", (e) => { e.stopPropagation(); openWindow("#uie-battle-window", "./battle.js", "initBattle"); });
     $(document).on("click.uie", "#uie-btn-open-phone", (e) => { e.stopPropagation(); openWindow("#uie-phone-window", "./phone.js", "initPhone"); });
     $(document).on("click.uie", "#uie-btn-open-calendar", async (e) => {
         e.stopPropagation();
@@ -2196,16 +2449,56 @@ export function initInteractions() {
     $(document).on("click.uie", "#uie-btn-open-world", async (e) => {
         e.stopPropagation();
         if ($("#uie-world-window").length === 0) {
-            try {
-                const html = await fetchTemplateHtml(`${baseUrl}src/templates/world.html`);
-                $("body").append(html);
-            } catch (err) {
-                notify("error", "Reality UI failed to load (check console).", "UIE", "api");
-                console.error("[UIE] Failed to load world template", err);
+            let root = "";
+            try { root = String(window.UIE_BASEPATH || "scripts/extensions/third-party/universal-immersion-engine"); } catch (_) { root = "scripts/extensions/third-party/universal-immersion-engine"; }
+            root = root.replace(/^\/+|\/+$/g, "");
+            const urls = [
+                `${baseUrl}src/templates/world.html`,
+                `/${root}/src/templates/world.html`,
+                `/scripts/extensions/third-party/universal-immersion-engine/src/templates/world.html`
+            ];
+            let html = "";
+            for (const url of urls) {
+                try {
+                    html = await fetchTemplateHtml(url);
+                    if (html) break;
+                } catch (_) {}
+            }
+            if (!html) {
+                notify("error", "Reality UI failed to load. Check UIE_BASEURL / install.", "UIE", "api");
+                try { console.error("[UIE] Failed to load world template", { baseUrl, urls }); } catch (_) {}
                 return;
             }
+            $("body").append(html);
         }
         openWindow("#uie-world-window", "./world.js", "initWorld");
+    });
+
+    $(document).on("click.uie", "#uie-btn-chatbox", async (e) => {
+        e.stopPropagation();
+        if ($("#uie-chatbox-window").length === 0) {
+            let root = "";
+            try { root = String(window.UIE_BASEPATH || "scripts/extensions/third-party/universal-immersion-engine"); } catch (_) { root = "scripts/extensions/third-party/universal-immersion-engine"; }
+            root = root.replace(/^\/+|\/+$/g, "");
+            const urls = [
+                `${baseUrl}src/templates/chatbox.html`,
+                `/${root}/src/templates/chatbox.html`,
+                `/scripts/extensions/third-party/universal-immersion-engine/src/templates/chatbox.html`
+            ];
+            let html = "";
+            for (const url of urls) {
+                try {
+                    html = await fetchTemplateHtml(url);
+                    if (html) break;
+                } catch (_) {}
+            }
+            if (!html) {
+                notify("error", "Chatbox UI failed to load. Check UIE_BASEURL / install.", "UIE", "api");
+                return;
+            }
+            $("body").append(html);
+        }
+        openWindow("#uie-chatbox-window", "./chatbox.js", "openChatbox");
     });
     $(document).on("click.uie", "#uie-btn-databank", async (e) => {
         e.stopPropagation();
@@ -2455,6 +2748,44 @@ export function initInteractions() {
             st.ui.backgrounds[key] = url;
             saveSettings();
             updateLayout();
+        })
+        .off("click.uieImgPresetApply", "#uie-img-preset-apply")
+        .on("click.uieImgPresetApply", "#uie-img-preset-apply", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const s2 = getSettings();
+            const preset = String($("#uie-img-preset").val() || "openai");
+            if (!s2.image) s2.image = { enabled: false, url: "", key: "", model: "dall-e-3", negativePrompt: "", features: {}, comfy: {} };
+            const setAll = (url, model, keyPlaceholder) => {
+                s2.image.url = String(url || "");
+                if (model) s2.image.model = String(model);
+                saveSettings();
+                $("#uie-img-url").val(s2.image.url);
+                $("#uie-img-url-adv").val(s2.image.url);
+                $("#uie-img-model").val(s2.image.model);
+                $("#uie-img-model-adv").val(s2.image.model);
+                const sel = document.getElementById("uie-img-model-select");
+                if (sel) {
+                    const has = Array.from(sel.options).some(o => String(o.value) === String(s2.image.model || ""));
+                    sel.value = has ? String(s2.image.model || "") : "__custom__";
+                }
+                if (keyPlaceholder) {
+                    $("#uie-img-key").attr("placeholder", keyPlaceholder);
+                    $("#uie-img-key-adv").attr("placeholder", keyPlaceholder);
+                }
+            };
+            if (preset === "nanogpt") {
+                setAll("https://nano-gpt.com/v1/images/generations", "hidream", "ngpt_...");
+                return;
+            }
+            if (preset === "nvidia_nim") {
+                setAll("https://integrate.api.nvidia.com/v1/images/generations", "gpt-image-1", "nvapi-...");
+                return;
+            }
+            if (preset === "openai") {
+                setAll("https://api.openai.com/v1/images/generations", "gpt-image-1", "sk-...");
+                return;
+            }
         })
         .off("click.uieBgClear")
         .on("click.uieBgClear", "#uie-bg-clear", function (e) {

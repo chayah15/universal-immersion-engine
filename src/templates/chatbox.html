@@ -1,0 +1,103 @@
+<style>
+  #uie-chatbox-window{
+    position: fixed !important;
+    right: 12px !important;
+    bottom: 12px !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    width: min(420px, 96vw) !important;
+    height: min(560px, 62dvh) !important;
+    max-width: 96vw !important;
+    max-height: 62dvh !important;
+  }
+  @media (max-width: 700px), (pointer: coarse) {
+    #uie-chatbox-window{
+      right: auto !important;
+      left: 3vw !important;
+      bottom: max(10px, env(safe-area-inset-bottom)) !important;
+      width: 94vw !important;
+      height: 56dvh !important;
+      max-width: 94vw !important;
+      max-height: 56dvh !important;
+    }
+  }
+</style>
+
+<div id="uie-chatbox-window" class="uie-window" style="display:none; background:rgba(0,0,0,0.72); backdrop-filter: blur(8px); border:1px solid rgba(203,163,92,0.45);">
+  <div class="uie-header" style="border-bottom:1px solid rgba(203,163,92,0.35); background:linear-gradient(90deg,#1b202b,#0e121a);">
+    <div class="uie-info">
+      <h2 style="margin:0; font-family:serif; color:#cba35c; letter-spacing:1px;">CHATBOX</h2>
+      <div style="font-size:12px; color:#aaa;" id="uie-chatbox-sub">SillyTavern chat overlay</div>
+    </div>
+    <div class="uie-controls" style="display:flex; gap:10px; align-items:center;">
+      <select id="uie-chatbox-theme" style="height:34px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; padding:0 10px;">
+        <option value="visual_novel">Visual Novel</option>
+        <option value="rpg">RPG</option>
+        <option value="magic_shop">Magic Shop</option>
+        <option value="classroom">Classroom</option>
+      </select>
+      <button id="uie-chatbox-gear" title="Options" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; touch-action:manipulation;"><i class="fa-solid fa-gear"></i></button>
+      <button id="uie-chatbox-close" title="Close" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; touch-action:manipulation;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; min-height:0; flex:1;">
+    <div id="uie-chatbox-topbar" style="padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.10); display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <div style="display:flex; gap:10px; align-items:center; flex:1; min-width:0;">
+        <input id="uie-chatbox-search" type="text" placeholder="Search messages..." style="flex:1; min-width:180px; height:36px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 12px;">
+        <button id="uie-chatbox-search-clear" title="Clear" style="height:36px; width:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; touch-action:manipulation;">×</button>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button id="uie-chatbox-open-inv" title="Inventory" style="height:36px; width:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#f1c40f; font-weight:900; cursor:pointer; touch-action:manipulation;"><i class="fa-solid fa-box-open"></i></button>
+        <button id="uie-chatbox-open-war" title="War Room" style="height:36px; width:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#f1c40f; font-weight:900; cursor:pointer; touch-action:manipulation;"><i class="fa-solid fa-skull-crossbones"></i></button>
+        <button id="uie-chatbox-open-map" title="Map" style="height:36px; width:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#f1c40f; font-weight:900; cursor:pointer; touch-action:manipulation;"><i class="fa-solid fa-map"></i></button>
+      </div>
+    </div>
+
+    <div id="uie-chatbox-banner" style="display:none; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.10); background:rgba(231,76,60,0.12); color:#ffb4aa; font-weight:900;"></div>
+
+    <div id="uie-chatbox-list" class="custom-scroll" style="flex:1; min-height:0; overflow:auto; padding:12px; display:flex; flex-direction:column; gap:10px;"></div>
+
+    <div id="uie-chatbox-composer-wrap" style="border-top:1px solid rgba(255,255,255,0.10); padding:10px 12px; background:rgba(0,0,0,0.25);">
+      <div id="uie-chatbox-composer" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+  </div>
+
+  <div id="uie-chatbox-options" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.70); z-index:2147483647; padding:12px; align-items:center; justify-content:center;">
+    <div style="width:min(620px, 96vw); max-height:calc(100dvh - 24px); overflow:auto; border-radius:16px; border:1px solid rgba(255,255,255,0.14); background:rgba(15,10,10,0.96); padding:12px; color:#fff;">
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div style="font-weight:900; color:#cba35c; letter-spacing:1px;">CHATBOX OPTIONS</div>
+        <button id="uie-chatbox-options-close" style="margin-left:auto; height:40px; width:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; touch-action:manipulation;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div style="margin-top:12px; display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="font-weight:900; opacity:0.85;">Text Scale</div>
+          <input id="uie-chatbox-textscale" type="range" min="0.85" max="1.35" step="0.01">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="font-weight:900; opacity:0.85;">High Contrast</div>
+          <label style="display:flex; gap:10px; align-items:center; font-weight:900;">
+            <input id="uie-chatbox-contrast" type="checkbox">
+            Enable
+          </label>
+        </div>
+      </div>
+
+      <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+        <div style="font-weight:900; opacity:0.85;">Custom Background Image URL (optional)</div>
+        <input id="uie-chatbox-bg" type="text" placeholder="https://..." style="height:40px; border-radius:14px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; padding:0 12px;">
+      </div>
+
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="uie-chatbox-options-save" style="height:44px; padding:0 14px; border-radius:14px; border:1px solid rgba(205,127,50,0.35); background:rgba(205,127,50,0.20); color:#ffd8bf; font-weight:900; cursor:pointer; touch-action:manipulation;">Save</button>
+        <button id="uie-chatbox-options-reset" style="height:44px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; touch-action:manipulation;">Reset</button>
+      </div>
+
+      <div style="margin-top:10px; opacity:0.75; font-size:12px;">
+        Chatbox reuses SillyTavern's real composer so all buttons/features keep working.
+      </div>
+    </div>
+  </div>
+</div>

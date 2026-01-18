@@ -1,4 +1,5 @@
 import { getSettings } from "./core.js";
+import { notify } from "./notifications.js";
 import { generateContent } from "./apiClient.js";
 
 let uieImgCsrfCache = { t: 0, token: "" };
@@ -142,7 +143,22 @@ export async function generateImageAPI(prompt) {
         const combined = [global, def, img].filter(Boolean).join("\n\n").trim();
         if (combined) finalPrompt = `${combined}\n\n${finalPrompt}`;
     } catch (_) {}
-    const endpoint = String(s.image.url || "https://api.openai.com/v1/images/generations").trim();
+    const normalizeEndpoint = (u) => {
+        let x = String(u || "").trim();
+        if (!x) return "https://api.openai.com/v1/images/generations";
+        x = x.replace(/\s+/g, "");
+        x = x.replace(/\/+$/g, "");
+        if (/\/sdapi\/v1\/txt2img$/i.test(x)) return x;
+        if (/\/prompt$/i.test(x)) return x;
+        if (/\/v1\/images\/generations$/i.test(x)) return x;
+        if (/\/images\/generations$/i.test(x)) return x;
+        if (/\/v1\/images$/i.test(x)) return `${x}/generations`;
+        if (/\/images$/i.test(x)) return `${x}/generations`;
+        if (/\/api\/v1$/i.test(x)) return `${x}/images/generations`;
+        if (/\/v1$/i.test(x)) return `${x}/images/generations`;
+        return x;
+    };
+    const endpoint = normalizeEndpoint(String(s.image.url || "https://api.openai.com/v1/images/generations"));
     const model = String(s.image.model || "dall-e-3").trim();
     const apiKey = String(s.image.key || "").trim();
     const negText = String(s.image.negativePrompt || "").trim();
@@ -160,6 +176,7 @@ export async function generateImageAPI(prompt) {
 
     if (!apiKey && !isLocal && !isSdWebUi && !isComfy) {
         console.warn("Image Gen: No API Key");
+        try { window.toastr?.error?.("Image Gen: Missing API key."); } catch (_) {}
         return null;
     }
 
@@ -216,9 +233,9 @@ export async function generateImageAPI(prompt) {
             return out;
         }
 
-        const headers = { "Content-Type": "application/json" };
+        const headers = { "Content-Type": "application/json", "Accept": "application/json" };
         if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-        const res = await fetch(endpoint, {
+        const fx = await fetchWithCorsProxyFallback(endpoint, {
             method: "POST",
             headers,
             body: JSON.stringify({
@@ -229,28 +246,46 @@ export async function generateImageAPI(prompt) {
                 response_format: "url" // or b64_json
             })
         });
+        const res = fx.response;
 
         if (!res.ok) {
             const err = await res.text();
             console.error("Image Gen Error:", err);
             if (window.toastr) toastr.error("Image Generation Failed");
-            try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "openai", status: res.status, error: String(err || "").slice(0, 280) }; } catch (_) {}
+            try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "openai", status: res.status, error: String(err || "").slice(0, 280), via: fx?.via || "" }; } catch (_) {}
             return null;
         }
 
         const data = await res.json();
-        // OpenAI format: data: [{ url: "..." }]
-        if (data.data && data.data.length > 0) {
-            const out = data.data[0].url;
-            try { window.UIE_lastImage = { ok: !!out, ms: Date.now() - startedAt, endpoint, mode: "openai", status: 200 }; } catch (_) {}
+        const first = Array.isArray(data?.data) ? data.data[0] : null;
+        const urlOut = String(first?.url || data?.url || "").trim();
+        const b64 = String(first?.b64_json || first?.b64 || "").trim();
+        if (urlOut) {
+            try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint, mode: "openai", status: 200, via: fx?.via || "" }; } catch (_) {}
+            return urlOut;
+        }
+        if (b64) {
+            const out = b64.startsWith("data:image") ? b64 : `data:image/png;base64,${b64}`;
+            try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint, mode: "openai", status: 200, via: fx?.via || "" }; } catch (_) {}
             return out;
         }
-        try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "openai", status: 200, error: "No data.url returned." }; } catch (_) {}
+        try {
+            window.UIE_lastImage = {
+                ok: false,
+                ms: Date.now() - startedAt,
+                endpoint,
+                mode: "openai",
+                status: 200,
+                error: "No data.url or data.b64_json returned.",
+                via: fx?.via || ""
+            };
+        } catch (_) {}
         return null;
 
     } catch (e) {
-        console.error("Image Gen Exception:", e);
-        if (window.toastr) toastr.error("Image Gen Error: " + e.message);
+        const msg = String(e?.message || e || "Image gen failed");
+        try { console.error("Image Gen Exception:", { message: msg, endpoint, stack: String(e?.stack || "").slice(0, 3000) }); } catch (_) { console.error("Image Gen Exception:", msg); }
+        try { notify("error", "Image Gen Error: " + msg.slice(0, 220), "UIE", "api"); } catch (_) {}
         try { window.UIE_lastImage = { ok: false, ms: 0, endpoint, mode: isComfy ? "comfy" : isSdWebUi ? "sdwebui" : "openai", status: 0, error: String(e?.message || e || "").slice(0, 280) }; } catch (_) {}
         return null;
     }

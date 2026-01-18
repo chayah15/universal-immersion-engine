@@ -190,8 +190,8 @@ export function renderBattle() {
   ensureBattle(s);
 
   const st = s.battle.state;
-  $("#uie-battle-auto").text(`Auto: ${s.battle.auto ? "ON" : "OFF"}`);
-  $("#uie-battle-dice-toggle").text(`Dice: ${s.battle.dice?.enabled ? "ON" : "OFF"}`);
+  $("#uie-battle-auto-state").text(s.battle.auto ? "ON" : "OFF");
+  $("#uie-battle-dice-state").text(s.battle.dice?.enabled ? "ON" : "OFF");
   $("#uie-battle-sub").text(st.active ? "Battle ACTIVE" : "Battle idle");
 
   const $en = $("#uie-battle-enemies");
@@ -340,15 +340,40 @@ export function initBattle() {
   bound = true;
   startAuto();
 
-  $(document).off("click.uieBattle");
-  $(document).on("click.uieBattle", "#uie-battle-close", function(e){ e.preventDefault(); e.stopPropagation(); $("#uie-battle-window").hide(); });
-  $(document).on("click.uieBattle", "#uie-battle-scan", async function(e){
-    e.preventDefault(); e.stopPropagation();
-    const btn = $(this);
-    btn.prop("disabled", true).text("Scanning...");
-    try { await scanBattle(); } finally { btn.prop("disabled", false).text("Scan"); }
+  $(document).off(".uieBattle");
+
+  const hideMenu = () => { try { $("#uie-battle-menu").hide(); } catch (_) {} };
+
+  $(document).on("pointerup.uieBattle", "#uie-battle-close", function(e){ e.preventDefault(); e.stopPropagation(); hideMenu(); $("#uie-battle-window").hide(); });
+
+  $(document).on("pointerup.uieBattle", "#uie-battle-wand", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const $m = $("#uie-battle-menu");
+    if (!$m.length) return;
+    if ($m.is(":visible")) $m.hide();
+    else $m.css("display", "flex");
   });
-  $(document).on("click.uieBattle", "#uie-battle-auto", function(e){
+
+  $(document).on("pointerup.uieBattle", function (e) {
+    const $m = $("#uie-battle-menu");
+    if (!$m.length || !$m.is(":visible")) return;
+    if ($(e.target).closest("#uie-battle-menu, #uie-battle-wand").length) return;
+    hideMenu();
+  });
+
+  $(document).on("pointerup.uieBattle", "#uie-battle-scan", async function(e){
+    e.preventDefault(); e.stopPropagation();
+    hideMenu();
+    const el = this;
+    if (el?.dataset?.busy === "1") return;
+    if (el?.dataset) el.dataset.busy = "1";
+    const prev = $(this).text();
+    $(this).text("Scanning...");
+    try { await scanBattle(); } finally { if (el?.dataset) el.dataset.busy = "0"; $(this).text(prev || "Scan"); }
+  });
+
+  $(document).on("pointerup.uieBattle", "#uie-battle-auto", function(e){
     e.preventDefault(); e.stopPropagation();
     const s = getSettings();
     ensureBattle(s);
@@ -357,7 +382,7 @@ export function initBattle() {
     renderBattle();
   });
 
-  $(document).on("click.uieBattle", "#uie-battle-dice-toggle", function(e){
+  $(document).on("pointerup.uieBattle", "#uie-battle-dice-toggle", function(e){
     e.preventDefault(); e.stopPropagation();
     const s = getSettings();
     ensureBattle(s);
@@ -385,8 +410,9 @@ export function initBattle() {
     return { expr: `${count}d${sides}${mod ? (mod > 0 ? `+${mod}` : `${mod}`) : ""}`, rolls, mod, total };
   };
 
-  $(document).on("click.uieBattle", "#uie-battle-dice-roll", async function(e){
+  $(document).on("pointerup.uieBattle", "#uie-battle-dice-roll", async function(e){
     e.preventDefault(); e.stopPropagation();
+    hideMenu();
     const s = getSettings();
     ensureBattle(s);
     const expr = (prompt("Roll which dice? (examples: d20, 2d6+1, d100)", "d20") || "").trim();

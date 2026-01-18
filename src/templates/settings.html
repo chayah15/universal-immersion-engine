@@ -55,6 +55,18 @@
             <div id="uie-set-turbo" style="display:none;">
                 <div style="font-size:0.8em; color:#ccc; margin-bottom:10px;">Use a faster model (Gemini Flash/DeepSeek) for Phone/Inventory events to save main context.</div>
                 <div class="uie-control-group"><label style="font-size:0.8em;">Enable Turbo</label><input type="checkbox" id="uie-turbo-enable"></div>
+                <div class="uie-control-group" style="margin-top:6px;">
+                    <label style="font-size:0.8em;">Quick Preset</label>
+                    <div style="display:flex; gap:6px;">
+                        <select id="uie-turbo-preset" style="flex:1; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                            <option value="openrouter">OpenRouter</option>
+                            <option value="nanogpt">NanoGPT</option>
+                            <option value="nvidia_nim">NVIDIA NIM</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                        <button id="uie-turbo-preset-apply" title="Apply Preset" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;">↻</button>
+                    </div>
+                </div>
                 <div class="uie-control-group"><label style="font-size:0.8em;">Endpoint</label><input type="text" id="uie-turbo-url" placeholder="https://openrouter.ai/api/v1/chat/completions (or http://127.0.0.1:1234/v1 , or https://integrate.api.nvidia.com/v1)" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
                 <div style="font-size:0.75em; color:#888; margin-top:6px;">Local endpoints (localhost/127.0.0.1) are supported; API Key can be left blank if your local server does not require auth. If you see “Failed to fetch”, enable SillyTavern's CORS proxy (enableCorsProxy) or use a local gateway.</div>
                 <div class="uie-control-group"><label style="font-size:0.8em;">API Key</label><input type="password" id="uie-turbo-key" placeholder="sk-..." style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
@@ -85,6 +97,18 @@
                 </div>
 
                 <div id="uie-img-openai-block" style="margin-top:8px;">
+                    <div class="uie-control-group" style="margin-top:2px;">
+                        <label style="font-size:0.8em;">Quick Preset</label>
+                        <div style="display:flex; gap:6px;">
+                            <select id="uie-img-preset" style="flex:1; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                                <option value="openai">OpenAI</option>
+                                <option value="nanogpt">NanoGPT</option>
+                                <option value="nvidia_nim">NVIDIA NIM (OpenAI-compatible)</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                            <button id="uie-img-preset-apply" title="Apply Preset" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;">↻</button>
+                        </div>
+                    </div>
                     <div class="uie-control-group"><label style="font-size:0.8em;">Endpoint</label><input type="text" id="uie-img-url" placeholder="https://api.openai.com/v1/images/generations" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
                     <div class="uie-control-group"><label style="font-size:0.8em;">API Key</label><input type="password" id="uie-img-key" placeholder="sk-..." style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
                     <div class="uie-control-group" style="margin-top:8px;">
@@ -93,6 +117,7 @@
                             <option value="dall-e-3">dall-e-3</option>
                             <option value="gpt-image-1">gpt-image-1</option>
                             <option value="dall-e-2">dall-e-2</option>
+                            <option value="hidream">hidream (NanoGPT)</option>
                             <option value="stabilityai/stable-diffusion-3.5-large">stabilityai/stable-diffusion-3.5-large</option>
                             <option value="stabilityai/stable-diffusion-3.5-large-turbo">stabilityai/stable-diffusion-3.5-large-turbo</option>
                             <option value="__custom__">Custom…</option>
@@ -126,11 +151,31 @@
                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
                             <div class="uie-control-group" style="margin:0;">
                                 <label style="font-size:0.78em;">Sampling method</label>
-                                <input type="text" id="uie-img-comfy-sampler" placeholder="euler_ancestral" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                                <select id="uie-img-comfy-sampler" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                                    <option value="euler_ancestral">euler_ancestral</option>
+                                    <option value="euler">euler</option>
+                                    <option value="ddim">ddim</option>
+                                    <option value="dpmpp_2m">dpmpp_2m</option>
+                                    <option value="dpmpp_2m_sde">dpmpp_2m_sde</option>
+                                    <option value="dpmpp_sde">dpmpp_sde</option>
+                                    <option value="dpmpp_3m_sde">dpmpp_3m_sde</option>
+                                </select>
                             </div>
                             <div class="uie-control-group" style="margin:0;">
                                 <label style="font-size:0.78em;">Scheduler</label>
-                                <input type="text" id="uie-img-comfy-scheduler" placeholder="normal" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                                <select id="uie-img-comfy-scheduler" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
+                                    <option value="normal">normal</option>
+                                    <option value="karras">karras</option>
+                                    <option value="exponential">exponential</option>
+                                    <option value="sgm_uniform">sgm_uniform</option>
+                                    <option value="ddim_uniform">ddim_uniform</option>
+                                    <option value="simple">simple</option>
+                                    <option value="beta">beta</option>
+                                    <option value="linear_quadratic">linear_quadratic</option>
+                                    <option value="kl_optimal">kl_optimal</option>
+                                    <option value="boing_tangent">boing_tangent</option>
+                                    <option value="beta57">beta57</option>
+                                </select>
                             </div>
                             <div class="uie-control-group" style="margin:0;">
                                 <label style="font-size:0.78em;">Sampling steps</label>
