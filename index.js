@@ -15,7 +15,37 @@ try {
 } catch (_) {}
 
 jQuery(async () => {
-    console.log("[UIE] Initializing (Import Only Mode)...", { url: import.meta.url, baseUrl });
+    try {
+        if (window.UIE_DEBUG === true) console.log("[UIE] Initializing (Import Only Mode)...", { url: import.meta.url, baseUrl });
+    } catch (_) {}
+
+    const markInitError = (stage, e) => {
+        try {
+            window.UIE_lastInitError = {
+                stage,
+                message: String(e?.message || e || "Unknown error"),
+                stack: String(e?.stack || ""),
+                at: Date.now(),
+                baseUrl,
+                url: import.meta.url
+            };
+        } catch (_) {}
+        try { window.toastr?.error?.(`UIE init failed (${stage}). Open console for details.`); } catch (_) {}
+    };
+
+    const safeImport = async (path, initFn, required = false) => {
+        try {
+            const m = await import(path);
+            const fn = initFn ? m?.[initFn] : null;
+            if (typeof fn === "function") await fn();
+            return true;
+        } catch (e) {
+            console.error(`[UIE] Module failed: ${path}${initFn ? ` (${initFn})` : ""}`, e);
+            try { window.toastr?.error?.(`UIE module failed: ${path.split("/").pop()}`); } catch (_) {}
+            if (required) throw e;
+            return false;
+        }
+    };
 
     // 1. Styles
     $("<link>").attr({rel: "stylesheet", type: "text/css", href: `${baseUrl}style.css?v=${Date.now()}`}).appendTo("head");
@@ -26,39 +56,66 @@ jQuery(async () => {
     // 3. Import Core & Startup
     try {
         const Core = await import("./src/modules/core.js");
-        Core.sanitizeSettings();
+        const sleep = (ms) => new Promise(r => setTimeout(r, Math.max(0, ms | 0)));
+        const ensureSanitized = async () => {
+            let lastErr = null;
+            for (let i = 0; i < 80; i++) {
+                try {
+                    Core.sanitizeSettings();
+                    return true;
+                } catch (e) {
+                    lastErr = e;
+                    const msg = String(e?.message || e || "");
+                    const looksLikeSettingsNotReady =
+                        msg.includes("universal-immersion-engine") ||
+                        msg.toLowerCase().includes("extension_settings") ||
+                        msg.toLowerCase().includes("cannot read properties of undefined");
+                    if (!looksLikeSettingsNotReady) throw e;
+                    await sleep(75);
+                }
+            }
+            throw lastErr || new Error("sanitizeSettings failed");
+        };
+        await ensureSanitized();
+        try { (await import("./src/modules/stateSubscriptions.js")).initStateSubscriptions?.(); } catch (_) {}
         
         const Startup = await import("./src/modules/startup.js");
         Startup.patchToastr();
-        await Startup.loadTemplates();
+        try {
+            await Startup.loadTemplates();
+        } catch (e) {
+            markInitError("templates", e);
+            throw e;
+        }
         try {
             const ok = $("#uie-inventory-window").length > 0;
             if (!ok) {
                 console.error("[UIE] Templates loaded but inventory window missing. BaseUrl likely wrong.", { baseUrl });
                 window.alert?.("[UIE] Inventory template did not load. Check console for baseUrl/template errors.");
+                throw new Error("Inventory template missing after loadTemplates()");
             }
         } catch (_) {}
         Startup.injectSettingsUI();
         
         // 4. Load Features (Modules)
         // These modules should self-initialize their event listeners
-        await import("./src/modules/dragging.js").then(m => m.initDragging?.());
-        await import("./src/modules/interaction.js").then(m => m.initInteractions?.());
-        await import("./src/modules/inventory.js").then(m => m.initInventory?.());
-        await import("./src/modules/diary.js").then(m => m.initDiary?.());
-        await import("./src/modules/diagnostics.js").then(m => m.initDiagnostics?.());
-        await import("./src/modules/calendar.js").then(m => m.initCalendar?.());
-        await import("./src/modules/databank.js").then(m => m.initDatabank?.());
-        await import("./src/modules/battle.js").then(m => m.initBattle?.());
-        await import("./src/modules/map.js").then(m => m.initMap?.());
-        await import("./src/modules/party.js").then(m => m.initParty?.());
-        await import("./src/modules/social.js").then(m => m.initSocial?.());
-        await import("./src/modules/world.js").then(m => m.initWorld?.());
-        await import("./src/modules/chatbox.js").then(m => m.initChatbox?.());
-        await import("./src/modules/sprites.js").then(m => m.initSprites?.());
+        await safeImport("./src/modules/dragging.js", "initDragging", true);
+        await safeImport("./src/modules/interaction.js", "initInteractions", true);
+        await safeImport("./src/modules/inventory.js", "initInventory", true);
+        await safeImport("./src/modules/diary.js", "initDiary", false);
+        await safeImport("./src/modules/diagnostics.js", "initDiagnostics", false);
+        await safeImport("./src/modules/calendar.js", "initCalendar", false);
+        await safeImport("./src/modules/databank.js", "initDatabank", false);
+        await safeImport("./src/modules/battle.js", "initBattle", false);
+        await safeImport("./src/modules/map.js", "initMap", false);
+        await safeImport("./src/modules/party.js", "initParty", false);
+        await safeImport("./src/modules/social.js", "initSocial", false);
+        await safeImport("./src/modules/world.js", "initWorld", false);
+        await safeImport("./src/modules/chatbox.js", "initChatbox", false);
+        await safeImport("./src/modules/sprites.js", "initSprites", false);
         
         // Phone placeholder
-        try { (await import("./src/modules/phone.js")).initPhone(); } catch(e){}
+        await safeImport("./src/modules/phone.js", "initPhone", false);
 
         // 5. Finalize
         Core.updateLayout();
@@ -66,5 +123,6 @@ jQuery(async () => {
         
     } catch (e) {
         console.error("[UIE] Critical Initialization Error:", e);
+        markInitError("critical", e);
     }
 });

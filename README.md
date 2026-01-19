@@ -97,5 +97,6 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 Built to sell immersion: fast to use, hard to break, and story-consistent by design.
 
 ## Dev / Tests
-- Databank normalization regression tests:
-  - `node universal-immersion-engine/tests/databankModel.test.js`
+- No formal test suite is bundled yet. Recommended smoke checks:
+- Load UIE and confirm launcher/menu render
+- Run Scan and confirm state updates (Inventory/War Room/Phone)

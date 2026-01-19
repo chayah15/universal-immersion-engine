@@ -118,10 +118,46 @@ export const SETTINGS_DEFAULT = {
     chatState: { activeKey: "", states: {} }
 };
 
-export function getSettings() { return extension_settings[EXT_ID]; }
-export function saveSettings() { saveSettingsDebounced(); }
+function getSettingsStore() {
+    try {
+        if (extension_settings && typeof extension_settings === "object") return extension_settings;
+    } catch (_) {}
+    try {
+        const w = typeof window !== "undefined" ? window : globalThis;
+        if (!w.extension_settings || typeof w.extension_settings !== "object") w.extension_settings = {};
+        return w.extension_settings;
+    } catch (_) {
+        return {};
+    }
+}
+
+export function getSettings() {
+    const store = getSettingsStore();
+    if (!store[EXT_ID]) store[EXT_ID] = deepClone(SETTINGS_DEFAULT);
+    return store[EXT_ID];
+}
+
+export function saveSettings() {
+    try { if (typeof saveSettingsDebounced === "function") saveSettingsDebounced(); } catch (_) {}
+}
 export function emitStateUpdated() {
     try { $(document).trigger("uie:stateUpdated"); } catch (_) {}
+}
+
+export function commitStateUpdate(opts = {}) {
+    const save = opts?.save !== false;
+    const layout = opts?.layout !== false;
+    const emit = opts?.emit !== false;
+    if (save) saveSettings();
+    if (layout) updateLayout();
+    if (emit) emitStateUpdated();
+}
+
+export function withSettings(mutator, opts = {}) {
+    const s = getSettings();
+    try { if (typeof mutator === "function") mutator(s); } catch (_) {}
+    commitStateUpdate(opts);
+    return s;
 }
 
 const CHAT_SCOPED_KEYS = [
@@ -220,7 +256,8 @@ function applyChatState(s, state) {
 }
 
 export function ensureChatStateLoaded() {
-    const s = extension_settings[EXT_ID];
+    const store = getSettingsStore();
+    const s = store?.[EXT_ID];
     if (!s) return;
     if (!s.chatState || typeof s.chatState !== "object") s.chatState = { activeKey: "", states: {} };
     if (typeof s.chatState.activeKey !== "string") s.chatState.activeKey = "";
@@ -270,8 +307,9 @@ export function isMobileUI() {
 }
 
 export function sanitizeSettings() {
-    if (!extension_settings[EXT_ID]) extension_settings[EXT_ID] = deepClone(SETTINGS_DEFAULT);
-    const s = extension_settings[EXT_ID];
+    const store = getSettingsStore();
+    if (!store[EXT_ID]) store[EXT_ID] = deepClone(SETTINGS_DEFAULT);
+    const s = store[EXT_ID];
     for(const k in SETTINGS_DEFAULT) if(s[k] === undefined) s[k] = deepClone(SETTINGS_DEFAULT[k]);
     
     if (isNaN(parseFloat(s.uiScale))) s.uiScale = 1.0;

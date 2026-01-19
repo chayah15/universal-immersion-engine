@@ -1,9 +1,10 @@
-import { getSettings, saveSettings, updateLayout, emitStateUpdated } from "./core.js";
+import { getSettings, commitStateUpdate } from "./core.js";
 import { getContext } from "../../../../../extensions.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { normalizeStatusList, normalizeStatusEffect, statusKey } from "./statusFx.js";
 import { getChatTranscriptText, getRecentChatSnippet } from "./chatLog.js";
+import { safeJsonParseObject } from "./jsonUtil.js";
 
 import { getST } from "./interaction.js";
 
@@ -222,15 +223,8 @@ ${chatSnippet}
     if (!res) return;
 
     try {
-        const raw = String(res).replace(/```json|```/g, "").trim();
-        const jsonText = (() => {
-            const a = raw.indexOf("{");
-            const b = raw.lastIndexOf("}");
-            if (a >= 0 && b > a) return raw.slice(a, b + 1);
-            return raw;
-        })();
-        const data = JSON.parse(jsonText);
-        if (!data || typeof data !== "object") return;
+        const data = safeJsonParseObject(res);
+        if (!data) return;
 
         let needsSave = false;
 
@@ -576,14 +570,7 @@ ${chatSnippet}
         }
 
         if (needsSave) {
-            saveSettings();
-            updateLayout();
-            emitStateUpdated();
-            try { (await import("./features/items.js")).render?.(); } catch (_) {}
-            try { (await import("./features/skills.js")).init?.(); } catch (_) {}
-            try { (await import("./features/assets.js")).init?.(); } catch (_) {}
-            try { (await import("./features/life.js")).init?.(); } catch (_) {}
-            try { (await import("./battle.js")).renderBattle?.(); } catch (_) {}
+            commitStateUpdate({ save: true, layout: true, emit: true });
         }
 
     } catch (e) {

@@ -1,8 +1,9 @@
-import { getSettings, saveSettings } from "./core.js";
+import { getSettings, commitStateUpdate } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getContext } from "../../../../../extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { getChatTranscriptText } from "./chatLog.js";
+import { safeJsonParseArray } from "./jsonUtil.js";
 
 function ensureShop(s) {
     if (!s.shop) s.shop = {};
@@ -80,6 +81,10 @@ function renderShop() {
     });
 }
 
+export function renderShopView() {
+    renderShop();
+}
+
 async function generateCatalog() {
     const s = getSettings();
     ensureShop(s);
@@ -87,7 +92,7 @@ async function generateCatalog() {
     const sym = String(s.currencySymbol || "G");
     const keys = String($("#uie-shop-keywords").val() || "").trim();
     s.shop.keywords = keys;
-    saveSettings();
+    commitStateUpdate({ save: true, layout: false, emit: true });
 
     const chat = await chatSnippet();
     const lore = loreKeys().join(", ");
@@ -104,9 +109,8 @@ Recent chat: ${chat}
 `;
     const res = await generateContent(prompt.slice(0, 6000), "System Check");
     if (!res) return;
-    let arr = [];
-    try { arr = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { arr = []; }
-    if (!Array.isArray(arr)) return;
+    const arr = safeJsonParseArray(res);
+    if (!arr) return;
     s.shop.catalog = arr.slice(0, 6).map(o => ({
         name: String(o.name || "Item").slice(0, 60),
         desc: String(o.desc || o.description || "").slice(0, 160),
@@ -114,7 +118,7 @@ Recent chat: ${chat}
         price: Math.max(0, Number(o.price || 0)),
         icon: String(o.icon || "🛒").slice(0, 4)
     }));
-    saveSettings();
+    commitStateUpdate({ save: true, layout: false, emit: true });
     renderShop();
 }
 
@@ -154,7 +158,7 @@ export function initShop() {
         if (!s2.inventory) s2.inventory = {};
         if (!Array.isArray(s2.inventory.items)) s2.inventory.items = [];
         s2.inventory.items.push({ kind: "item", name: it.name, type: it.type || "misc", description: it.desc || "", rarity: "common", qty: 1, mods: {}, statusEffects: [] });
-        saveSettings();
+        commitStateUpdate({ save: true, layout: false, emit: true });
         try { injectRpEvent(`[System: User purchased ${String(it.name || "Item")} for ${price} ${sym}.]`); } catch (_) {}
         try { if (window.toastr) toastr.success(`Purchased: ${it.name}`); } catch (_) {}
         import("./inventory.js").then(mod => { if (mod?.updateVitals) mod.updateVitals(); });

@@ -3,6 +3,7 @@ import { notify } from "./notifications.js";
 import { scanEverything } from "./stateTracker.js";
 import { fetchTemplateHtml } from "./templateFetch.js";
 import { scanRecentMemories, scanAllMemoriesFromStart, scanNextMemoriesChunk } from "./memories.js";
+import { tryJson, normalizeBaseUrl } from "./netUtil.js";
 
 // Hook into chat generation (SillyTavern event)
 let chatObserver = null;
@@ -552,50 +553,6 @@ export function initInteractions() {
         } catch (_) {}
     };
 
-    const buildCorsProxyCandidates = (targetUrl) => {
-        const u = String(targetUrl || "").trim();
-        if (!u) return [];
-        const enc = encodeURIComponent(u);
-        const out = [];
-        const add = (x) => { if (x && !out.includes(x)) out.push(x); };
-        add(`/api/proxy?url=${enc}`);
-        add(`/proxy?url=${enc}`);
-        add(`/api/cors-proxy?url=${enc}`);
-        add(`/cors-proxy?url=${enc}`);
-        add(`/api/corsProxy?url=${enc}`);
-        add(`/corsProxy?url=${enc}`);
-        add(`/api/proxy/${enc}`);
-        add(`/proxy/${enc}`);
-        add(`/api/cors-proxy/${enc}`);
-        add(`/cors-proxy/${enc}`);
-        add(`/api/corsProxy/${enc}`);
-        add(`/corsProxy/${enc}`);
-        return out;
-    };
-
-    const isFailedToFetchError = (e) => {
-        const m = String(e?.message || e || "").toLowerCase();
-        return m.includes("failed to fetch") || m.includes("networkerror") || m.includes("load failed");
-    };
-
-    const tryJson = async (url) => {
-        try {
-            const r = await fetch(url, { method: "GET" });
-            if (!r.ok) return null;
-            return await r.json().catch(() => null);
-        } catch (e) {
-            if (!isFailedToFetchError(e)) return null;
-            for (const proxyUrl of buildCorsProxyCandidates(url)) {
-                try {
-                    const r2 = await fetch(proxyUrl, { method: "GET" });
-                    if (!r2.ok) continue;
-                    return await r2.json().catch(() => null);
-                } catch (_) {}
-            }
-            return null;
-        }
-    };
-
     const getComfyEnum = (info, nodeName, inputKey) => {
         try {
             const entry = info?.[nodeName]?.input?.required?.[inputKey];
@@ -607,7 +564,7 @@ export function initInteractions() {
     };
 
     const loadA1111 = async (baseUrl) => {
-        const b = String(baseUrl || "").trim().replace(/\/+$/, "");
+        const b = normalizeBaseUrl(baseUrl);
         const [models, samplers, schedulers] = await Promise.all([
             tryJson(`${b}/sdapi/v1/sd-models`).catch(() => []),
             tryJson(`${b}/sdapi/v1/samplers`).catch(() => []),
@@ -645,7 +602,7 @@ export function initInteractions() {
     };
 
     const detectBackend = async (baseUrl) => {
-        const b = String(baseUrl || "").trim().replace(/\/+$/, "");
+        const b = normalizeBaseUrl(baseUrl);
         const comfyInfo = await tryJson(`${b}/object_info`);
         if (comfyInfo) return { type: "comfy", info: comfyInfo };
         const samplers = await tryJson(`${b}/sdapi/v1/samplers`);

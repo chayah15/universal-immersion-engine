@@ -1,9 +1,10 @@
-import { getSettings, saveSettings } from "./core.js";
+import { getSettings, commitStateUpdate } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { SCAN_TEMPLATES } from "./scanTemplates.js";
 import { getChatTranscriptText, getRecentChatSnippet } from "./chatLog.js";
+import { safeJsonParseObject } from "./jsonUtil.js";
 
 let bound = false;
 let observer = null;
@@ -54,7 +55,7 @@ async function maybePostBattleRewards(chat) {
   const sig = simpleHash(String(chat || "").slice(-800));
   if (sig && s.ui.notifications.postBattle.lastSig === sig) return;
   s.ui.notifications.postBattle.lastSig = sig;
-  saveSettings();
+  commitStateUpdate({ save: true, layout: false, emit: true });
 
   if (!s.inventory) s.inventory = { items: [], skills: [], assets: [], statuses: [] };
   if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
@@ -76,8 +77,8 @@ ${String(chat || "").slice(0, 4200)}
 `;
   const res = await generateContent(prompt.slice(0, 6000), "System Check");
   if (!res) return;
-  let obj = null;
-  try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
+  const obj = safeJsonParseObject(res);
+  if (!obj) return;
   if (!obj || typeof obj !== "object") return;
 
   const items = Array.isArray(obj.items) ? obj.items : [];
@@ -111,7 +112,7 @@ ${String(chat || "").slice(0, 4200)}
   }
   if (xpDelta > 0) s.xp = Number(s.xp || 0) + xpDelta;
 
-  saveSettings();
+  commitStateUpdate({ save: true, layout: false, emit: true });
   $(document).trigger("uie:updateVitals");
   try { (await import("./features/items.js")).render?.(); } catch (_) {}
 
@@ -228,8 +229,8 @@ async function scanBattle() {
 
   const res = await generateContent(prompt.slice(0, 6000), "System Check");
   if (!res) return;
-  let obj = null;
-  try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
+  const obj = safeJsonParseObject(res);
+  if (!obj) return;
   if (!obj || typeof obj !== "object") {
     notify("error", "Scan failed: AI returned invalid data.", "War Room", "api");
     return;
@@ -247,7 +248,7 @@ async function scanBattle() {
   
   if (!incomingEnemies.length && !obj.active) notify("info", "No combat detected.", "War Room", "api");
 
-  saveSettings();
+  commitStateUpdate({ save: true, layout: false, emit: true });
   renderBattle();
   if (!prevActive && st.active) {
     try {
@@ -349,7 +350,7 @@ export function initBattle() {
     const s = getSettings();
     ensureBattle(s);
     s.battle.auto = !s.battle.auto;
-    saveSettings();
+    commitStateUpdate({ save: true, layout: false, emit: true });
     renderBattle();
   });
 
@@ -358,7 +359,7 @@ export function initBattle() {
     const s = getSettings();
     ensureBattle(s);
     s.battle.dice.enabled = !s.battle.dice.enabled;
-    saveSettings();
+    commitStateUpdate({ save: true, layout: false, emit: true });
     renderBattle();
     notify("info", `Dice influence: ${s.battle.dice.enabled ? "ON" : "OFF"}`, "War Room", "api");
   });
@@ -392,7 +393,7 @@ export function initBattle() {
     const line = `DICE ${res.expr} => ${res.total}${res.rolls.length ? ` [${res.rolls.join(",")}]` : ""}`;
     s.battle.state.log.push(line.slice(0, 180));
     s.battle.dice.last = { ...res, ts: Date.now() };
-    saveSettings();
+    commitStateUpdate({ save: true, layout: false, emit: true });
     renderBattle();
     if (s.battle.dice.enabled) {
       try {
