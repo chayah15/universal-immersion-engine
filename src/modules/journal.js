@@ -1,13 +1,21 @@
 import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
-import { UnifiedSpine } from "./features/rp_log.js";
-import { esc } from "./utils.js";
+import { injectRpEvent } from "./features/rp_log.js";
 
 let currentTab = "active";
 let bound = false;
 let chatObserver = null;
 let lastSeenHash = "";
+
+function esc(s) {
+    return String(s ?? "")
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#39;");
+}
 
 function simpleHash(str) {
     let h = 0;
@@ -631,7 +639,7 @@ export function initJournal() {
         s.journal.pending.splice(idx, 1);
         s.journal.active.push(quest);
         saveSettings();
-        try { if (quest) UnifiedSpine.inject(`[System: Quest '${String(quest.title || "Quest")}' is now Active.]`); } catch (_) {}
+        try { if (quest) injectRpEvent(`[System: Quest '${String(quest.title || "Quest")}' is now Active.]`); } catch (_) {}
         renderJournal();
         notify("success", "Quest Accepted!", "Quests", "questsAccepted");
     });
@@ -649,7 +657,7 @@ export function initJournal() {
         if (!Array.isArray(s.journal.abandoned)) s.journal.abandoned = [];
         if (quest) s.journal.abandoned.push({ ...quest, failed: false, abandonedAt: Date.now() });
         saveSettings();
-        try { if (quest) UnifiedSpine.inject(`[System: Quest '${String(quest.title || "Quest")}' is now Abandoned.]`); } catch (_) {}
+        try { if (quest) injectRpEvent(`[System: Quest '${String(quest.title || "Quest")}' is now Abandoned.]`); } catch (_) {}
         renderJournal();
         notify("info", "Quest Abandoned.", "Quests", "questsAbandoned");
     });
@@ -672,7 +680,7 @@ export function initJournal() {
         s.xp = Number(s.xp || 0) + gain;
 
         saveSettings();
-        try { UnifiedSpine.inject(`[System: Quest '${String(quest.title || "Quest")}' is now Completed.]`); } catch (_) {}
+        try { injectRpEvent(`[System: Quest '${String(quest.title || "Quest")}' is now Completed.]`); } catch (_) {}
         renderJournal();
         notify("success", `Quest Completed! +${gain} XP`, "Quests", "questsCompleted");
         $(document).trigger("uie:updateVitals");
@@ -698,7 +706,7 @@ export function initJournal() {
         s.hearts = Math.max(0, Number(s.hearts || 0) - heartLoss);
 
         saveSettings();
-        try { UnifiedSpine.inject(`[System: Quest '${String(quest.title || "Quest")}' is now Failed.]`); } catch (_) {}
+        try { injectRpEvent(`[System: Quest '${String(quest.title || "Quest")}' is now Failed.]`); } catch (_) {}
         renderJournal();
         notify("error", `Quest Failed! -${xpLoss} XP, -${heartLoss} Heart`, "Quests", "questsFailed");
         $(document).trigger("uie:updateVitals");

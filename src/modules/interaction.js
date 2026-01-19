@@ -3,6 +3,7 @@ import { notify } from "./notifications.js";
 import { scanEverything } from "./stateTracker.js";
 import { fetchTemplateHtml } from "./templateFetch.js";
 import { scanRecentMemories, scanAllMemoriesFromStart, scanNextMemoriesChunk } from "./memories.js";
+import { tryJson, normalizeBaseUrl } from "./netUtil.js";
 
 // Hook into chat generation (SillyTavern event)
 let chatObserver = null;
@@ -552,50 +553,6 @@ export function initInteractions() {
         } catch (_) {}
     };
 
-    const buildCorsProxyCandidates = (targetUrl) => {
-        const u = String(targetUrl || "").trim();
-        if (!u) return [];
-        const enc = encodeURIComponent(u);
-        const out = [];
-        const add = (x) => { if (x && !out.includes(x)) out.push(x); };
-        add(`/api/proxy?url=${enc}`);
-        add(`/proxy?url=${enc}`);
-        add(`/api/cors-proxy?url=${enc}`);
-        add(`/cors-proxy?url=${enc}`);
-        add(`/api/corsProxy?url=${enc}`);
-        add(`/corsProxy?url=${enc}`);
-        add(`/api/proxy/${enc}`);
-        add(`/proxy/${enc}`);
-        add(`/api/cors-proxy/${enc}`);
-        add(`/cors-proxy/${enc}`);
-        add(`/api/corsProxy/${enc}`);
-        add(`/corsProxy/${enc}`);
-        return out;
-    };
-
-    const isFailedToFetchError = (e) => {
-        const m = String(e?.message || e || "").toLowerCase();
-        return m.includes("failed to fetch") || m.includes("networkerror") || m.includes("load failed");
-    };
-
-    const tryJson = async (url) => {
-        try {
-            const r = await fetch(url, { method: "GET" });
-            if (!r.ok) return null;
-            return await r.json().catch(() => null);
-        } catch (e) {
-            if (!isFailedToFetchError(e)) return null;
-            for (const proxyUrl of buildCorsProxyCandidates(url)) {
-                try {
-                    const r2 = await fetch(proxyUrl, { method: "GET" });
-                    if (!r2.ok) continue;
-                    return await r2.json().catch(() => null);
-                } catch (_) {}
-            }
-            return null;
-        }
-    };
-
     const getComfyEnum = (info, nodeName, inputKey) => {
         try {
             const entry = info?.[nodeName]?.input?.required?.[inputKey];
@@ -607,7 +564,7 @@ export function initInteractions() {
     };
 
     const loadA1111 = async (baseUrl) => {
-        const b = String(baseUrl || "").trim().replace(/\/+$/, "");
+        const b = normalizeBaseUrl(baseUrl);
         const [models, samplers, schedulers] = await Promise.all([
             tryJson(`${b}/sdapi/v1/sd-models`).catch(() => []),
             tryJson(`${b}/sdapi/v1/samplers`).catch(() => []),
@@ -645,7 +602,7 @@ export function initInteractions() {
     };
 
     const detectBackend = async (baseUrl) => {
-        const b = String(baseUrl || "").trim().replace(/\/+$/, "");
+        const b = normalizeBaseUrl(baseUrl);
         const comfyInfo = await tryJson(`${b}/object_info`);
         if (comfyInfo) return { type: "comfy", info: comfyInfo };
         const samplers = await tryJson(`${b}/sdapi/v1/samplers`);
@@ -992,6 +949,12 @@ export function initInteractions() {
             setImg("#uie-img-party", "party");
             setImg("#uie-img-items", "items");
             showImageBlocks(provider);
+            try {
+                if (provider === "comfy") {
+                    const b = String(scope.querySelector("#uie-img-comfy-base")?.value || url || "http://127.0.0.1:8188").trim().replace(/\/prompt\s*$/i, "").replace(/\/+$/g, "");
+                    setTimeout(() => { try { hydrateImageBackendDropdowns(b, getSettings(), false); } catch (_) {} }, 0);
+                }
+            } catch (_) {}
         } catch (_) {}
 
         const ai = s2.ai || {};
@@ -2283,9 +2246,7 @@ export function initInteractions() {
         $w.css("display", "flex");
         
         if (modulePath && renderFunc) {
-            // Add timestamp to force cache busting
-            const url = modulePath.includes('?') ? `${modulePath}&t=${Date.now()}` : `${modulePath}?t=${Date.now()}`;
-            import(url).then(mod => {
+            import(modulePath).then(mod => {
                 if (mod?.[renderFunc]) mod[renderFunc]();
             }).catch(e => console.error(`[UIE] Failed to load ${modulePath}:`, e));
         }
@@ -2531,7 +2492,6 @@ export function initInteractions() {
         }
         if (curSrc && curSrc.startsWith("data:")) $("#uie-launcher-opt-preview").css("backgroundImage", `url("${curSrc}")`).show();
         else $("#uie-launcher-opt-preview").hide();
-        $("#uie-launcher-opt-css").val(String(s.ui?.css?.global || ""));
         openWindow("#uie-launcher-options-window");
         try {
             requestAnimationFrame(() => {
@@ -2737,7 +2697,7 @@ export function initInteractions() {
             }
             $("body").append(html);
         }
-        openWindow("#uie-activities-window", "./features/activities.js?v=2", "initActivities");
+        openWindow("#uie-activities-window", "./features/activities.js", "initActivities");
     });
     $(document).on("click.uie", "#uie-btn-stats", async (e) => {
         e.stopPropagation();

@@ -1,8 +1,10 @@
-import { getSettings, saveSettings } from "./core.js";
+import { getSettings, commitStateUpdate } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getContext } from "../../../../../extensions.js"; 
 import { notify } from "./notifications.js";
 import { injectRpEvent } from "./features/rp_log.js";
+import { getChatTranscriptText } from "./chatLog.js";
+import { safeJsonParseObject } from "./jsonUtil.js";
 
 let currentTab = "friends";
 let deleteMode = false;
@@ -17,23 +19,25 @@ let autoScanTimer = null;
 let autoScanInFlight = false;
 let autoScanLastAt = 0;
 
+function esc(s) {
+    return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function newId(prefix) {
+    return `${String(prefix || "id")}_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}`;
+}
+
 function baseUrl() {
     try {
         const u = String(window.UIE_BASEURL || "");
         if (u) return u.endsWith("/") ? u : `${u}/`;
     } catch (_) {}
     return "/scripts/extensions/third-party/universal-immersion-engine/";
-}
-
-function extractJsonText(input) {
-    const raw = String(input || "").replace(/```json|```/g, "").trim();
-    const a = raw.indexOf("{");
-    const b = raw.lastIndexOf("}");
-    if (a >= 0 && b > a) return raw.slice(a, b + 1);
-    const c = raw.indexOf("[");
-    const d = raw.lastIndexOf("]");
-    if (c >= 0 && d > c) return raw.slice(c, d + 1);
-    return raw;
 }
 
 async function ensurePaperTemplate() {
@@ -176,7 +180,11 @@ function unforgetDeletedName(s, name) {
     s.socialMeta.deletedNames = (s.socialMeta.deletedNames || []).filter(x => String(x || "").toLowerCase().trim() !== k);
 }
 
-function getChatTranscript(maxMessages) {
+async function getChatTranscript(maxMessages) {
+    try {
+        const t = await getChatTranscriptText({ maxMessages: Math.max(10, Number(maxMessages || 90)), maxChars: 150000 });
+        if (t) return t;
+    } catch (_) {}
     const out = [];
     try {
         const nodes = getChatMessageNodes(maxMessages || 5000);
@@ -305,7 +313,7 @@ function renderMemoryOverlay() {
         `);
         $list.append(row);
     }
-    saveSettings();
+    commitStateUpdate({ save: true, layout: false, emit: true });
 }
 
 async function scanMemoriesForActivePerson() {
@@ -313,7 +321,7 @@ async function scanMemoriesForActivePerson() {
     if (!person) return;
     const ctx = getContext ? getContext() : {};
     const user = String(ctx?.name1 || "User");
-    const transcript = getChatTranscript(90);
+    const transcript = await getChatTranscript(90);
     if (!transcript) {
         try { window.toastr?.info?.("No chat transcript found."); } catch (_) {}
         return;
@@ -338,8 +346,7 @@ Rules:
     try { window.toastr?.info?.("Scanning memories..."); } catch (_) {}
     const res = await generateContent(prompt.slice(0, 16000), "System Check");
     if (!res) return;
-    let obj = null;
-    try { obj = JSON.parse(extractJsonText(res)); } catch (_) { obj = null; }
+    const obj = safeJsonParseObject(res);
     const mems = Array.isArray(obj?.memories) ? obj.memories : [];
     const existing = new Set((person.memories || []).map(m => String(m?.text || "").toLowerCase().replace(/\s+/g, " ").trim()).filter(Boolean));
     let added = 0;
@@ -355,7 +362,7 @@ Rules:
         existing.add(key);
         added++;
     }
-    saveSettings();
+    commitStateUpdate({ save: true, layout: false, emit: true });
     renderMemoryOverlay();
     try { window.toastr?.success?.(added ? `Added ${added} memory${added === 1 ? "" : "ies"}.` : "No new vital memories found."); } catch (_) {}
 }
@@ -365,7 +372,7 @@ export function renderSocial() {
 
     const s = getSettings();
     const changed = normalizeSocial(s);
-    if (changed) saveSettings();
+    if (changed) commitStateUpdate({ save: true, layout: false, emit: true });
 
     const list = s.social[currentTab] || [];
     const container = $("#uie-social-content");
@@ -427,7 +434,7 @@ export function renderSocial() {
             `);
             grid.append(card);
         });
-        if (avatarChanged) saveSettings();
+        if (avatarChanged) commitStateUpdate({ save: true, layout: false, emit: true });
         container.prepend(grid);
     }
     
@@ -451,7 +458,7 @@ function openProfile(index, anchorEl) {
     activeProfileIndex = index;
     if (!person.id) person.id = newId("person");
     if (!Array.isArray(person.memories)) person.memories = [];
-    saveSettings();
+    commitStateUpdate({ save: true, layout: false, emit: true });
 
     $(".uie-p-name-lg").text(person.name);
     $("#p-val-status").text(`"${person.thoughts || '...'}"`);
@@ -593,7 +600,7 @@ function applyAddOrEdit() {
         s.social[t].push({ id: newId("person"), memories: [], familyRole: "", relationshipStatus: "", ...person });
     }
     try { unforgetDeletedName(s, name); } catch (_) {}
-    saveSettings();
+    commitStateUpdate({ save: true, layout: false, emit: true });
     closeAddModal();
     renderSocial();
 }
@@ -632,7 +639,7 @@ function confirmMassDelete() {
     try { rememberDeletedNames(s, removed); } catch (_) {}
     const keep = list.filter((p, idx) => !isSelected(p, idx));
     s.social[currentTab] = keep;
-    saveSettings();
+    commitStateUpdate({ save: true, layout: false, emit: true });
     deleteMode = false;
     selectedForDelete = [];
     renderSocial();
@@ -748,7 +755,7 @@ async function promptOrganizationForNewContacts(names) {
             p.tab = wantTab;
             s.social[wantTab].push(p);
         }
-        saveSettings();
+        commitStateUpdate({ save: true, layout: false, emit: true });
     }
     renderSocial();
     if (list.length > max) {
@@ -822,7 +829,7 @@ Rules:
 
         const res = await generateContent(prompt, "System Check");
         if (!res) return { names: [], questions: [] };
-        const obj = JSON.parse(String(res).replace(/```json|```/g, "").trim());
+        const obj = safeJsonParseObject(res) || {};
         const names = Array.isArray(obj?.names) ? obj.names.map(x => String(x || "").trim()).filter(Boolean) : [];
         const questions = Array.isArray(obj?.questions) ? obj.questions.map(x => String(x || "").trim()).filter(Boolean) : [];
         return { names: names.slice(0, 24), questions: questions.slice(0, 6) };
@@ -839,7 +846,7 @@ async function scanChatIntoSocial({ silent } = {}) {
     const deleted = deletedNameSet(s);
 
     // Grab raw text logic
-    const transcript = getChatTranscript(240);
+    const transcript = await getChatTranscript(240);
     if (!transcript) {
         if (!silent) notify("info", "No chat transcript found.", "Social", "social");
         return;
@@ -873,7 +880,8 @@ Rules:
             if (!silent) notify("warning", "AI returned no response.", "Social", "api");
             return;
         }
-        const obj = JSON.parse(extractJsonText(res));
+        const obj = safeJsonParseObject(res);
+        if (!obj) throw new Error("Invalid JSON");
         found = Array.isArray(obj?.found) ? obj.found : [];
     } catch (e) {
         console.warn("Social Scan Parse Error", e);
@@ -946,7 +954,7 @@ Rules:
     }
 
     if (added) {
-        saveSettings();
+        commitStateUpdate({ save: true, layout: false, emit: true });
         renderSocial();
         if (!silent) notify("success", `Added ${added} character(s) from story.`, "Social", "social");
     } else {
@@ -983,7 +991,7 @@ export async function updateRelationshipScore(name, text, source) {
     let role = "";
     try {
         const res = await generateContent(prompt, "System Check");
-        const obj = JSON.parse(String(res || "").replace(/```json|```/g, "").trim());
+        const obj = safeJsonParseObject(res || "") || {};
         delta = Math.max(-10, Math.min(10, Math.round(Number(obj?.delta || 0))));
         role = String(obj?.role || "").trim().slice(0, 80);
     } catch (_) {
@@ -998,10 +1006,10 @@ export async function updateRelationshipScore(name, text, source) {
     else if (person.met_physically !== true) person.met_physically = false;
 
     if (delta !== 0 || (role && role !== prevRole)) {
-        saveSettings();
+        commitStateUpdate({ save: true, layout: false, emit: true });
         try { injectRpEvent(`[Canon Event: Interaction with ${nm}. Affinity: ${Math.round(Number(person.affinity || prevAff))}. Status: ${String(person.relationshipStatus || prevRole || "").trim() || "—"}.]`); } catch (_) {}
     } else {
-        saveSettings();
+        commitStateUpdate({ save: true, layout: false, emit: true });
     }
 }
 
@@ -1114,7 +1122,7 @@ export function initSocial() {
                 return;
             }
             person.memories.push({ id: newId("mem"), t: Date.now(), text: t.slice(0, 320), impact: String(impact || "").trim().slice(0, 240), tags: [] });
-            saveSettings();
+            commitStateUpdate({ save: true, layout: false, emit: true });
             renderMemoryOverlay();
             return;
         }
@@ -1123,7 +1131,7 @@ export function initSocial() {
             const ok = confirm("Clear ALL memories for this character?");
             if (!ok) return;
             person.memories = [];
-            saveSettings();
+            commitStateUpdate({ save: true, layout: false, emit: true });
             renderMemoryOverlay();
             return;
         }
@@ -1131,7 +1139,7 @@ export function initSocial() {
         if (this.id === "uie-social-mem-inject") {
             const block = buildMemoryBlock(person);
             if (!block) return;
-            await UnifiedSpine.handleSocial("memory", { block });
+            await injectRpEvent(block);
             try { window.toastr?.success?.("Injected memories into chat."); } catch (_) {}
             return;
         }
@@ -1149,7 +1157,7 @@ export function initSocial() {
         const { person } = getActivePerson();
         if (!person || !mid) return;
         person.memories = (Array.isArray(person.memories) ? person.memories : []).filter(m => String(m?.id || "") !== mid);
-        saveSettings();
+        commitStateUpdate({ save: true, layout: false, emit: true });
         renderMemoryOverlay();
     });
 
@@ -1168,7 +1176,7 @@ export function initSocial() {
         const s = getSettings();
         if (!s.socialMeta) s.socialMeta = { autoScan: false };
         s.socialMeta.autoScan = !s.socialMeta.autoScan;
-        saveSettings();
+        commitStateUpdate({ save: true, layout: false, emit: true });
         $("#uie-auto-scan-state").text(s.socialMeta.autoScan ? "ON" : "OFF");
         notify("info", `Auto Scan: ${s.socialMeta.autoScan ? "ON" : "OFF"}`, "Social", "social");
     });
@@ -1192,7 +1200,7 @@ export function initSocial() {
                     if (!s.ui) s.ui = { backgrounds: {}, css: { global: "" } };
                     if (!s.ui.backgrounds) s.ui.backgrounds = {};
                     s.ui.backgrounds.social = dataUrl;
-                    saveSettings();
+                    commitStateUpdate({ save: true, layout: false, emit: true });
                     try { import("./core.js").then(core => core.updateLayout?.()); } catch (_) {}
                 };
                 r.readAsDataURL(f);
@@ -1230,7 +1238,7 @@ export function initSocial() {
             if (nm) rememberDeletedNames(s, [nm]);
         } catch (_) {}
         s.social[currentTab].splice(activeProfileIndex, 1);
-        saveSettings();
+        commitStateUpdate({ save: true, layout: false, emit: true });
         activeProfileIndex = null;
         $("#uie-social-overlay").hide();
         renderSocial();

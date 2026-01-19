@@ -1,5 +1,4 @@
 import { getSettings, saveSettings } from "./core.js";
-import { esc } from "./utils.js";
 
 let idx = 0;
 let stickerInit = false;
@@ -9,6 +8,15 @@ let importPendingName = "";
 
 const STICKERS_BASE = "./assets/stickers/";
 const STICKER_DB = { name: "uie_stickers", store: "packs", version: 1 };
+
+function esc(s) {
+    return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
 
 function emotionFromFilename(name) {
     const base = String(name || "").split("/").pop() || "";

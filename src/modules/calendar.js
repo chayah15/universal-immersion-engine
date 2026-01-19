@@ -1,6 +1,14 @@
 import { getSettings, saveSettings, ensureChatStateLoaded } from "./core.js";
 import { generateContent } from "./apiClient.js";
-import { esc } from "./utils.js";
+
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 function pad2(n) { return String(n).padStart(2, "0"); }
 function ymd(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }

@@ -19,6 +19,15 @@ function ensureModel(s) {
   if (!Array.isArray(s.inventory.statuses)) s.inventory.statuses = [];
 }
 
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function loreKeys() {
   try {
     const ctx = getContext?.();
@@ -512,10 +521,11 @@ async function actOnItem(kind) {
 
   if (kind === "custom_use") {
     const note = prompt("Custom Use (what happened?)") || "";
+    const msg = String(note || "").trim() ? `Custom use: ${name} — ${String(note).trim()}` : `Custom use: ${name}`;
     logAction(s, { action: "custom_use", item: name, note: String(note).slice(0, 500) });
     saveSettings();
     closeItemModal();
-    await UnifiedSpine.handleItem("custom_use", { item: name, note: String(note).trim() });
+    await injectRpEvent(msg, { uie: { type: "custom_use", item: name } });
     return;
   }
 
@@ -533,7 +543,10 @@ async function actOnItem(kind) {
     closeItemModal();
     render();
     try { const mod = await import("./equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
-    await UnifiedSpine.handleItem("custom_equip", { item: name, note: String(note).trim() });
+    const msg = String(note || "").trim()
+      ? `[System: User equipped ${name}. Stats updated.] (${String(note).trim()})`
+      : `[System: User equipped ${name}. Stats updated.]`;
+    await injectRpEvent(msg);
     return;
   }
 
@@ -550,7 +563,7 @@ async function actOnItem(kind) {
     closeItemModal();
     render();
     try { const mod = await import("./equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
-    await UnifiedSpine.handleItem("equip", { item: name });
+    await injectRpEvent(`[System: User equipped ${name}. Stats updated.]`);
     return;
   }
 
@@ -561,7 +574,7 @@ async function actOnItem(kind) {
     saveSettings();
     closeItemModal();
     render();
-    await UnifiedSpine.handleItem("discard", { item: name });
+    await injectRpEvent(`Discarded ${name}.`, { uie: { type: "discard", item: name } });
     return;
   }
 
@@ -600,7 +613,7 @@ async function actOnItem(kind) {
     saveSettings();
     closeItemModal();
     render();
-    await UnifiedSpine.handleItem("send_party", { item: name, qty: moved.length });
+    await injectRpEvent(`Sent ${moved.length}x ${name} to the party stash.`, { uie: { type: "send_party", item: name, qty: moved.length } });
     return;
   }
 
@@ -617,8 +630,8 @@ async function actOnItem(kind) {
   render();
   if (consumes) {
     const eff = String(it?.use?.desc || it?.desc || it?.effect || it?.description || "").trim().slice(0, 220) || "—";
-    await UnifiedSpine.handleItem("consume", { item: name, effect: eff });
+    await injectRpEvent(`[System: User consumed ${name}. Effect: ${eff}.]`);
   } else {
-    await UnifiedSpine.handleItem("use", { item: name });
+    await injectRpEvent(`[System: User used ${name}.]`);
   }
 }
