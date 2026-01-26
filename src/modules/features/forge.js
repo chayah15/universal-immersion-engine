@@ -78,24 +78,34 @@ function renderMaterials() {
   if (!$wrap.length) return;
   $wrap.empty();
   if (!list.length) {
-    $wrap.html(`<div style="opacity:0.7; font-weight:900;">No crafting materials.</div>`);
+    $wrap.append($("<div>").css({opacity:0.7, fontWeight:900}).text("No crafting materials."));
     return;
   }
+  
+  const template = document.getElementById("uie-forge-row-template");
+  
   for (const it of list.slice(0, 200)) {
+    const clone = template.content.cloneNode(true);
+    const $row = $(clone).find(".uie-forge-row");
+    
     const id = String(it.id);
     const active = selectedIds.has(id);
-    const img = it.img ? `<img src="${esc(it.img)}" alt="">` : `<i class="fa-solid fa-hammer" style="opacity:0.85;"></i>`;
-    const qty = Number(it.qty || 1);
-    $wrap.append(`
-      <div class="uie-forge-row ${active ? "active" : ""}" data-id="${esc(id)}">
-        <div class="icon">${img}</div>
-        <div class="mid">
-          <div class="name">${esc(it.name || "Material")}</div>
-          <div class="sub">${esc(it.type || "crafting")} • x${esc(qty)}</div>
-        </div>
-        <div class="uie-forge-pill">${active ? "Selected" : "Pick"}</div>
-      </div>
-    `);
+    
+    $row.attr("data-id", id);
+    if (active) $row.addClass("active");
+    
+    const $icon = $row.find(".icon");
+    if (it.img) {
+      $("<img>").attr("src", it.img).appendTo($icon);
+    } else {
+      $("<i>").addClass("fa-solid fa-hammer").css("opacity", "0.85").appendTo($icon);
+    }
+    
+    $row.find(".name").text(it.name || "Material");
+    $row.find(".sub").text(`${it.type || "crafting"} • x${it.qty || 1}`);
+    $row.find(".uie-forge-pill").text(active ? "Selected" : "Pick");
+    
+    $wrap.append($row);
   }
 }
 
@@ -107,11 +117,16 @@ function renderSelected() {
   $sel.empty();
   const picked = (s.inventory.items || []).filter(it => selectedIds.has(String(it?.id || "")));
   if (!picked.length) {
-    $sel.html(`<div style="opacity:0.7; font-weight:900;">None</div>`);
+    $sel.append($("<div>").css({opacity:0.7, fontWeight:900}).text("None"));
     return;
   }
+  
+  const template = document.getElementById("uie-forge-pill-template");
+  
   picked.slice(0, 16).forEach(it => {
-    $sel.append(`<span class="uie-forge-pill">${esc(it.name || "Material")}</span>`);
+    const clone = template.content.cloneNode(true);
+    $(clone).find(".uie-forge-pill").text(it.name || "Material");
+    $sel.append(clone);
   });
 }
 

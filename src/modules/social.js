@@ -1,6 +1,6 @@
 import { getSettings, commitStateUpdate } from "./core.js";
 import { generateContent } from "./apiClient.js";
-import { getContext } from "../../../../../extensions.js"; 
+import { getContext } from "/scripts/extensions.js";
 import { notify } from "./notifications.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { getChatTranscriptText } from "./chatLog.js";
@@ -293,25 +293,35 @@ function renderMemoryOverlay() {
         return;
     }
     $("#uie-social-mem-empty").hide();
+
+    const rowTmpl = document.getElementById("uie-social-memory-row").content;
+
     for (const mem of list) {
         const id = String(mem?.id || "");
         const text = String(mem?.text || "").trim();
         const impact = String(mem?.impact || "").trim();
         const tags = Array.isArray(mem?.tags) ? mem.tags.map(t => String(t || "").trim()).filter(Boolean).slice(0, 6) : [];
-        const tagHtml = tags.length ? `<div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">${tags.map(t => `<span style="font-size:11px; padding:3px 8px; border-radius:999px; background:rgba(0,0,0,0.08); border:1px solid rgba(74,46,22,0.18); color:#4a2e16; font-weight:900;">${esc(t)}</span>`).join("")}</div>` : "";
-        const row = $(`
-            <div style="border:1px solid rgba(0,0,0,0.12); border-radius:12px; background:rgba(255,255,255,0.55); padding:10px; color:#4a2e16;">
-                <div style="display:flex; gap:10px; align-items:flex-start;">
-                    <div style="flex:1; min-width:0;">
-                        <div style="font-weight:900; font-family:serif; line-height:1.35;">${esc(text || "—")}</div>
-                        ${impact ? `<div style="margin-top:6px; font-size:12px; opacity:0.85;"><strong>Impact:</strong> ${esc(impact)}</div>` : ""}
-                        ${tagHtml}
-                    </div>
-                    <div class="uie-p-icon-btn danger uie-social-mem-del" data-mid="${esc(id)}" title="Delete" style="width:34px; height:34px;"><i class="fa-solid fa-trash"></i></div>
-                </div>
-            </div>
-        `);
-        $list.append(row);
+
+        const el = $(rowTmpl.cloneNode(true));
+        el.find(".mem-text").text(text || "—");
+
+        if (impact) {
+            el.find(".mem-impact").html(`<strong>Impact:</strong> ${esc(impact)}`);
+        } else {
+            el.find(".mem-impact").remove();
+        }
+
+        const tagContainer = el.find(".mem-tags");
+        if (tags.length) {
+            tags.forEach(t => {
+                tagContainer.append(`<span style="font-size:11px; padding:3px 8px; border-radius:999px; background:rgba(0,0,0,0.08); border:1px solid rgba(74,46,22,0.18); color:#4a2e16; font-weight:900;">${esc(t)}</span>`);
+            });
+        } else {
+            tagContainer.remove();
+        }
+
+        el.find(".uie-social-mem-del").attr("data-mid", id);
+        $list.append(el);
     }
     commitStateUpdate({ save: true, layout: false, emit: true });
 }
@@ -374,15 +384,29 @@ export function renderSocial() {
     const changed = normalizeSocial(s);
     if (changed) commitStateUpdate({ save: true, layout: false, emit: true });
 
+    // Force apply background from settings to ensure it appears
+    const bgUrl = s.ui?.backgrounds?.social;
+    if (bgUrl) {
+        $("#uie-social-window").css({
+            backgroundImage: `url("${bgUrl}")`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat"
+        });
+    }
+
     const list = s.social[currentTab] || [];
     const container = $("#uie-social-content");
 
     container.find(".uie-social-grid, .no-data-msg").remove();
 
     if (list.length === 0) {
-        container.prepend(`<div class="no-data-msg" style="text-align:center; margin-top:50px; color:#4a2e16; font-family:serif; font-size:1.2em;">- Empty Page -</div>`);
+        const emptyMsg = document.getElementById("uie-social-empty-msg").content.cloneNode(true);
+        container.prepend(emptyMsg);
     } else {
         const grid = $(`<div class="uie-social-grid"></div>`);
+        const cardTmpl = document.getElementById("uie-social-card-template").content;
+
         let avatarChanged = false;
         list.forEach((person, index) => {
             const isSel = deleteMode && selectedForDelete.includes(index);
@@ -419,25 +443,31 @@ export function renderSocial() {
                 avatarChanged = true;
             }
 
-            const avatarHtml = avatar
-                ? `<img src="${esc(avatar)}" style="width:100%; height:100%; object-fit:cover;">`
-                : `<i class="fa-solid fa-user"></i>`;
+            const el = $(cardTmpl.cloneNode(true));
+            const cardDiv = el.find(".uie-social-card");
+            cardDiv.attr("data-idx", index);
+            if (isSel) cardDiv.addClass("delete-selected");
+
+            const avContainer = el.find(".uie-s-avatar");
+            if (avatar) {
+                avContainer.html(`<img src="${esc(avatar)}" style="width:100%; height:100%; object-fit:cover;">`);
+            } else {
+                avContainer.html(`<i class="fa-solid fa-user"></i>`);
+            }
+
+            el.find(".uie-s-name").text(person.name);
 
             const tag = (person?.met_physically === true) ? "" : (person?.known_from_past === true ? "PAST" : "MENTION");
-            const tagHtml = tag ? `<div style="font-size:10px; opacity:0.75; border:1px solid rgba(255,255,255,0.18); padding:2px 8px; border-radius:999px;">${tag}</div>` : "";
-            const card = $(`
-                <div class="uie-social-card ${isSel ? 'delete-selected' : ''}" data-idx="${index}">
-                    <div class="uie-s-avatar">${avatarHtml}</div>
-                    <div class="uie-s-name">${esc(person.name)}</div>
-                    ${tagHtml}
-                </div>
-            `);
-            grid.append(card);
+            if (tag) {
+                el.find(".uie-s-tag-container").html(`<div style="font-size:10px; opacity:0.75; border:1px solid rgba(255,255,255,0.18); padding:2px 8px; border-radius:999px;">${tag}</div>`);
+            }
+
+            grid.append(el);
         });
         if (avatarChanged) commitStateUpdate({ save: true, layout: false, emit: true });
         container.prepend(grid);
     }
-    
+
     if(deleteMode) $("#uie-delete-controls").css("display", "flex");
     else $("#uie-delete-controls").hide();
 }
@@ -486,12 +516,22 @@ function openProfile(index, anchorEl) {
     $("#p-val-dislikes").text(person.dislikes || "-");
 
     const av = String(person.avatar || "").trim();
-    if(av) { $("#p-img-disp").attr("src", av).show(); $(".uie-p-portrait i").hide(); } 
+    if(av) { $("#p-img-disp").attr("src", av).show(); $(".uie-p-portrait i").hide(); }
     else { $("#p-img-disp").hide(); $(".uie-p-portrait i").show(); }
 
     const aff = Number(person.affinity || 0);
-    const hearts = "❤".repeat(Math.floor(aff / 20)) + "♡".repeat(5 - Math.floor(aff / 20));
-    $(".uie-p-hearts-lg").text(hearts);
+    const filledCount = Math.floor(aff / 20);
+    const emptyCount = 5 - filledCount;
+    const heartIcon = s.ui?.icons?.heart;
+
+    if (heartIcon) {
+        const filled = `<img src="${heartIcon}" style="width:24px; height:24px; object-fit:contain; vertical-align:middle; margin-right:2px;">`.repeat(filledCount);
+        const empty = `<img src="${heartIcon}" style="width:24px; height:24px; object-fit:contain; vertical-align:middle; margin-right:2px; opacity:0.25; filter:grayscale(1);">`.repeat(emptyCount);
+        $(".uie-p-hearts-lg").html(filled + empty);
+    } else {
+        const hearts = "❤".repeat(filledCount) + "♡".repeat(emptyCount);
+        $(".uie-p-hearts-lg").text(hearts);
+    }
 
     const $ov = $("#uie-social-overlay");
     $ov.attr("data-open", "1").show();
@@ -644,6 +684,7 @@ function confirmMassDelete() {
     selectedForDelete = [];
     renderSocial();
     try { window.toastr?.success?.(`Deleted ${removed.length} contact(s).`); } catch (_) {}
+    try { injectRpEvent(`[System: Deleted ${removed.length} social contact(s): ${removed.join(", ")}.]`); } catch (_) {}
 }
 
 function cancelMassDelete() {
@@ -904,7 +945,7 @@ Rules:
 
     const existingLower = new Set(["friends","associates","romance","family","rivals"].flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").toLowerCase()).filter(Boolean)));
     let added = 0;
-    
+
     for (const v of found.slice(0, 30)) {
         const nm = String(v?.name || "").trim();
         if (!nm) continue;
@@ -917,37 +958,37 @@ Rules:
         const met = presence === "present";
         const knownPast = presence === "known_past"; // AI might infer this
         const tabRaw = String(v?.role || "").toLowerCase().trim(); // v.role mapped to tab sometimes
-        
+
         // Logic to decide tab
         const tab = normalizeRoleToTab(v?.role || "associate");
         const aff = Math.max(0, Math.min(100, Math.round(Number(v?.affinity ?? 50))));
         const role = String(v?.role || (met ? "npc" : "mentioned")).trim().slice(0, 80);
-        
-        const p = { 
-            id: newId("person"), 
-            name: nm, 
-            affinity: aff, 
-            thoughts: "", 
-            avatar: "", 
-            likes: "", 
-            dislikes: "", 
-            birthday: "", 
-            location: "", 
-            age: "", 
-            knownFamily: "", 
-            familyRole: "", 
-            relationshipStatus: role, 
-            url: "", 
-            tab, 
-            memories: [], 
-            met_physically: met, 
-            known_from_past: knownPast 
+
+        const p = {
+            id: newId("person"),
+            name: nm,
+            affinity: aff,
+            thoughts: "",
+            avatar: "",
+            likes: "",
+            dislikes: "",
+            birthday: "",
+            location: "",
+            age: "",
+            knownFamily: "",
+            familyRole: "",
+            relationshipStatus: role,
+            url: "",
+            tab,
+            memories: [],
+            met_physically: met,
+            known_from_past: knownPast
         };
-        
+
         // If "associate" but affinity is high/low, maybe move? For now stick to AI guess.
         // But force "associates" if just mentioned?
         // User wants "PULLING CHARACTERS FROM STORY". So if they are in story, add them.
-        
+
         s.social[tab].push(p);
         existingLower.add(key);
         added++;
@@ -1015,19 +1056,19 @@ export async function updateRelationshipScore(name, text, source) {
 
 // --- INIT (Updated with Calendar Button) ---
 export function initSocial() {
-    const b = $("body");
+    const $win = $("#uie-social-window");
 
     // Events
-    b.off("click", "#uie-social-window .uie-tab");
-    b.on("click", "#uie-social-window .uie-tab", function() {
-        $("#uie-social-window .uie-tab").removeClass("active");
+    $win.off("click", ".uie-tab");
+    $win.on("click", ".uie-tab", function() {
+        $win.find(".uie-tab").removeClass("active");
         $(this).addClass("active");
         currentTab = $(this).data("tab");
         renderSocial();
     });
 
-    b.off("change.uieSocialImg", "#uie-add-img-file");
-    b.on("change.uieSocialImg", "#uie-add-img-file", async function() {
+    $win.off("change.uieSocialImg", "#uie-add-img-file");
+    $win.on("change.uieSocialImg", "#uie-add-img-file", async function() {
         const f = this.files && this.files[0];
         const base64 = await readFileAsBase64(f);
         tempImgBase64 = base64;
@@ -1037,8 +1078,8 @@ export function initSocial() {
         }
     });
 
-    b.off("pointerdown.uieSocialCard touchstart.uieSocialCard");
-    b.on("pointerdown.uieSocialCard touchstart.uieSocialCard", ".uie-social-card", function(e) {
+    $win.off("pointerdown.uieSocialCard touchstart.uieSocialCard");
+    $win.on("pointerdown.uieSocialCard touchstart.uieSocialCard", ".uie-social-card", function(e) {
         const idx = Number($(this).data("idx"));
         if (!Number.isFinite(idx)) return;
         socialLongPressFired = false;
@@ -1056,12 +1097,12 @@ export function initSocial() {
         }, 520);
     });
 
-    b.off("pointerup.uieSocialCard pointercancel.uieSocialCard touchend.uieSocialCard touchcancel.uieSocialCard");
-    b.on("pointerup.uieSocialCard pointercancel.uieSocialCard touchend.uieSocialCard touchcancel.uieSocialCard", ".uie-social-card", function() {
+    $win.off("pointerup.uieSocialCard pointercancel.uieSocialCard touchend.uieSocialCard touchcancel.uieSocialCard");
+    $win.on("pointerup.uieSocialCard pointercancel.uieSocialCard touchend.uieSocialCard touchcancel.uieSocialCard", ".uie-social-card", function() {
         try { clearTimeout(socialLongPressTimer); } catch (_) {}
     });
 
-    b.on("click", ".uie-social-card", function(e) {
+    $win.on("click", ".uie-social-card", function(e) {
         e.stopPropagation();
         if (socialLongPressFired) {
             socialLongPressFired = false;
@@ -1078,34 +1119,35 @@ export function initSocial() {
         }
         openProfile(idx, this);
     });
-    
-    b.off("click.uieSocialClose");
-    b.on("click.uieSocialClose", "#uie-social-close", (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-window").hide(); $("#uie-social-menu").hide(); closeAddModal(); });
-    b.on("click.uieSocialClose", ".uie-p-close", (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-overlay").removeAttr("data-open").hide(); });
-    b.on("click.uieSocialMemClose", "#uie-social-mem-close", (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-mem-overlay").hide(); });
-    b.on("click.uieSocialMemBackdrop", "#uie-social-mem-overlay", (e) => {
+
+    $win.off("click.uieSocialClose");
+    $win.on("click.uieSocialClose", "#uie-social-close", (e) => { e.preventDefault(); e.stopPropagation(); $win.hide(); $("#uie-social-menu").hide(); closeAddModal(); });
+    $win.on("click.uieSocialClose", ".uie-p-close", (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-overlay").removeAttr("data-open").hide(); });
+    $win.on("click.uieSocialMemClose", "#uie-social-mem-close", (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-mem-overlay").hide(); });
+    $win.on("click.uieSocialMemBackdrop", "#uie-social-mem-overlay", (e) => {
         if ($(e.target).closest(".uie-paper-box").length) return;
         $("#uie-social-mem-overlay").hide();
     });
 
-    b.off("click.uieSocialMenu");
-    b.on("click.uieSocialMenu", "#uie-social-sparkle", (e)=>{ e.preventDefault(); e.stopPropagation(); $("#uie-social-menu").toggle(); });
-    b.on("click.uieSocialMenu", "body", (e) => {
+    $win.off("click.uieSocialMenu");
+    $win.on("click.uieSocialMenu", "#uie-social-sparkle", (e)=>{ e.preventDefault(); e.stopPropagation(); $("#uie-social-menu").toggle(); });
+    // Close menu if clicking elsewhere in the window
+    $win.on("click.uieSocialMenu", function(e) {
         const $t = $(e.target);
         if ($t.closest("#uie-social-sparkle, #uie-social-menu").length) return;
         $("#uie-social-menu").hide();
     });
 
-    b.off("click.uieSocialMemBtn");
-    b.on("click.uieSocialMemBtn", "#uie-social-memories", (e) => {
+    $win.off("click.uieSocialMemBtn");
+    $win.on("click.uieSocialMemBtn", "#uie-social-memories", (e) => {
         e.preventDefault();
         e.stopPropagation();
         $("#uie-social-mem-overlay").show();
         renderMemoryOverlay();
     });
 
-    b.off("click.uieSocialMemActions");
-    b.on("click.uieSocialMemActions", "#uie-social-mem-add, #uie-social-mem-clear, #uie-social-mem-scan, #uie-social-mem-inject", async function (e) {
+    $win.off("click.uieSocialMemActions");
+    $win.on("click.uieSocialMemActions", "#uie-social-mem-add, #uie-social-mem-clear, #uie-social-mem-scan, #uie-social-mem-inject", async function (e) {
         e.preventDefault();
         e.stopPropagation();
         const { person } = getActivePerson();
@@ -1149,8 +1191,8 @@ export function initSocial() {
         }
     });
 
-    b.off("click.uieSocialMemDel");
-    b.on("click.uieSocialMemDel", ".uie-social-mem-del", function (e) {
+    $win.off("click.uieSocialMemDel");
+    $win.on("click.uieSocialMemDel", ".uie-social-mem-del", function (e) {
         e.preventDefault();
         e.stopPropagation();
         const mid = String($(this).data("mid") || "");
@@ -1161,17 +1203,17 @@ export function initSocial() {
         renderMemoryOverlay();
     });
 
-    b.off("click.uieSocialActions");
-    b.on("click.uieSocialActions", "#uie-act-add", (e) => { e.preventDefault(); e.stopPropagation(); openAddModal({ mode: "add" }); });
-    b.on("click.uieSocialActions", "#uie-cancel-add", (e) => { e.preventDefault(); e.stopPropagation(); closeAddModal(); });
-    b.on("click.uieSocialActions", "#uie-submit-add", (e) => { e.preventDefault(); e.stopPropagation(); applyAddOrEdit(); });
+    $win.off("click.uieSocialActions");
+    $win.on("click.uieSocialActions", "#uie-act-add", (e) => { e.preventDefault(); e.stopPropagation(); openAddModal({ mode: "add" }); });
+    $win.on("click.uieSocialActions", "#uie-cancel-add", (e) => { e.preventDefault(); e.stopPropagation(); closeAddModal(); });
+    $win.on("click.uieSocialActions", "#uie-submit-add", (e) => { e.preventDefault(); e.stopPropagation(); applyAddOrEdit(); });
 
-    b.on("click.uieSocialActions", "#uie-act-delete", (e) => { e.preventDefault(); e.stopPropagation(); toggleDeleteMode(); });
-    b.on("click.uieSocialActions", "#uie-delete-controls .uie-del-confirm", (e) => { e.preventDefault(); e.stopPropagation(); confirmMassDelete(); });
-    b.on("click.uieSocialActions", "#uie-delete-controls .uie-del-cancel", (e) => { e.preventDefault(); e.stopPropagation(); cancelMassDelete(); });
+    $win.on("click.uieSocialActions", "#uie-act-delete", (e) => { e.preventDefault(); e.stopPropagation(); toggleDeleteMode(); });
+    $win.on("click.uieSocialActions", "#uie-delete-controls .uie-del-confirm", (e) => { e.preventDefault(); e.stopPropagation(); confirmMassDelete(); });
+    $win.on("click.uieSocialActions", "#uie-delete-controls .uie-del-cancel", (e) => { e.preventDefault(); e.stopPropagation(); cancelMassDelete(); });
 
-    b.on("click.uieSocialActions", "#uie-act-scan", async (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-menu").hide(); await scanChatIntoSocial(); });
-    b.on("click.uieSocialActions", "#uie-act-toggle-auto", (e) => {
+    $win.on("click.uieSocialActions", "#uie-act-scan", async (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-menu").hide(); await scanChatIntoSocial(); });
+    $win.on("click.uieSocialActions", "#uie-act-toggle-auto", (e) => {
         e.preventDefault(); e.stopPropagation();
         const s = getSettings();
         if (!s.socialMeta) s.socialMeta = { autoScan: false };
@@ -1181,7 +1223,7 @@ export function initSocial() {
         notify("info", `Auto Scan: ${s.socialMeta.autoScan ? "ON" : "OFF"}`, "Social", "social");
     });
 
-    b.on("click.uieSocialActions", "#uie-act-bg", (e) => {
+    $win.on("click.uieSocialActions", "#uie-act-bg", (e) => {
         e.preventDefault();
         e.stopPropagation();
         $("#uie-social-menu").hide();
@@ -1209,24 +1251,51 @@ export function initSocial() {
         inp.click();
     });
 
-    b.on("click.uieSocialActions", "#uie-social-edit", (e) => {
+    $win.on("click.uieSocialActions", "#uie-act-heart", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        $("#uie-social-menu").hide();
+        const inp = document.createElement("input");
+        inp.type = "file";
+        inp.accept = "image/*";
+        inp.onchange = async () => {
+            try {
+                const f = inp.files && inp.files[0];
+                if (!f) return;
+                const r = new FileReader();
+                r.onload = () => {
+                    const dataUrl = String(r.result || "");
+                    if (!dataUrl) return;
+                    const s = getSettings();
+                    if (!s.ui) s.ui = { backgrounds: {}, css: { global: "" } };
+                    if (!s.ui.icons) s.ui.icons = { heart: "" };
+                    s.ui.icons.heart = dataUrl;
+                    commitStateUpdate({ save: true, layout: false, emit: true });
+                };
+                r.readAsDataURL(f);
+            } catch (_) {}
+        };
+        inp.click();
+    });
+
+    $win.on("click.uieSocialActions", "#uie-social-edit", (e) => {
         e.preventDefault(); e.stopPropagation();
         if (activeProfileIndex === null) return;
         $("#uie-social-overlay").hide();
         openAddModal({ mode: "edit", index: activeProfileIndex });
     });
 
-    b.on("click.uieSocialActions", "#uie-social-message", async (e) => {
+    $win.on("click.uieSocialActions", "#uie-social-message", async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();
         const p = s2?.social?.[currentTab]?.[activeProfileIndex] || null;
         const nm = String(p?.name || "").trim();
         $("#uie-social-overlay").removeAttr("data-open").hide();
-        await ensurePhoneThread(nm);
+        await ensurePaperTemplate(nm);
     });
 
-    b.on("click.uieSocialActions", "#uie-social-del-one", (e) => {
+    $win.on("click.uieSocialActions", "#uie-social-del-one", (e) => {
         e.preventDefault(); e.stopPropagation();
         if (activeProfileIndex === null) return;
         const s = getSettings();

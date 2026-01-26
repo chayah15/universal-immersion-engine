@@ -1,5 +1,8 @@
 <style>
-  #uie-shop-window{ top: 80px; left: 80px; transform:none; width:700px; height:760px; background:#0b0f15; }
+  #uie-shop-window{ top: 80px; left: 80px; transform:none; width:700px; height:760px; background:rgba(11,15,21,0.96); position: fixed; z-index:2147483646; pointer-events:auto; }
+  #uie-shop-window::before,
+  #uie-shop-window::after{ content:none !important; }
+  #uie-shop-window .uie-content{ position: relative; z-index:1; }
   @media (max-width: 700px), (pointer: coarse) {
     #uie-shop-window {
       position: fixed !important;
@@ -40,4 +43,25 @@
           </div>
       </div>
   </div>
+
+  <!-- Templates -->
+  <template id="uie-shop-item-template">
+    <div class="uie-shop-item" style="display:flex; gap:10px; align-items:center; padding:12px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25);">
+        <div class="uie-shop-icon" style="width:42px; height:42px; border-radius:14px; border:1px solid rgba(225,193,122,0.25); background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; color:#cba35c; font-size:18px;"></div>
+        <div style="flex:1; min-width:0;">
+            <div class="uie-shop-name" style="font-weight:900; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+            <div class="uie-shop-desc" style="opacity:0.75; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+        </div>
+        <div style="text-align:right;">
+            <div class="uie-shop-price" style="font-weight:900; color:#f1c40f;"></div>
+            <button class="uie-shop-buy" style="margin-top:6px; height:34px; padding:0 12px; border-radius:12px; border:none; font-weight:900; cursor:pointer;">BUY</button>
+        </div>
+    </div>
+  </template>
+
+  <template id="uie-shop-empty-template">
+      <div style="opacity:0.75; padding:14px; border:1px dashed rgba(255,255,255,0.18); border-radius:14px; text-align:center; color:#888;">
+          Generate a catalog to begin.
+      </div>
+  </template>
 </div>

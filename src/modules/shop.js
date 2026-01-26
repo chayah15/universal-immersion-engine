@@ -1,6 +1,6 @@
 import { getSettings, commitStateUpdate } from "./core.js";
 import { generateContent } from "./apiClient.js";
-import { getContext } from "../../../../../extensions.js";
+import { getContext } from "/scripts/extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { getChatTranscriptText } from "./chatLog.js";
 import { safeJsonParseArray } from "./jsonUtil.js";
@@ -57,27 +57,45 @@ function renderShop() {
     const $list = $("#uie-shop-items");
     if (!$list.length) return;
     $list.empty();
+    
     if (!s.shop.catalog.length) {
-        $list.html(`<div style="opacity:0.75; padding:14px; border:1px dashed rgba(255,255,255,0.18); border-radius:14px; text-align:center; color:#888;">Generate a catalog to begin.</div>`);
+        const emptyTmpl = document.getElementById("uie-shop-empty-template");
+        if (emptyTmpl) {
+            $list.append(emptyTmpl.content.cloneNode(true));
+        } else {
+            $list.html(`<div style="opacity:0.75; padding:14px; border:1px dashed rgba(255,255,255,0.18); border-radius:14px; text-align:center; color:#888;">Generate a catalog to begin.</div>`);
+        }
         return;
     }
+
+    const itemTmpl = document.getElementById("uie-shop-item-template");
+    if (!itemTmpl) return;
 
     s.shop.catalog.forEach((it, idx) => {
         const price = Number(it.price || 0);
         const canBuy = Number(s.currency || 0) >= price;
-        $list.append(`
-            <div style="display:flex; gap:10px; align-items:center; padding:12px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25);">
-                <div style="width:42px; height:42px; border-radius:14px; border:1px solid rgba(225,193,122,0.25); background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; color:#cba35c; font-size:18px;">${esc(it.icon || "🛒")}</div>
-                <div style="flex:1; min-width:0;">
-                    <div style="font-weight:900; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(it.name || "Item")}</div>
-                    <div style="opacity:0.75; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(it.desc || "")}</div>
-                </div>
-                <div style="text-align:right;">
-                    <div style="font-weight:900; color:#f1c40f;">${price} ${sym}</div>
-                    <button class="uie-shop-buy" data-idx="${idx}" ${canBuy ? "" : "disabled"} style="margin-top:6px; height:34px; padding:0 12px; border-radius:12px; border:none; background:${canBuy ? "#2ecc71" : "#333"}; color:${canBuy ? "#000" : "#777"}; font-weight:900; cursor:pointer;">BUY</button>
-                </div>
-            </div>
-        `);
+        const sym = String(s.currencySymbol || "G");
+        
+        const clone = itemTmpl.content.cloneNode(true);
+        const itemEl = clone.querySelector(".uie-shop-item"); // although not strictly needed if we query sub-elements directly from clone
+        
+        clone.querySelector(".uie-shop-icon").textContent = esc(it.icon || "🛒");
+        clone.querySelector(".uie-shop-name").textContent = esc(it.name || "Item");
+        clone.querySelector(".uie-shop-desc").textContent = esc(it.desc || "");
+        clone.querySelector(".uie-shop-price").textContent = `${price} ${sym}`;
+        
+        const btn = clone.querySelector(".uie-shop-buy");
+        btn.setAttribute("data-idx", idx);
+        if (!canBuy) {
+            btn.setAttribute("disabled", "disabled");
+            btn.style.background = "#333";
+            btn.style.color = "#777";
+        } else {
+            btn.style.background = "#2ecc71";
+            btn.style.color = "#000";
+        }
+        
+        $list.append(clone);
     });
 }
 
@@ -126,22 +144,25 @@ export function initShop() {
     const s = getSettings();
     ensureShop(s);
 
+    const $win = $("#uie-shop-window");
+    $win.off("click.uieShop pointerup.uieShop");
     $(document).off("click.uieShop pointerup.uieShop");
-    $(document).on("click.uieShop pointerup.uieShop", "#uie-shop-generate", async (e) => {
+
+    $win.on("click.uieShop pointerup.uieShop", "#uie-shop-generate", async (e) => {
         if (e.type === "pointerup" && e.pointerType !== "touch") return;
         e.preventDefault(); e.stopPropagation();
         const btn = $("#uie-shop-generate");
         btn.prop("disabled", true);
         try { await generateCatalog(); } finally { btn.prop("disabled", false); }
     });
-    $(document).on("click.uieShop pointerup.uieShop", "#uie-shop-refresh", async (e) => {
+    $win.on("click.uieShop pointerup.uieShop", "#uie-shop-refresh", async (e) => {
         if (e.type === "pointerup" && e.pointerType !== "touch") return;
         e.preventDefault(); e.stopPropagation();
         const btn = $("#uie-shop-refresh");
         btn.prop("disabled", true);
         try { await generateCatalog(); } finally { btn.prop("disabled", false); }
     });
-    $(document).on("click.uieShop pointerup.uieShop", ".uie-shop-buy", function(e) {
+    $win.on("click.uieShop pointerup.uieShop", ".uie-shop-buy", function(e) {
         if (e.type === "pointerup" && e.pointerType !== "touch") return;
         e.preventDefault(); e.stopPropagation();
         const idx = Number($(this).data("idx"));

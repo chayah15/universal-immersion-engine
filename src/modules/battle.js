@@ -120,6 +120,14 @@ ${String(chat || "").slice(0, 4200)}
   if (curDelta) notify("success", `+ ${curDelta} ${sym}`, "Post-battle", "postBattle");
   if (xpDelta) notify("success", `+ ${xpDelta} XP`, "Post-battle", "postBattle");
   if (!addedItems && !curDelta && !xpDelta) notify("info", "No rewards generated.", "Post-battle", "postBattle");
+
+  if (addedItems || curDelta || xpDelta) {
+      const parts = [];
+      if (addedItems) parts.push(`${addedItems} items`);
+      if (curDelta) parts.push(`${curDelta} ${sym}`);
+      if (xpDelta) parts.push(`${xpDelta} XP`);
+      try { injectRpEvent(`[System: Post-Battle Rewards: ${parts.join(", ")}.]`); } catch (_) {}
+  }
 }
 
 function pct(cur, max) {
@@ -192,26 +200,37 @@ export function renderBattle() {
   if (!st.enemies.length) {
     $en.html(`<div style="opacity:0.7; font-weight:800;">No enemies tracked.</div>`);
   } else {
+    const tmpl = document.getElementById("uie-battle-enemy-row").content;
     st.enemies.forEach(e => {
       const bar = pct(e.hp, e.maxHp);
-      $en.append(`
-        <div style="padding:10px 12px; border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); margin-bottom:8px;">
-          <div style="display:flex; gap:10px; align-items:center;">
-            <div style="font-weight:900; color:#fff; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(e.name)}${e.boss ? ` <span style="color:#f38ba8;">(BOSS)</span>` : ""}</div>
-            <div style="opacity:0.75; font-size:12px; font-weight:900;">${esc(e.hp)}/${esc(e.maxHp)}</div>
-          </div>
-          <div style="height:10px; border-radius:999px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); overflow:hidden; margin-top:8px;">
-            <div style="height:100%; width:${bar}%; background:linear-gradient(90deg,#e74c3c,#f1c40f);"></div>
-          </div>
-          ${Array.isArray(e.statusEffects) && e.statusEffects.length ? `<div style="margin-top:8px; opacity:0.85; font-size:12px;">${esc(e.statusEffects.join(", "))}</div>` : ""}
-        </div>
-      `);
+      const el = $(tmpl.cloneNode(true));
+      el.find(".en-name").text(e.name);
+      if (e.boss) el.find(".en-boss").show();
+      el.find(".en-hp-text").text(`${e.hp}/${e.maxHp}`);
+      el.find(".en-bar-fill").css({ width: `${bar}%` });
+
+      const fxContainer = el.find(".en-fx");
+      if (Array.isArray(e.statusEffects) && e.statusEffects.length) {
+        fxContainer.text(e.statusEffects.join(", "));
+      } else {
+        fxContainer.remove();
+      }
+      $en.append(el);
     });
   }
 
   $to.empty();
   if (!st.turnOrder.length) $to.html(`<div style="opacity:0.7; font-weight:800;">No turn order yet.</div>`);
-  else $to.html(`<div style="display:flex; flex-direction:column; gap:8px;">${st.turnOrder.slice(0, 24).map((n, i) => `<div style="padding:8px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); font-weight:900; color:#fff;">${i + 1}. ${esc(n)}</div>`).join("")}</div>`);
+  else {
+    const tmpl = document.getElementById("uie-battle-turn-row").content;
+    const list = $(`<div style="display:flex; flex-direction:column; gap:8px;"></div>`);
+    st.turnOrder.slice(0, 24).forEach((n, i) => {
+        const el = $(tmpl.cloneNode(true));
+        el.find(".turn-text").text(`${i + 1}. ${n}`);
+        list.append(el);
+    });
+    $to.append(list);
+  }
 
   const lines = Array.isArray(st.log) ? st.log.slice(-50) : [];
   $log.text(lines.join("\n") || "No log yet.");
@@ -245,7 +264,7 @@ async function scanBattle() {
   st.turnOrder = Array.isArray(obj.turnOrder) ? obj.turnOrder.slice(0, 30).map(x => String(x || "").slice(0, 60)).filter(Boolean) : st.turnOrder;
   const newLog = Array.isArray(obj.log) ? obj.log.slice(0, 80).map(x => String(x || "").slice(0, 160)).filter(Boolean) : [];
   if (newLog.length) st.log = newLog;
-  
+
   if (!incomingEnemies.length && !obj.active) notify("info", "No combat detected.", "War Room", "api");
 
   commitStateUpdate({ save: true, layout: false, emit: true });
@@ -312,13 +331,15 @@ export function initBattle() {
   bound = true;
   startAuto();
 
+  const $win = $("#uie-battle-window");
+  $win.off(".uieBattle");
   $(document).off(".uieBattle");
 
   const hideMenu = () => { try { $("#uie-battle-menu").hide(); } catch (_) {} };
 
-  $(document).on("pointerup.uieBattle", "#uie-battle-close", function(e){ e.preventDefault(); e.stopPropagation(); hideMenu(); $("#uie-battle-window").hide(); });
+  $win.on("pointerup.uieBattle", "#uie-battle-close", function(e){ e.preventDefault(); e.stopPropagation(); hideMenu(); $win.hide(); });
 
-  $(document).on("pointerup.uieBattle", "#uie-battle-wand", function (e) {
+  $win.on("pointerup.uieBattle", "#uie-battle-wand", function (e) {
     e.preventDefault();
     e.stopPropagation();
     const $m = $("#uie-battle-menu");
@@ -327,14 +348,15 @@ export function initBattle() {
     else $m.css("display", "flex");
   });
 
-  $(document).on("pointerup.uieBattle", function (e) {
+  // Close menu if clicked elsewhere in the window
+  $win.on("pointerup.uieBattle", function (e) {
     const $m = $("#uie-battle-menu");
     if (!$m.length || !$m.is(":visible")) return;
     if ($(e.target).closest("#uie-battle-menu, #uie-battle-wand").length) return;
     hideMenu();
   });
 
-  $(document).on("pointerup.uieBattle", "#uie-battle-scan", async function(e){
+  $win.on("pointerup.uieBattle", "#uie-battle-scan", async function(e){
     e.preventDefault(); e.stopPropagation();
     hideMenu();
     const el = this;
@@ -345,7 +367,7 @@ export function initBattle() {
     try { await scanBattle(); } finally { if (el?.dataset) el.dataset.busy = "0"; $(this).text(prev || "Scan"); }
   });
 
-  $(document).on("pointerup.uieBattle", "#uie-battle-auto", function(e){
+  $win.on("pointerup.uieBattle", "#uie-battle-auto", function(e){
     e.preventDefault(); e.stopPropagation();
     const s = getSettings();
     ensureBattle(s);
@@ -354,7 +376,7 @@ export function initBattle() {
     renderBattle();
   });
 
-  $(document).on("pointerup.uieBattle", "#uie-battle-dice-toggle", function(e){
+  $win.on("pointerup.uieBattle", "#uie-battle-dice-toggle", function(e){
     e.preventDefault(); e.stopPropagation();
     const s = getSettings();
     ensureBattle(s);
@@ -382,7 +404,7 @@ export function initBattle() {
     return { expr: `${count}d${sides}${mod ? (mod > 0 ? `+${mod}` : `${mod}`) : ""}`, rolls, mod, total };
   };
 
-  $(document).on("pointerup.uieBattle", "#uie-battle-dice-roll", async function(e){
+  $win.on("pointerup.uieBattle", "#uie-battle-dice-roll", async function(e){
     e.preventDefault(); e.stopPropagation();
     hideMenu();
     const s = getSettings();

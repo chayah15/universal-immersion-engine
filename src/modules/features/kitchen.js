@@ -191,16 +191,27 @@ function renderRecipes() {
   const $wrap = $("#uie-k-recipes");
   if (!$wrap.length) return;
   $wrap.empty();
+  
+  const template = document.getElementById("uie-k-recipe-template");
+  
   list.forEach(r => {
     const active = String(ses.recipeId || "") === r.id;
     const okStation = r.stationIds.includes(String(ses.stationId || "stove"));
-    $wrap.append(`<div class="uie-krow ${active ? "active" : ""}" data-recipe="${esc(r.id)}">
-      <div style="display:flex; gap:10px; align-items:center;">
-        <div style="font-weight:900; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(r.name)}</div>
-        <div class="uie-kpill" style="opacity:${okStation ? "0.9" : "0.5"};">${esc(okStation ? "OK" : "Station")}</div>
-      </div>
-      <div style="margin-top:6px; opacity:0.75; font-size:12px; font-weight:800;">${esc(r.stationIds.join(" / "))} • ${esc(msToClock(r.durationMs))}</div>
-    </div>`);
+    
+    const clone = template.content.cloneNode(true);
+    const $row = $(clone).find(".uie-krow");
+    
+    $row.attr("data-recipe", r.id);
+    if (active) $row.addClass("active");
+    
+    $row.find(".name").text(r.name);
+    
+    const $status = $row.find(".status");
+    $status.css("opacity", okStation ? "0.9" : "0.5").text(okStation ? "OK" : "Station");
+    
+    $row.find(".meta").text(`${r.stationIds.join(" / ")} • ${msToClock(r.durationMs)}`);
+    
+    $wrap.append($row);
   });
 }
 
@@ -217,15 +228,22 @@ function renderSlots() {
   const $wrap = $("#uie-k-slots");
   if (!$wrap.length) return;
   $wrap.empty();
+  
+  const template = document.getElementById("uie-k-slot-template");
+  
   ses.slots.forEach(sl => {
     const filled = !!sl.itemId;
-    $wrap.append(`<div class="uie-krow ${filled ? "active" : ""}" data-slot="${esc(sl.slot)}">
-      <div style="display:flex; gap:10px; align-items:center;">
-        <div style="font-weight:900;">${esc(filled ? sl.name : `Slot ${sl.slot + 1}`)}</div>
-        <div style="margin-left:auto;" class="uie-kpill">${esc(sl.tag)}</div>
-      </div>
-      <div style="margin-top:6px; opacity:0.75; font-size:12px; font-weight:800;">${filled ? "Click to change" : "Click to choose from inventory"}</div>
-    </div>`);
+    const clone = template.content.cloneNode(true);
+    const $row = $(clone).find(".uie-krow");
+    
+    $row.attr("data-slot", sl.slot);
+    if (filled) $row.addClass("active");
+    
+    $row.find(".name").text(filled ? sl.name : `Slot ${sl.slot + 1}`);
+    $row.find(".tag").text(sl.tag);
+    $row.find(".meta").text(filled ? "Click to change" : "Click to choose from inventory");
+    
+    $wrap.append($row);
   });
   saveKitchenDebounced();
 }
@@ -383,22 +401,29 @@ function renderPicker() {
   if (!$wrap.length) return;
   $wrap.empty();
   if (!list.length) {
-    $wrap.html(`<div style="opacity:0.7; font-weight:900; padding:10px;">No matches.</div>`);
+    $wrap.append($("<div>").css({opacity:0.7, fontWeight:900, padding:"10px"}).text("No matches."));
     return;
   }
+  
+  const template = document.getElementById("uie-k-pick-template");
+  
   list.forEach(it => {
-    const img = it.img ? `<img src="${esc(it.img)}" alt="">` : `<i class="fa-solid fa-utensils" style="opacity:0.85;"></i>`;
-    const qty = Number(it.qty || 1);
-    $wrap.append(`
-      <div class="pick-row" data-id="${esc(it.id)}">
-        <div class="icon">${img}</div>
-        <div class="mid">
-          <div class="name">${esc(it.name || "Item")}</div>
-          <div class="sub">${esc(tagForItem(it))} • x${esc(qty)}</div>
-        </div>
-        <div class="uie-kpill">Pick</div>
-      </div>
-    `);
+    const clone = template.content.cloneNode(true);
+    const $row = $(clone).find(".pick-row");
+    
+    $row.attr("data-id", it.id);
+    
+    const $icon = $row.find(".icon");
+    if (it.img) {
+      $("<img>").attr("src", it.img).appendTo($icon);
+    } else {
+      $("<i>").addClass("fa-solid fa-utensils").css("opacity", "0.85").appendTo($icon);
+    }
+    
+    $row.find(".name").text(it.name || "Item");
+    $row.find(".sub").text(`${tagForItem(it)} • x${it.qty || 1}`);
+    
+    $wrap.append($row);
   });
 }
 

@@ -74,23 +74,36 @@ function renderBases() {
   if (!$wrap.length) return;
   $wrap.empty();
   if (!list.length) {
-    $wrap.html(`<div style="opacity:0.7; font-weight:900;">No equipment found.</div>`);
+    $wrap.append($("<div>").css({opacity:0.7, fontWeight:900}).text("No equipment found."));
     return;
   }
+  
+  const template = document.getElementById("uie-enchant-row-template");
+  
   list.slice(0, 120).forEach(({ ref, it }) => {
+    const clone = template.content.cloneNode(true);
+    const $row = $(clone).find(".uie-enchant-row");
+    
     const key = `${ref.src}:${ref.id}`;
     const active = baseRef && `${baseRef.src}:${baseRef.id}` === key;
-    const img = it.img ? `<img src="${esc(it.img)}" alt="">` : `<i class="fa-solid fa-shield-halved" style="opacity:0.85;"></i>`;
-    $wrap.append(`
-      <div class="uie-enchant-row ${active ? "active" : ""}" data-src="${esc(ref.src)}" data-id="${esc(ref.id)}" data-slot="${esc(ref.slotId || "")}">
-        <div class="icon">${img}</div>
-        <div class="mid">
-          <div class="name">${esc(it.name || "Item")}</div>
-          <div class="sub">${esc(ref.src === "equipped" ? `equipped ${ref.slotId}` : "inventory")}</div>
-        </div>
-        <div class="uie-enchant-pill">${active ? "Base" : "Pick"}</div>
-      </div>
-    `);
+    
+    $row.attr("data-src", ref.src);
+    $row.attr("data-id", ref.id);
+    $row.attr("data-slot", ref.slotId || "");
+    if (active) $row.addClass("active");
+    
+    const $icon = $row.find(".icon");
+    if (it.img) {
+      $("<img>").attr("src", it.img).appendTo($icon);
+    } else {
+      $("<i>").addClass("fa-solid fa-shield-halved").css("opacity", "0.85").appendTo($icon);
+    }
+    
+    $row.find(".name").text(it.name || "Item");
+    $row.find(".sub").text(ref.src === "equipped" ? `equipped ${ref.slotId}` : "inventory");
+    $row.find(".uie-enchant-pill").text(active ? "Base" : "Pick");
+    
+    $wrap.append($row);
   });
 }
 
@@ -103,24 +116,34 @@ function renderComponents() {
   if (!$wrap.length) return;
   $wrap.empty();
   if (!list.length) {
-    $wrap.html(`<div style="opacity:0.7; font-weight:900;">No enchantment components.</div>`);
+    $wrap.append($("<div>").css({opacity:0.7, fontWeight:900}).text("No enchantment components."));
     return;
   }
+  
+  const template = document.getElementById("uie-enchant-row-template");
+  
   list.slice(0, 200).forEach(it => {
+    const clone = template.content.cloneNode(true);
+    const $row = $(clone).find(".uie-enchant-row");
+    
     const id = String(it.id);
     const active = selectedIds.has(id);
-    const img = it.img ? `<img src="${esc(it.img)}" alt="">` : `<i class="fa-solid fa-gem" style="opacity:0.85;"></i>`;
-    const qty = Number(it.qty || 1);
-    $wrap.append(`
-      <div class="uie-enchant-row ${active ? "active" : ""}" data-id="${esc(id)}">
-        <div class="icon">${img}</div>
-        <div class="mid">
-          <div class="name">${esc(it.name || "Component")}</div>
-          <div class="sub">${esc(it.type || "enchant")} • x${esc(qty)}</div>
-        </div>
-        <div class="uie-enchant-pill">${active ? "Selected" : "Pick"}</div>
-      </div>
-    `);
+    
+    $row.attr("data-id", id);
+    if (active) $row.addClass("active");
+    
+    const $icon = $row.find(".icon");
+    if (it.img) {
+      $("<img>").attr("src", it.img).appendTo($icon);
+    } else {
+      $("<i>").addClass("fa-solid fa-gem").css("opacity", "0.85").appendTo($icon);
+    }
+    
+    $row.find(".name").text(it.name || "Component");
+    $row.find(".sub").text(`${it.type || "enchant"} • x${it.qty || 1}`);
+    $row.find(".uie-enchant-pill").text(active ? "Selected" : "Pick");
+    
+    $wrap.append($row);
   });
 }
 
@@ -131,9 +154,20 @@ function renderSelected() {
   if (!$sel.length) return;
   $sel.empty();
   const picked = (s.inventory.items || []).filter(it => selectedIds.has(String(it?.id || "")));
-  if (!baseRef) $sel.append(`<span class="uie-enchant-pill">Base: none</span>`);
-  else $sel.append(`<span class="uie-enchant-pill">Base: ${esc(baseRef.src)}</span>`);
-  picked.slice(0, 10).forEach(it => $sel.append(`<span class="uie-enchant-pill">${esc(it.name || "Component")}</span>`));
+  
+  const template = document.getElementById("uie-enchant-pill-template");
+  
+  // Base item pill
+  const baseClone = template.content.cloneNode(true);
+  $(baseClone).find(".uie-enchant-pill").text(baseRef ? `Base: ${baseRef.src}` : "Base: none");
+  $sel.append(baseClone);
+  
+  // Component pills
+  picked.slice(0, 10).forEach(it => {
+    const clone = template.content.cloneNode(true);
+    $(clone).find(".uie-enchant-pill").text(it.name || "Component");
+    $sel.append(clone);
+  });
 }
 
 function renderLog() {

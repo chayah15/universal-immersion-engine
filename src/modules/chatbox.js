@@ -1,5 +1,6 @@
 import { getSettings, saveSettings } from "./core.js";
 import { notify } from "./notifications.js";
+import { getContext } from "../../../../../extensions.js";
 
 let bound = false;
 let observer = null;
@@ -234,31 +235,153 @@ function renderList({ reset } = {}) {
     const frag = document.createDocumentFragment();
     for (const m of filtered) {
         const card = document.createElement("div");
-        card.style.cssText = `border-radius:16px;border:1px solid rgba(255,255,255,0.10);background:var(--cb-card, rgba(0,0,0,0.25));padding:10px 12px;display:flex;gap:10px;`;
+        // Bubble Container: Row layout
+        card.style.cssText = `display:flex; flex-direction:column; gap:4px; margin-bottom:12px; max-width:85%; ${m.isUser ? "margin-left:auto; align-items:flex-end;" : "margin-right:auto; align-items:flex-start;"}`;
         card.dataset.msgId = m.id || "";
-        const badge = document.createElement("div");
-        badge.style.cssText = `width:42px;height:42px;border-radius:14px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.18);display:grid;place-items:center;flex:0 0 auto;color:var(--cb-accent,#cd7f32);font-weight:900;`;
-        badge.textContent = m.isUser ? "YOU" : "NPC";
-        const body = document.createElement("div");
-        body.style.cssText = "flex:1;min-width:0;";
+
+        // Header (Name) - Optional or Small
         const head = document.createElement("div");
-        head.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;";
-        head.innerHTML = `<div style="font-weight:900;color:var(--cb-accent,#cd7f32);">${esc(m.name)}</div>${m.mood ? `<div style="opacity:0.75;font-size:11px;border:1px solid rgba(255,255,255,0.14);padding:2px 8px;border-radius:999px;">${esc(m.mood)}</div>` : ""}`;
+        head.style.cssText = `font-size:0.75em; font-weight:900; opacity:0.7; padding:0 4px; color:var(--cb-muted); display:flex; gap:6px; align-items:center; ${m.isUser ? "flex-direction:row-reverse;" : "flex-direction:row;"}`;
+
+        const nameEl = document.createElement("div");
+        nameEl.textContent = esc(m.name);
+        head.appendChild(nameEl);
+
+        // Bubble Body
+        const bubble = document.createElement("div");
+        const bubbleBg = m.isUser ? "var(--cb-accent, #cd7f32)" : "var(--cb-card, rgba(255,255,255,0.1))";
+        const bubbleCol = m.isUser ? "#000" : "var(--cb-text, #fff)";
+        const radius = m.isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px";
+
+        bubble.style.cssText = `
+            background: ${bubbleBg};
+            color: ${bubbleCol};
+            padding: 8px 14px;
+            border-radius: ${radius};
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            position: relative;
+            min-width: 60px;
+        `;
+
         const text = document.createElement("div");
-        text.style.cssText = "margin-top:6px;white-space:pre-wrap;word-break:break-word;color:var(--cb-text, rgba(255,255,255,0.92));opacity:0.95;";
+        text.style.cssText = "white-space:pre-wrap; word-break:break-word; font-size:0.95em; line-height:1.4;";
         text.textContent = m.clean || m.raw || "";
-        body.appendChild(head);
-        body.appendChild(text);
-        card.appendChild(badge);
-        card.appendChild(body);
+        bubble.appendChild(text);
+
+        // Edit Button (Only visible on hover/active or discreetly)
+        const btnEdit = document.createElement("i");
+        btnEdit.className = "fa-solid fa-pen";
+        btnEdit.style.cssText = `
+            position: absolute;
+            top: -6px;
+            ${m.isUser ? "left: -6px;" : "right: -6px;"}
+            background: #222;
+            color: #ccc;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            display: grid; place-items: center;
+            font-size: 10px; cursor: pointer;
+            border: 1px solid #444;
+            opacity: 0; transition: opacity 0.2s;
+            z-index: 10;
+        `;
+
+        // Delete Button
+        const btnDel = document.createElement("i");
+        btnDel.className = "fa-solid fa-trash";
+        btnDel.style.cssText = `
+            position: absolute;
+            top: -6px;
+            ${m.isUser ? "left: 18px;" : "right: 18px;"}
+            background: #222;
+            color: #ff6b6b;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            display: grid; place-items: center;
+            font-size: 10px; cursor: pointer;
+            border: 1px solid #444;
+            opacity: 0; transition: opacity 0.2s;
+            z-index: 10;
+        `;
+
+        // Show edit/delete on hover
+        card.onmouseenter = () => {
+            btnEdit.style.opacity = "1";
+            btnDel.style.opacity = "1";
+        };
+        card.onmouseleave = () => {
+            btnEdit.style.opacity = "0";
+            btnDel.style.opacity = "0";
+        };
+
+        btnEdit.onclick = (e) => {
+            e.stopPropagation();
+            const realMsg = document.querySelector(`.mes[mesid="${m.id}"]`) || document.getElementById(m.id);
+            if (realMsg) {
+                $(realMsg).find(".edit_msg").click();
+                $("#uie-chatbox-window").hide();
+                restoreComposer();
+            }
+        };
+
+        btnDel.onclick = (e) => {
+            e.stopPropagation();
+            if (!confirm("Delete this message?")) return;
+            const realMsg = document.querySelector(`.mes[mesid="${m.id}"]`) || document.getElementById(m.id);
+            if (realMsg) {
+                $(realMsg).find(".delete_msg").click();
+                // ST usually asks for confirmation or deletes immediately depending on settings.
+                // We rely on ST's internal handling or the button click.
+                // If the button opens a confirm dialog in ST UI, it might be hidden behind our window.
+                // Ideally, we trigger the deletion logic directly if possible, but clicking the button is safest.
+            }
+        };
+
+        bubble.appendChild(btnEdit);
+        bubble.appendChild(btnDel);
+
+        card.appendChild(head);
+        card.appendChild(bubble);
         frag.appendChild(card);
     }
     list.innerHTML = "";
     list.appendChild(frag);
+    list.scrollTop = list.scrollHeight;
     renderedCount = filtered.length;
 }
 
 function refreshCache() {
+    // 1. Try Data
+    let data = null;
+    if (typeof window !== "undefined" && Array.isArray(window.chat) && window.chat.length > 0) data = window.chat;
+    else {
+        try {
+            const ctx = getContext ? getContext() : null;
+            if (ctx && Array.isArray(ctx.chat) && ctx.chat.length > 0) data = ctx.chat;
+        } catch (_) {}
+    }
+
+    if (data) {
+        const msgs = data.map((m, idx) => {
+            const isUser = m.is_user;
+            const name = m.name || (isUser ? "You" : "Story");
+            const raw = String(m.mes || m.message || "").trim();
+            return {
+                id: String(idx),
+                isUser: !!isUser,
+                name: String(name || "").trim(),
+                raw,
+                clean: stripTags(raw),
+                mood: extractTagValue(raw, "mood"),
+                sound: extractTagValue(raw, "sound"),
+                ts: Date.now()
+            };
+        });
+        cache = msgs.slice(-800);
+        return;
+    }
+
+    // 2. Fallback to DOM
     const nodes = getChatNodes();
     const msgs = [];
     for (const n of nodes) {
@@ -358,6 +481,9 @@ function hideComposerExtras(root) {
             if (!btn) return;
             const id = String(btn.id || "").trim();
             if (id && allowIds.has(id)) return;
+            // Whitelist the wand button explicitly if it has the icon
+            if (ic.classList.contains("fa-wand-magic-sparkles")) return;
+            
             markHidden(btn);
         });
     } catch (_) {}
@@ -436,22 +562,29 @@ export function initChatbox() {
     if (bound) return;
     bound = true;
 
+    // Remove old global listeners
     $(document).off(".uieChatbox");
 
-    $(document).on("pointerup.uieChatbox", "#uie-chatbox-close", function (e) {
+    const $win = $("#uie-chatbox-window");
+    const $opts = $("#uie-chatbox-options");
+
+    // Close Button (Window-level)
+    $win.off("pointerup.uieChatbox", "#uie-chatbox-close, #re-act-closechat")
+        .on("pointerup.uieChatbox", "#uie-chatbox-close, #re-act-closechat", function (e) {
         e.preventDefault();
         e.stopPropagation();
         restoreComposer();
-        $("#uie-chatbox-window").hide();
-        $("#uie-chatbox-options").hide();
+        $win.hide();
+        $opts.hide();
         clearBanner();
     });
 
-    $(document).on("pointerup.uieChatbox", "#uie-chatbox-gear", function (e) {
+    // Options Toggle
+    $win.off("pointerup.uieChatbox", "#uie-chatbox-gear")
+        .on("pointerup.uieChatbox", "#uie-chatbox-gear", function (e) {
         e.preventDefault();
         e.stopPropagation();
-        const o = $("#uie-chatbox-options");
-        o.css("display", o.is(":visible") ? "none" : "flex");
+        $opts.css("display", $opts.is(":visible") ? "none" : "flex");
         const s = getSettings();
         ensureChatboxSettings(s);
         $("#uie-chatbox-textscale").val(String(s.chatbox.textScale || 1));
@@ -459,18 +592,24 @@ export function initChatbox() {
         $("#uie-chatbox-bg").val(String(s.chatbox.bgUrl || ""));
     });
 
-    $(document).on("pointerup.uieChatbox", "#uie-chatbox-options-close", function (e) {
+    // Options Close
+    $opts.off("pointerup.uieChatbox", "#uie-chatbox-options-close")
+         .on("pointerup.uieChatbox", "#uie-chatbox-options-close", function (e) {
         e.preventDefault();
         e.stopPropagation();
-        $("#uie-chatbox-options").hide();
+        $opts.hide();
     });
 
-    $(document).on("pointerup.uieChatbox", "#uie-chatbox-options", function (e) {
+    // Options Modal Click (Close on backdrop)
+    $opts.off("pointerup.uieChatbox")
+         .on("pointerup.uieChatbox", function (e) {
         if ($(e.target).closest("#uie-chatbox-options > div").length) return;
-        $("#uie-chatbox-options").hide();
+        $opts.hide();
     });
 
-    $(document).on("pointerup.uieChatbox", "#uie-chatbox-options-save", function (e) {
+    // Options Save
+    $opts.off("pointerup.uieChatbox", "#uie-chatbox-options-save")
+         .on("pointerup.uieChatbox", "#uie-chatbox-options-save", function (e) {
         e.preventDefault();
         e.stopPropagation();
         const s = getSettings();
@@ -480,10 +619,12 @@ export function initChatbox() {
         s.chatbox.bgUrl = String($("#uie-chatbox-bg").val() || "").trim().slice(0, 600);
         saveSettings();
         applyTheme();
-        $("#uie-chatbox-options").hide();
+        $opts.hide();
     });
 
-    $(document).on("pointerup.uieChatbox", "#uie-chatbox-options-reset", function (e) {
+    // Options Reset
+    $opts.off("pointerup.uieChatbox", "#uie-chatbox-options-reset")
+         .on("pointerup.uieChatbox", "#uie-chatbox-options-reset", function (e) {
         e.preventDefault();
         e.stopPropagation();
         const s = getSettings();
@@ -498,7 +639,9 @@ export function initChatbox() {
         $("#uie-chatbox-bg").val("");
     });
 
-    $(document).on("change.uieChatbox", "#uie-chatbox-theme", function () {
+    // Theme Change
+    $opts.off("change.uieChatbox", "#uie-chatbox-theme")
+         .on("change.uieChatbox", "#uie-chatbox-theme", function () {
         const s = getSettings();
         ensureChatboxSettings(s);
         s.chatbox.theme = String($(this).val() || "visual_novel");
@@ -506,31 +649,41 @@ export function initChatbox() {
         applyTheme();
     });
 
-    $(document).on("input.uieChatbox", "#uie-chatbox-search", function () {
+    // Search Input
+    $win.off("input.uieChatbox", "#uie-chatbox-search")
+        .on("input.uieChatbox", "#uie-chatbox-search", function () {
         renderList();
     });
 
-    $(document).on("pointerup.uieChatbox", "#uie-chatbox-search-clear", function (e) {
+    // Search Clear
+    $win.off("pointerup.uieChatbox", "#uie-chatbox-search-clear")
+        .on("pointerup.uieChatbox", "#uie-chatbox-search-clear", function (e) {
         e.preventDefault();
         e.stopPropagation();
         $("#uie-chatbox-search").val("");
         renderList();
     });
 
-    $(document).on("pointerup.uieChatbox", "#uie-chatbox-open-inv", function (e) {
+    // Navigation Buttons (Delegated from Window)
+    $win.off("pointerup.uieChatbox", "#uie-chatbox-open-inv")
+        .on("pointerup.uieChatbox", "#uie-chatbox-open-inv", function (e) {
         e.preventDefault(); e.stopPropagation();
         document.getElementById("uie-btn-inventory")?.click?.();
     });
-    $(document).on("pointerup.uieChatbox", "#uie-chatbox-open-war", function (e) {
+    $win.off("pointerup.uieChatbox", "#uie-chatbox-open-war")
+        .on("pointerup.uieChatbox", "#uie-chatbox-open-war", function (e) {
         e.preventDefault(); e.stopPropagation();
         document.getElementById("uie-btn-battle")?.click?.();
     });
-    $(document).on("pointerup.uieChatbox", "#uie-chatbox-open-map", function (e) {
+    $win.off("pointerup.uieChatbox", "#uie-chatbox-open-map")
+        .on("pointerup.uieChatbox", "#uie-chatbox-open-map", function (e) {
         e.preventDefault(); e.stopPropagation();
         document.getElementById("uie-btn-open-map")?.click?.();
     });
 
-    $(document).on("pointerup.uieChatbox", "#uie-chatbox-window #send_but, #uie-chatbox-window #regenerate_but, #uie-chatbox-window #continue_but, #uie-chatbox-window #continue, #uie-chatbox-window #regenerate", function () {
+    // Gen Watch
+    $win.off("pointerup.uieChatbox", "#send_but, #regenerate_but, #continue_but, #continue, #regenerate")
+        .on("pointerup.uieChatbox", "#send_but, #regenerate_but, #continue_but, #continue, #regenerate", function () {
         startGenWatch(this?.id || "send");
     });
 }
@@ -543,5 +696,13 @@ export function openChatbox() {
     renderList({ reset: true });
     portalComposerIntoChatbox();
     bindObserver();
-    try { notify("info", "Chatbox active (SillyTavern composer moved into UIE).", "Chatbox", "api"); } catch (_) {}
+
+    // STOP PROPAGATION on the window to prevent SillyTavern drawers from opening
+    const win = document.getElementById("uie-chatbox-window");
+    if (win) {
+        $(win).off("mousedown.uieBlock pointerdown.uieBlock touchstart.uieBlock click.uieBlock");
+        $(win).on("mousedown.uieBlock pointerdown.uieBlock touchstart.uieBlock click.uieBlock", function(e) {
+            e.stopPropagation();
+        });
+    }
 }

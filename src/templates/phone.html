@@ -1,6 +1,26 @@
 <div id="uie-phone-window" class="uie-phone" style="display:none;">
     <style id="uie-phone-custom-css"></style>
     <style>
+        /* CORE PHONE STYLES (Desktop Fallback) */
+        #uie-phone-window {
+            position: fixed;
+            top: 15%;
+            left: calc(50% - 190px);
+            width: 380px;
+            height: 720px;
+            max-height: 85vh;
+            z-index: 2147483660 !important;
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 24px;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: white;
+        }
+
         #uie-phone-window .phone-app-header { 
             padding: 8px 10px !important; 
             min-height: 44px !important;
@@ -22,10 +42,15 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        #uie-phone-window .phone-app-content { padding-top: 6px; }
+        #uie-phone-window .phone-app-content { 
+            padding-top: 6px; 
+            flex: 1;
+            overflow-y: auto;
+            position: relative;
+        }
         #uie-phone-window .phone-back-btn { padding: 0 4px !important; border-radius: 8px !important; }
         #uie-phone-window .phone-app-header i { font-size: 12px !important; }
-        #uie-phone-window .phone-app-window { backdrop-filter: blur(8px); }
+        #uie-phone-window .phone-app-window { backdrop-filter: blur(8px); display:none; flex-direction:column; height:100%; }
         #uie-phone-window #p-browser-content { background: transparent !important; }
         #uie-phone-window #p-browser-home,
         #uie-phone-window #p-browser-refresh { display: none !important; }
@@ -60,55 +85,90 @@
             top: 2px;
             left: 2px;
         }
-        #uie-phone-window .p-browser-bar{
-            display:flex;
-            gap:8px;
-            align-items:center;
-            padding:8px 10px;
-            flex-wrap:wrap;
+        #uie-phone-window .p-browser-bar {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: #2b2b2b;
+            gap: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
-        #uie-phone-window #p-browser-url{
-            flex: 1 1 240px;
-            min-width: 0;
-            height: 34px;
-            max-height: 70px;
-            overflow:auto;
-            resize: none;
-            border-radius: 12px;
-            padding: 6px 10px;
-            line-height: 1.25;
+        #uie-phone-window .p-browser-input-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            height: 36px;
+            background: #3a3a3c;
+            border-radius: 10px;
+            padding: 0 8px;
+            gap: 6px;
         }
-        #uie-phone-window #p-browser-back,
-        #uie-phone-window #p-browser-fwd,
-        #uie-phone-window #p-browser-go,
-        #uie-phone-window #p-browser-save{
-            width: 34px;
-            height: 34px;
-            border-radius: 12px;
-            flex: 0 0 auto;
-            display:grid;
-            place-items:center;
+        #uie-phone-window #p-browser-url {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 14px;
+            height: 100%;
+            outline: none;
+            padding: 0;
         }
+        #uie-phone-window #p-browser-url::placeholder { color: #8e8e93; }
+        #uie-phone-window .p-browser-btn {
+            width: 32px;
+            height: 32px;
+            display: grid;
+            place-items: center;
+            color: #007aff;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        #uie-phone-window #p-browser-save { color: #f1c40f; }
+        #uie-phone-window #p-browser-go { color: #8e8e93; font-size: 14px; width: 24px; height: 24px; }
 
-        #uie-phone-homescreen{ overflow: hidden !important; }
+        #uie-phone-homescreen{ 
+            overflow: hidden !important; 
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
         #uie-phone-window .phone-grid-scroll{
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 110px;
+            flex: 1;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             scrollbar-width: none;
+            position: relative;
         }
         #uie-phone-window .phone-grid-scroll::-webkit-scrollbar{ width: 0; height: 0; }
+        
+        #uie-phone-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px 10px;
+            padding: 20px;
+        }
+        
+        .phone-app-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            font-size: 24px;
+            color: white;
+            margin: 0 auto;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
 
         @media (max-width: 700px), (pointer: coarse) {
             #uie-phone-window.uie-phone {
-                top: 12vh !important;
+                top: 50% !important;
                 left: 50% !important;
                 right: auto !important;
-                transform: translateX(-50%) !important;
+                transform: translate(-50%, -50%) !important;
                 width: min(280px, 92vw) !important;
                 height: min(550px, 82vh) !important;
                 max-width: 92vw !important;
@@ -126,36 +186,25 @@
         }
     </style>
     
-    <div class="phone-status-bar">
+    <div class="phone-status-bar" style="display:flex; justify-content:space-between; padding:5px 15px; font-size:12px; font-weight:bold;">
         <span class="uie-phone-clock">12:00</span>
         <span><i class="fa-solid fa-wifi"></i> 5G</span>
     </div>
     
-    <div id="uie-phone-lockscreen" class="phone-screen">
-        <style>
-            #uie-phone-lockscreen{
-                display:flex;
-                flex-direction:column;
-                align-items:center;
-                justify-content:center;
-                text-align:center;
-                padding: 20px;
-                box-sizing: border-box;
-            }
-        </style>
+    <div id="uie-phone-lockscreen" class="phone-screen" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding: 20px; background-color: #000 !important; z-index: 50;">
         <h1 class="uie-phone-clock-lg" style="font-size:3.5em; margin:0; font-weight:100; color:white; display:flex; align-items:baseline; justify-content:center; gap:10px;">
             <span class="uie-phone-clock-time-lg">12:00</span>
             <span class="uie-phone-clock-ampm-lg" style="font-size:0.28em; font-weight:800; opacity:0.9; letter-spacing:0.12em;">PM</span>
         </h1>
         <div class="uie-phone-date" style="font-size:0.95em; color:#ddd; margin-top:6px; margin-bottom:18px;">—</div>
         <div style="font-size:0.9em; color:#ccc; margin-bottom:20px;">Swipe to Unlock</div>
-        <input type="password" id="uie-phone-pin" class="p-pin-input" placeholder="PIN" maxlength="4" style="display:none;">
+        <input type="password" id="uie-phone-pin" class="p-pin-input" placeholder="PIN" maxlength="4" style="display:none; padding:10px; border-radius:8px; border:none; margin-bottom:10px;">
         <button id="uie-phone-unlock-btn" style="margin-top:20px; padding:12px 30px; background:rgba(255,255,255,0.2); border:none; color:white; border-radius:25px; font-weight:bold; cursor:pointer; pointer-events:auto;">Unlock</button>
         <div id="uie-lock-msg" style="color:#e74c3c; font-size:0.8em; margin-top:10px; height:1em;"></div>
     </div>
 
     <div id="uie-phone-homescreen" class="phone-screen" style="display:none;">
-        <i class="fa-solid fa-lock" id="uie-phone-lock-btn"></i>
+        <i class="fa-solid fa-lock" id="uie-phone-lock-btn" style="position:absolute; top:10px; left:10px; opacity:0.5; cursor:pointer;"></i>
         <div class="phone-grid-scroll">
             <div class="phone-grid" id="uie-phone-grid">
                 <div class="phone-app-icon" id="app-msg" style="background:#2ecc71;"><i class="fa-solid fa-comment"></i></div>
@@ -168,7 +217,7 @@
                 <div class="phone-app-icon" id="app-cookies" style="background:#e67e22;"><i class="fa-solid fa-cookie-bite"></i></div>
             </div>
         </div>
-        <div style="position:absolute; bottom:20px; width:100%; display:flex; justify-content:center; gap:15px; padding:15px; background:rgba(255,255,255,0.2); border-radius:20px; width:90%; left:5%;">
+        <div style="margin:15px; display:flex; justify-content:center; gap:15px; padding:15px; background:rgba(255,255,255,0.2); border-radius:20px;">
             <div class="phone-app-icon" id="dock-btn-phone" style="background:#2c3e50; width:40px; height:40px;"><i class="fa-solid fa-phone"></i></div>
             <div class="phone-app-icon" id="dock-btn-msg" style="background:#2c3e50; width:40px; height:40px;"><i class="fa-solid fa-comment-dots"></i></div>
             <div class="phone-app-icon" id="dock-btn-browser" style="background:#2c3e50; width:40px; height:40px;"><i class="fa-solid fa-compass"></i></div>
@@ -247,8 +296,6 @@
         </div>
     </div>
 
-    
-
     <div id="uie-app-msg-view" class="phone-app-window">
         <div class="phone-app-header">
             <i class="fa-solid fa-chevron-left phone-back-btn"></i>
@@ -300,18 +347,23 @@
 
     <div id="uie-app-browser-view" class="phone-app-window">
         <div class="p-browser-bar">
-            <button id="p-browser-back" title="Back"><i class="fa-solid fa-chevron-left"></i></button>
-            <button id="p-browser-fwd" title="Forward"><i class="fa-solid fa-chevron-right"></i></button>
-            <textarea id="p-browser-url" rows="1" placeholder="Search or enter location..."></textarea>
-            <button id="p-browser-go" title="Go"><i class="fa-solid fa-arrow-right"></i></button>
-            <button id="p-browser-save" title="Save Page" style="color:#f1c40f;"><i class="fa-solid fa-bookmark"></i></button>
+            <button id="p-browser-back" class="p-browser-btn" title="Back"><i class="fa-solid fa-chevron-left"></i></button>
+            <button id="p-browser-fwd" class="p-browser-btn" title="Forward"><i class="fa-solid fa-chevron-right"></i></button>
+            
+            <div class="p-browser-input-wrapper">
+                <i class="fa-solid fa-lock" style="font-size:12px; color:#8e8e93;"></i>
+                <input type="text" id="p-browser-url" placeholder="Search or enter location...">
+                <button id="p-browser-go" class="p-browser-btn" title="Go"><i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+
+            <button id="p-browser-save" class="p-browser-btn" title="Save Page"><i class="fa-solid fa-bookmark"></i></button>
         </div>
         <div class="phone-app-header" id="p-app-header" style="display:none;">
             <i class="fa-solid fa-chevron-left phone-back-btn"></i><span id="p-app-title">App</span>
         </div>
         <div class="phone-app-content" style="padding:0; padding-bottom:50px;"><div id="p-browser-content"></div></div>
-        <div class="phone-nav-bar">
-            <i class="fa-solid fa-chevron-left p-nav-btn phone-back-btn"></i><i class="fa-solid fa-house p-nav-btn" id="p-browser-home"></i><i class="fa-solid fa-rotate-right p-nav-btn" id="p-browser-refresh"></i>
+        <div class="phone-nav-bar" style="display:flex; justify-content:space-evenly; padding:10px; background:rgba(0,0,0,0.3); position:absolute; bottom:0; width:100%;">
+            <i class="fa-solid fa-chevron-left p-nav-btn phone-back-btn"></i><i class="fa-solid fa-house p-nav-btn" id="p-browser-home" style="cursor:pointer; color:white;"></i><i class="fa-solid fa-rotate-right p-nav-btn" id="p-browser-refresh" style="cursor:pointer; color:white;"></i>
         </div>
     </div>
 
@@ -346,107 +398,8 @@
             <div id="books-view-guide" class="books-pane">
                 <div class="books-card" style="background:rgba(0,0,0,0.22);">
                     <div style="font-weight:900; font-size:1.4em; margin-bottom:12px; color:#cba35c; text-align:center; border-bottom:1px solid rgba(225,193,122,0.3); padding-bottom:8px;">UIE User Manual</div>
-                    
                     <div style="opacity:0.92; color:#e5e5e5; line-height:1.6; font-size:0.95em;">
-                        <p>Welcome to the Universal Immersion Engine. This manual covers all core features. Click a section below or scroll to read.</p>
-                        
-                        <div id="guide-toc" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;">
-                            <button onclick="document.getElementById('guide-inventory').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Inventory</button>
-                            <button onclick="document.getElementById('guide-warroom').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">War Room</button>
-                            <button onclick="document.getElementById('guide-party').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Party</button>
-                            <button onclick="document.getElementById('guide-social').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Social</button>
-                            <button onclick="document.getElementById('guide-map').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Map</button>
-                            <button onclick="document.getElementById('guide-calendar').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Calendar</button>
-                            <button onclick="document.getElementById('guide-journal').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Journal</button>
-                            <button onclick="document.getElementById('guide-shop').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Shop</button>
-                            <button onclick="document.getElementById('guide-crafting').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Crafting</button>
-                            <button onclick="document.getElementById('guide-phone').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Phone</button>
-                            <button onclick="document.getElementById('guide-settings').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Settings</button>
-                        </div>
-
-                        <div id="guide-inventory" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
-                            <h3 style="color:#f1c40f; margin:0 0 8px 0; border-bottom:1px solid rgba(241,196,15,0.3); padding-bottom:4px;">Inventory & Equipment</h3>
-                            <p><strong>Tabs:</strong> Switch between Items, Skills, Assets, Equipment, Life, and Creation Station using the bottom/top tabs.</p>
-                            <p><strong>Edit Mode (Pencil):</strong> Click the pencil icon to edit your Name, Class, Level, and stats. It also allows you to delete items or change their properties.</p>
-                            <p><strong>Creation Station (Sparkle):</strong> Open the "Creation Station" menu to manually add Items, Skills, Assets, or Classes. 
-                               <br>• <em>Image Gen:</em> Check "Generate Image" to automatically create a thumbnail for your new item/skill using the description.
-                               <br>• <em>Scan Chat:</em> Use "Scan Chat Log" (or the global Scan button) to have the AI find loot/items/skills/assets from recent messages. Scans do not post anything into the chat.</p>
-                            <p><strong>Rebirth:</strong> At Level 150+, a Rebirth option appears in the gear menu. Rebirth resets progression and grants Medallions that power permanent upgrades.</p>
-                            <p><strong>Mobile View:</strong> On mobile, the Equipment tab focuses purely on your grid. Portrait and stats are hidden to give you more room.</p>
-                        </div>
-
-                        <div id="guide-warroom" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
-                            <h3 style="color:#e74c3c; margin:0 0 8px 0; border-bottom:1px solid rgba(231,76,60,0.3); padding-bottom:4px;">War Room</h3>
-                            <p><strong>Scanning:</strong> Click "Scan Chat" (or the global Scan button) to analyze recent messages for combatants. The AI will populate enemies, combat state, and a short combat log.</p>
-                            <p><strong>Turn Order:</strong> Drag and drop combatants to reorder them.</p>
-                            <p><strong>Dice Rolling:</strong> Enable dice in settings to have rolls injected into the chat for the AI to see.</p>
-                        </div>
-
-                        <div id="guide-party" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
-                            <h3 style="color:#3498db; margin:0 0 8px 0; border-bottom:1px solid rgba(52,152,219,0.3); padding-bottom:4px;">Party Management</h3>
-                            <p><strong>Roster:</strong> View all members. Import users or scan chat for characters.</p>
-                            <p><strong>Member Sheet:</strong> Edit stats, bio, and visuals for each member. Assign a portrait!</p>
-                            <p><strong>Gear:</strong> Equip your party members with items from the shared party stash.</p>
-                            <p><strong>Tactics:</strong> Set AI behavior (Aggressive, Healer, etc.) for auto-battles.</p>
-                            <p><strong>Formation:</strong> Arrange your front, mid, and back lines to optimize defense.</p>
-                        </div>
-
-                        <div id="guide-social" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
-                            <h3 style="color:#9b59b6; margin:0 0 8px 0; border-bottom:1px solid rgba(155,89,182,0.3); padding-bottom:4px;">Social & Contacts</h3>
-                            <p><strong>Scanning:</strong> Use "Scan Chat Log" in the Social tab to find characters you've met. They will be added to your relationship list.</p>
-                            <p><strong>Contacts:</strong> Phone numbers shown or saved in the story are added to Phone Contacts during a scan. Social contacts may also appear if they have known numbers.</p>
-                            <p><strong>Manual Add:</strong> You can manually add friends or rivals using the + button.</p>
-                        </div>
-
-                        <div id="guide-map" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
-                            <h3 style="color:#2ecc71; margin:0 0 8px 0; border-bottom:1px solid rgba(46,204,113,0.3); padding-bottom:4px;">Map System</h3>
-                            <p><strong>Generation:</strong> Click "Generate" to create a new map based on your current location/story. The map is persistent.</p>
-                            <p><strong>Markers:</strong> Drag the player marker to track your position.</p>
-                        </div>
-
-                        <div id="guide-calendar" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
-                            <h3 style="color:#e67e22; margin:0 0 8px 0; border-bottom:1px solid rgba(230,126,34,0.3); padding-bottom:4px;">Calendar</h3>
-                            <p><strong>Sync:</strong> Synchronize game time with real time or use "AI Generate" to set the date based on chat context.</p>
-                            <p><strong>Events:</strong> Add reminders and quest deadlines. Events will persist in your save data.</p>
-                        </div>
-
-                        <div id="guide-journal" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
-                            <h3 style="color:#f39c12; margin:0 0 8px 0; border-bottom:1px solid rgba(243,156,18,0.3); padding-bottom:4px;">Journal & Databank</h3>
-                            <p><strong>Journal:</strong> Write daily entries or auto-generate them from chat using the "Generate Entry" button.</p>
-                            <p><strong>Quests:</strong> Track active, pending, and completed missions. Use the AI helper to organize your quest log.</p>
-                            <p><strong>Databank:</strong> Store lore, facts, and important memories. Useful for keeping track of complex world details.</p>
-                        </div>
-
-                        <div id="guide-shop" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
-                            <h3 style="color:#f1c40f; margin:0 0 8px 0; border-bottom:1px solid rgba(241,196,15,0.3); padding-bottom:4px;">Shop</h3>
-                            <p><strong>Stock:</strong> View available items. Use "Generate Stock" to populate the shop based on the current location/merchant.</p>
-                            <p><strong>Per-Chat State:</strong> Shop inventory is stored per-chat, so different chats can have different merchants and stock.</p>
-                        </div>
-
-                        <div id="guide-crafting" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
-                            <h3 style="color:#9b59b6; margin:0 0 8px 0; border-bottom:1px solid rgba(155,89,182,0.3); padding-bottom:4px;">Crafting</h3>
-                            <p><strong>Alchemy:</strong> Mix reagents to brew potions and poisons. Discover recipes by experimenting.</p>
-                            <p><strong>Forge:</strong> Smith weapons and armor from raw materials. Higher quality materials yield better stats.</p>
-                            <p><strong>Enchant:</strong> Imbue items with magical properties using runes. Requires mana and specific components.</p>
-                        </div>
-
-                        <div id="guide-phone" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
-                            <h3 style="color:#3498db; margin:0 0 8px 0; border-bottom:1px solid rgba(52,152,219,0.3); padding-bottom:4px;">Phone & Apps</h3>
-                            <p><strong>Messages:</strong> Text characters in the RPG. The AI replies in-character. Use the "+" to text a new number.</p>
-                            <p><strong>Browser:</strong> A simulated web browser. AI generates the webpages based on your search.</p>
-                            <p><strong>App Builder:</strong> Create your own mini-apps! Describe what you want (e.g. "A stock market tracker" or "A spellbook"), preview it, and install it to your home screen.</p>
-                            <p><strong>Books:</strong> You are here! Use the Library tab to generate and read books about the lore of your world.</p>
-                        </div>
-
-                        <div id="guide-settings" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
-                            <h3 style="color:#95a5a6; margin:0 0 8px 0; border-bottom:1px solid rgba(149,165,166,0.3); padding-bottom:4px;">Settings & AI</h3>
-                            <p><strong>Turbo API:</strong> For best performance, enable the Turbo API setting and point it to a fast model (like Gemini Flash or Haiku). This powers the background scans (Map, Loot, Phone replies) without slowing down your main chat.</p>
-                            <p><strong>Image Generation:</strong> UIE supports Stable Diffusion (ComfyUI or A1111/SD.Next) and OpenAI-compatible image endpoints. When you enter a backend URL, UIE attempts to detect the backend and populate Checkpoint / Sampler / Scheduler dropdowns. Use the refresh button after changing URLs.</p>
-                        </div>
-                        
-                        <div style="text-align:center; margin-top:20px; font-style:italic; opacity:0.6;">
-                            Universal Immersion Engine v2.0
-                        </div>
+                        <p>Welcome to the Universal Immersion Engine. This manual covers all core features.</p>
                     </div>
                 </div>
             </div>
@@ -459,12 +412,11 @@
                         <button id="books-go" class="books-go">GO</button>
                         <button id="books-generate" class="books-wand" title="Generate"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
                     </div>
-                    <div style="opacity:0.75; font-size:12px; margin-top:8px; font-weight:800;">Tip: Press Enter for GO.</div>
                 </div>
                 <div id="books-list" style="display:flex; flex-direction:column; gap:10px; margin-top:12px;"></div>
                 <div id="books-reader" style="display:none; margin-top:12px;">
                     <div id="books-reader-head">
-                        <button id="books-reader-close" title="Close" style="margin-left:auto; width:42px; height:32px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">×</button>
+                        <button id="books-reader-close" title="Close" style="margin-left:auto;">×</button>
                     </div>
                     <div id="books-reader-body"></div>
                 </div>
@@ -504,8 +456,6 @@
         </div>
     </div>
 
-    
-    
     <div id="uie-app-cookies-view" class="phone-app-window">
         <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span>Data & Storage</span></div>
         <div class="phone-app-content" style="padding:0; background:#f5f5f7; color:#1d1d1f; display:flex; flex-direction:column; height:100%;">
@@ -513,10 +463,8 @@
                 <div style="font-size:28px; font-weight:700; margin-bottom:4px;">Storage</div>
                 <div style="font-size:14px; color:#86868b;" id="cookies-total-size">Calculating...</div>
             </div>
-            
             <div style="padding:0 16px; flex:1; overflow-y:auto;">
                 <div style="font-size:12px; color:#86868b; text-transform:uppercase; font-weight:600; margin-bottom:8px; margin-top:10px;">Categories</div>
-                
                 <div style="background:#fff; border-radius:10px; overflow:hidden; margin-bottom:20px;">
                     <div class="cookie-row" data-cat="logs" style="padding:12px 16px; display:flex; align-items:center; border-bottom:1px solid #e5e5e5; cursor:pointer;">
                         <div style="width:32px; height:32px; background:#34c759; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-scroll"></i></div>
@@ -525,43 +473,40 @@
                         <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
                     </div>
                     <div class="cookie-row" data-cat="browser" style="padding:12px 16px; display:flex; align-items:center; border-bottom:1px solid #e5e5e5; cursor:pointer;">
-                        <div style="width:32px; height:32px; background:#007aff; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-globe"></i></div>
-                        <div style="flex:1; font-weight:500;">Web Cache</div>
+                        <div style="width:32px; height:32px; background:#007aff; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-compass"></i></div>
+                        <div style="flex:1; font-weight:500;">Browser Cache</div>
                         <div class="cookie-size" id="size-browser" style="color:#86868b; font-size:14px;">0 KB</div>
                         <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
                     </div>
                     <div class="cookie-row" data-cat="maps" style="padding:12px 16px; display:flex; align-items:center; border-bottom:1px solid #e5e5e5; cursor:pointer;">
-                        <div style="width:32px; height:32px; background:#ff9500; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-map"></i></div>
-                        <div style="flex:1; font-weight:500;">Maps</div>
+                        <div style="width:32px; height:32px; background:#af52de; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-map"></i></div>
+                        <div style="flex:1; font-weight:500;">Map Data</div>
                         <div class="cookie-size" id="size-maps" style="color:#86868b; font-size:14px;">0 KB</div>
                         <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
                     </div>
                     <div class="cookie-row" data-cat="books" style="padding:12px 16px; display:flex; align-items:center; border-bottom:1px solid #e5e5e5; cursor:pointer;">
-                        <div style="width:32px; height:32px; background:#a2845e; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-book"></i></div>
+                        <div style="width:32px; height:32px; background:#ff9500; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-book"></i></div>
                         <div style="flex:1; font-weight:500;">Books</div>
                         <div class="cookie-size" id="size-books" style="color:#86868b; font-size:14px;">0 KB</div>
                         <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
                     </div>
                     <div class="cookie-row" data-cat="numbers" style="padding:12px 16px; display:flex; align-items:center; border-bottom:1px solid #e5e5e5; cursor:pointer;">
-                        <div style="width:32px; height:32px; background:#0a84ff; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-phone"></i></div>
+                        <div style="width:32px; height:32px; background:#5856d6; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-address-book"></i></div>
                         <div style="flex:1; font-weight:500;">Saved Numbers</div>
                         <div class="cookie-size" id="size-numbers" style="color:#86868b; font-size:14px;">0 KB</div>
                         <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
                     </div>
-                    <div class="cookie-row" data-cat="state" style="padding:12px 16px; display:flex; align-items:center; cursor:pointer;">
-                        <div style="width:32px; height:32px; background:#af52de; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-database"></i></div>
+                    <div class="cookie-row" data-cat="state" style="padding:12px 16px; display:flex; align-items:center; border-bottom:1px solid #e5e5e5; cursor:pointer;">
+                        <div style="width:32px; height:32px; background:#8e8e93; border-radius:6px; display:grid; place-items:center; color:#fff; margin-right:12px;"><i class="fa-solid fa-database"></i></div>
                         <div style="flex:1; font-weight:500;">World State</div>
                         <div class="cookie-size" id="size-state" style="color:#86868b; font-size:14px;">0 KB</div>
                         <i class="fa-solid fa-chevron-right" style="color:#c7c7cc; margin-left:8px; font-size:12px;"></i>
                     </div>
                 </div>
-
                 <div style="text-align:center; margin-bottom:20px;">
                     <button id="cookies-clear-all" style="background:#fff; color:#ff3b30; border:1px solid #e5e5e5; padding:12px 24px; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; width:100%;">Clear All Data</button>
-                    <div style="margin-top:8px; font-size:12px; color:#86868b;">This will remove all generated content and logs.</div>
                 </div>
             </div>
-            
             <!-- Detail View Overlay -->
             <div id="cookies-detail-view" style="position:absolute; top:0; left:0; width:100%; height:100%; background:#f5f5f7; display:none; flex-direction:column; z-index:10;">
                 <div class="phone-app-header" style="background:#fff; border-bottom:1px solid #e5e5e5;">
@@ -569,10 +514,6 @@
                     <span id="cookies-detail-title" style="color:#1d1d1f;">Category</span>
                 </div>
                 <div style="padding:16px; flex:1; overflow-y:auto;">
-                    <div style="margin-bottom:12px; position:relative;">
-                        <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:10px; color:#86868b;"></i>
-                        <input type="text" id="cookies-search" placeholder="Search items..." style="width:100%; padding:8px 12px 8px 36px; border-radius:10px; border:none; background:#e3e3e8; font-size:15px; color:#1d1d1f; outline:none;">
-                    </div>
                     <div id="cookies-detail-list" style="background:#fff; border-radius:10px; overflow:hidden;"></div>
                     <div style="margin-top:20px;">
                         <button id="cookies-delete-cat" style="background:#fff; color:#ff3b30; border:1px solid #e5e5e5; padding:12px 24px; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; width:100%;">Delete All in Category</button>
@@ -607,4 +548,58 @@
     </div>
 
     <i class="fa-solid fa-xmark uie-close-btn" id="uie-phone-close" style="position:absolute; top:9px; right:5px; z-index:300; color:white; padding:5px; text-shadow:0 0 3px #000; cursor: pointer;"></i>
+    
+    <!-- Templates -->
+    <template id="uie-template-dial-recent">
+        <div class="dial-recent-row" style="display:flex; align-items:center; gap:10px; padding:10px; border-bottom:1px solid #333; cursor:pointer;">
+            <i class="fa-solid dial-dir-icon" style="color:#888;"></i>
+            <div style="flex:1;">
+                <div class="dial-label" style="color:white; font-weight:600;"></div>
+                <div class="dial-sub" style="color:#888; font-size:12px;"></div>
+            </div>
+            <div style="color:#888; font-size:12px;">Yesterday</div>
+        </div>
+    </template>
+    
+    <template id="uie-template-msg-contact">
+        <div class="contact-row" style="display:flex; align-items:center; gap:15px; padding:10px 0; cursor:pointer;">
+            <div class="contact-avatar" style="width:50px; height:50px; border-radius:50%; background:#555; display:grid; place-items:center; font-weight:600; color:white; font-size:18px;"></div>
+            <div style="flex:1; border-bottom:1px solid #333; padding-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                    <div class="contact-name" style="font-weight:600; color:white;"></div>
+                    <div style="font-size:14px; color:#666;">10:00 AM</div>
+                </div>
+                <div class="contact-last" style="color:#888; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;"></div>
+            </div>
+        </div>
+    </template>
+    
+    <template id="uie-template-msg-bubble">
+        <div class="p-bubble" style="margin-bottom:10px; max-width:75%; padding:10px 14px; border-radius:18px; font-size:16px; line-height:1.4; position:relative;">
+            <div class="p-bubble-img-container" style="display:none; margin-bottom:5px;"><img class="p-bubble-img" style="width:100%; border-radius:10px;"></div>
+            <div class="p-bubble-text"></div>
+        </div>
+    </template>
+
+    <template id="uie-template-browser-bookmark">
+        <div class="p-bookmark" style="padding:10px; border-bottom:1px solid #eee; cursor:pointer;">
+            <div class="bm-title" style="font-weight:bold; color:#007aff;"></div>
+            <div class="bm-url" style="font-size:0.8em; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+        </div>
+    </template>
+    
+    <template id="uie-template-book-row">
+        <div class="book-row" style="margin-bottom:8px;">
+            <div class="book-title" style="font-weight:bold; font-size:1.1em; color:#f1c40f;"></div>
+            <div class="book-date" style="font-size:0.8em; color:#aaa;"></div>
+        </div>
+    </template>
+
+    <template id="uie-template-sticker-tab">
+        <button class="uie-phone-sticker-tab" style="padding:6px 12px; border-radius:15px; background:#333; border:none; color:white; font-weight:600; font-size:12px; cursor:pointer; white-space:nowrap; margin-right:8px;"></button>
+    </template>
+
+    <template id="uie-template-sticker-tile">
+        <div class="uie-phone-sticker-tile" style="aspect-ratio:1; cursor:pointer;"><img style="width:100%; height:100%; object-fit:contain;"></div>
+    </template>
 </div>

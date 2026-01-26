@@ -14,8 +14,8 @@
         }
     }
 </style>
-<div id="uie-world-window" class="uie-window" style="display:none; width: min(720px, 92vw); height: min(820px, 92vh); background: #0b0f15; flex-direction:column; z-index:10010;">
-    
+<div id="uie-world-window" class="uie-window" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width: min(720px, 92vw); height: min(820px, 92vh); background: #0b0f15; flex-direction:column; z-index:20050;">
+
     <div class="uie-header" style="border-bottom: 1px solid #cba35c; padding: 10px; background: linear-gradient(90deg, #1b202b, #0e121a);">
         <div class="uie-info">
             <h2 style="margin:0; font-family:'Cinzel',serif; color:#cba35c;">REALITY ENGINE</h2>
@@ -31,16 +31,65 @@
 
     <div id="uie-world-content" class="custom-scroll" style="flex:1; padding:15px; overflow-y:auto; position:relative;">
         <div style="text-align:center; margin-top:50%; transform:translateY(-50%); color:#333;">
-            <i class="fa-solid fa-terminal" style="font-size:3em; margin-bottom:10px;"></i>
-            <p>AWAITING INPUT...</p>
+            <i class="fa-solid fa-circle-notch fa-spin" style="font-size:3em; margin-bottom:10px; opacity:0.5;"></i>
+            <h3 style="margin:5px 0; color:#cba35c;">INITIALIZING...</h3>
         </div>
     </div>
 
-    <div style="padding:10px; background:#111; border-top:1px solid #333; display:flex; gap:10px;">
+    <div style="padding:10px; background:#111; border-top:1px solid #333; display:none; gap:10px;">
         <input type="text" id="uie-world-input" placeholder="What should I simulate? (e.g. 'My Magic Shop' or 'Zombie Base')" style="flex:1; background:#000; border:1px solid #333; color:#cba35c; padding:10px; font-family:monospace;">
         <button id="uie-world-gen" style="background:#cba35c; color:#000; font-weight:bold; border:none; padding:0 15px; cursor:pointer;"><i class="fa-solid fa-bolt"></i></button>
     </div>
 </div>
+
+<div id="re-quick-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:2147483647; align-items:center; justify-content:center;">
+    <div style="background:#111; border:1px solid #444; padding:20px; border-radius:12px; width:300px; display:flex; flex-direction:column; gap:10px; color:#fff;">
+        <h3 style="margin:0; color:#cba35c;">Add Quick Button</h3>
+        <input type="text" id="re-quick-label" placeholder="Button Label (e.g. 'Attack')" style="background:#222; border:1px solid #555; color:#fff; padding:8px; border-radius:6px;">
+        <input type="text" id="re-quick-icon" placeholder="Icon (e.g. fa-sword) [Optional]" style="background:#222; border:1px solid #555; color:#fff; padding:8px; border-radius:6px;">
+        <textarea id="re-quick-prompt" placeholder="Action/Text to send..." style="background:#222; border:1px solid #555; color:#fff; padding:8px; border-radius:6px; min-height:80px; resize:vertical;"></textarea>
+        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:5px;">
+            <button id="re-quick-cancel" style="background:transparent; border:1px solid #666; color:#ccc; padding:6px 12px; border-radius:6px; cursor:pointer;">Cancel</button>
+            <button id="re-quick-save" style="background:#cba35c; border:none; color:#000; font-weight:bold; padding:6px 12px; border-radius:6px; cursor:pointer;">Save</button>
+        </div>
+    </div>
+</div>
+
+<template id="uie-world-state-view">
+    <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="font-weight:900; color:#cba35c;">World State</div>
+        <div class="world-state-grid" style="display:grid; grid-template-columns: 140px 1fr; gap:8px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px;">
+            <div style="opacity:0.75;">Location</div><div class="val-loc" style="font-weight:900;"></div>
+            <div style="opacity:0.75;">Time</div><div class="val-time" style="font-weight:900;"></div>
+            <div style="opacity:0.75;">Weather</div><div class="val-weather" style="font-weight:900;"></div>
+            <div style="opacity:0.75;">Threat</div><div class="val-threat" style="font-weight:900;"></div>
+            <div style="opacity:0.75;">Status</div><div class="val-status" style="font-weight:900;"></div>
+        </div>
+        <div style="opacity:0.75; font-size:12px;">
+            Updates automatically from chat when AI automation is on. Use refresh to scan immediately.
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="uie-world-toggle-re" style="height:44px; padding:0 14px; border-radius:14px; border:1px solid rgba(203,163,92,0.35); background:rgba(0,0,0,0.25); color:#cba35c; font-weight:900; cursor:pointer;">Projector</button>
+            <button id="uie-world-toggle-room" style="height:44px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900; cursor:pointer;">Room</button>
+            <button id="uie-world-toggle-map" style="height:44px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900; cursor:pointer;">Map</button>
+        </div>
+        <label style="display:flex; gap:10px; align-items:center; font-weight:900; color:#fff;">
+            <input type="checkbox" id="uie-world-hide-quick">
+            Hide quick buttons (Phone/Journal/Chatbox/Menu)
+        </label>
+        <label style="display:flex; gap:10px; align-items:center; font-weight:900; color:#fff;">
+            <input type="checkbox" id="uie-world-hide-hud">
+            Hide HUD (HP/Stress bars)
+        </label>
+        <label style="display:flex; gap:10px; align-items:center; font-weight:900; color:#fff;">
+            <input type="checkbox" id="uie-world-show-st-ui">
+            Show SillyTavern UI behind stage
+        </label>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="uie-world-open-sprites" style="height:44px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Sprite Library</button>
+        </div>
+    </div>
+</template>
 
 <style>
     :root {
@@ -58,17 +107,29 @@
         height: 100dvh;
         background: var(--re-color-bg);
         overflow: hidden;
-        z-index: 999;
+        z-index: 2147483640; /* Maximize Z-Index to cover everything */
         display: none;
         touch-action: manipulation;
     }
 
+    /* Aggressively hide SillyTavern UI elements when stage is active */
     body[data-reality-stage="1"] #chat,
     body[data-reality-stage="1"] #sheld,
     body[data-reality-stage="1"] #chatwrap,
-    body[data-reality-stage="1"] #chat_wrap {
+    body[data-reality-stage="1"] #chat_wrap,
+    body[data-reality-stage="1"] #quick-reply-container,
+    body[data-reality-stage="1"] .quick-reply-container,
+    body[data-reality-stage="1"] #quick_reply_container,
+    body[data-reality-stage="1"] .quick_reply_container,
+    body[data-reality-stage="1"] #chat_options,
+    body[data-reality-stage="1"] .qr-container,
+    body[data-reality-stage="1"] [id*="quick-reply"],
+    body[data-reality-stage="1"] [class*="quick-reply"] {
         opacity: 0 !important;
         pointer-events: none !important;
+        display: none !important;
+        visibility: hidden !important;
+        z-index: -1 !important;
     }
 
     #re-bg {
@@ -110,7 +171,14 @@
         100% { transform: translate(0, 0); }
     }
 
-    #re-sprite {
+    #re-sprites-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+    }
+
+    .re-sprite {
         position: absolute;
         left: 50%;
         bottom: 22dvh;
@@ -119,10 +187,10 @@
         width: auto;
         max-width: 96vw;
         object-fit: contain;
-        display: none;
-        pointer-events: none;
         filter: drop-shadow(0 12px 28px rgba(0,0,0,0.65));
         animation: reBreathe 4.8s ease-in-out infinite;
+        transition: all 0.5s ease-in-out;
+        pointer-events: none;
     }
     @keyframes reBreathe {
         0%, 100% { transform: translateX(-50%) scale(1); }
@@ -213,33 +281,47 @@
         touch-action: manipulation;
     }
 
-    .vn-dialogue-box {
-        pointer-events: auto;
-        width: min(820px, 96vw);
-        margin: auto auto 80px;
-        background: rgba(15, 10, 10, 0.95);
-        border: 2px solid var(--re-color-border);
-        border-radius: 18px;
-        padding: 14px;
-        color: var(--re-color-text);
-        box-shadow: 0 20px 40px rgba(0,0,0,0.65);
+    /* VN Box styles deferred to style.css for cleaner overriding */
+    #re-vn-box {
+        position: absolute;
+        bottom: 35vh;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 800px;
+        max-width: 95vw;
+        background: rgba(16, 12, 12, 0.95);
+        border: 1px solid rgba(203, 163, 92, 0.3);
+        border-radius: 12px;
+        padding: 20px 20px 40px 20px;
+        display: none;
+        flex-direction: column;
+        gap: 10px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        z-index: 2147483643; /* Above arrows (wait, arrows are 2147483642? No, let arrows be on top?) */
+        /* User said south button not visible to box. If box covers button, button is hidden. 
+           If button is z=...42 and box is z=...43, box covers button.
+           If button is at bottom:110px and box is bottom:35vh (~350px on 1080p), they don't overlap.
+           But to be safe, let's keep box lower z-index than arrows if they overlap?
+           Arrows should be interactable.
+           Let's set box z-index to 100. Arrows are ...42. Arrows win.
+        */
+        z-index: 100;
+        min-height: 120px;
     }
 
     #re-speaker {
         font-weight: 900;
-        letter-spacing: 0.6px;
-        color: rgba(205,127,50,0.95);
-        margin-bottom: 8px;
-        text-transform: uppercase;
-        font-family: serif;
+        color: #cba35c;
+        font-size: 1.1em;
+        margin-bottom: 5px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.8);
     }
 
     #re-text {
-        font-size: 1rem;
-        line-height: 1.35;
+        color: #e0d0c0;
+        font-size: 1.1em;
+        line-height: 1.6;
         white-space: pre-wrap;
-        word-break: break-word;
-        min-height: 2.6em;
     }
 
     #re-composer-wrap{
@@ -323,7 +405,8 @@
         border:1px solid rgba(255,255,255,0.14);
         background:rgba(15,10,10,0.96);
         box-shadow:0 20px 40px rgba(0,0,0,0.75);
-        z-index: 10001;
+        z-index: 2147483647;
+        pointer-events: auto;
     }
     .re-menu-item{
         display:flex;
@@ -354,6 +437,7 @@
         pointer-events: auto;
         touch-action: manipulation;
         display: block;
+        z-index: 19050;
     }
 
     #re-map {
@@ -367,7 +451,7 @@
     }
 
     #re-forge-modal {
-        position: absolute;
+        position: fixed;
         inset: 0;
         display: none;
         pointer-events: auto;
@@ -375,6 +459,7 @@
         align-items: center;
         justify-content: center;
         padding: 12px;
+        z-index: 2147483647;
     }
 
     #re-forge-card {
@@ -446,14 +531,15 @@
     }
 
     @media (max-width: 768px) {
-        #re-sprite {
+        /* Sprites are .re-sprite (not #re-sprite) */
+        .re-sprite {
             height: 50dvh;
             bottom: 25dvh;
         }
 
         .vn-dialogue-box {
             width: 95%;
-            margin-bottom: 80px;
+            margin-bottom: 0;
             font-size: 1rem;
             padding: 15px;
         }
@@ -464,54 +550,119 @@
     }
 </style>
 
-<div id="reality-stage" aria-hidden="true">
+<div id="reality-stage">
     <div id="re-bg"></div>
     <div id="re-weather"></div>
-    <canvas id="re-map"></canvas>
-    <img id="re-sprite" alt="">
-    <div id="re-objects">
-        <button class="re-obj" id="re-phone" title="Phone" style="display:none;"><i class="fa-solid fa-phone"></i></button>
-        <button class="re-obj" id="re-journal" title="Journal" style="display:none;"><i class="fa-solid fa-book"></i></button>
-    </div>
+    <div id="re-map" style="position:absolute; inset:0; display:none;"></div>
+    <canvas id="re-gesture-canvas" style="position:absolute; inset:0; pointer-events:none; z-index:90;"></canvas>
+    <div id="re-sprites-layer"></div>
     <div id="re-ui">
         <div id="re-hud">
-            <div class="re-bar" title="HP"><div id="re-hp-fill"></div></div>
-            <div class="re-bar" title="Stress"><div id="re-stress-fill"></div></div>
+            <!-- Bars removed -->
             <button class="re-hud-btn" id="re-toggle-view" title="Toggle Map"><i class="fa-solid fa-map"></i></button>
             <button class="re-hud-btn" id="re-exit" title="Exit"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <button id="re-forge-btn">Forge</button>
         <div class="vn-dialogue-box" id="re-vn-box">
+            <!-- Nameplate -->
             <div id="re-speaker"></div>
+
+            <!-- Controls (Top Right) -->
+            <div id="re-vn-controls" style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px; z-index: 10; align-items:center;">
+                <!-- Auto Mode Toggle (Moved here) -->
+                <div id="re-vn-auto-toggle" title="Toggle Auto-Forward" style="font-size:0.8em; opacity:0.5; cursor:pointer; margin-right:5px; color:#c0b0a0;">
+                    <i class="fa-solid fa-play"></i> Auto
+                </div>
+                <!-- Edit button removed per user request -->
+                <div class="re-vn-btn" id="re-vn-settings" title="VN Settings"><i class="fa-solid fa-gear"></i></div>
+            </div>
+
+            <!-- Text Area -->
             <div id="re-text"></div>
+
+            <!-- Nav Buttons (Split left/right) -->
+            <div id="re-vn-prev" title="Back" style="position:absolute; left:10px; bottom:10px;"><i class="fa-solid fa-chevron-left"></i></div>
+            <div id="re-vn-next" title="Next" style="position:absolute; right:10px; bottom:10px;"><i class="fa-solid fa-chevron-right"></i></div>
         </div>
+
         <div id="re-composer-wrap">
             <div id="re-action-grid"></div>
             <div id="re-composer">
                 <textarea id="re-user-input" placeholder="Type a reply..."></textarea>
                 <div class="re-quick" id="re-quick">
-                    <button class="re-qbtn" id="re-q-menu" title="Menu"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
-                    <button class="re-qbtn" id="re-q-chatbox" title="Chat Log"><i class="fa-solid fa-message"></i></button>
-                    <button class="re-qbtn" id="re-q-send" title="Send"><i class="fa-solid fa-paper-plane"></i></button>
+                    <!-- Static System Buttons -->
+                    <button class="re-qbtn" id="re-q-menu" title="Menu" onclick="if(window.reToggleMenu) window.reToggleMenu(event)"><i class="fa-solid fa-bars"></i></button>
+                    <button class="re-qbtn" id="re-q-scavenge" title="Inspect / Scavenge"><i class="fa-solid fa-magnifying-glass"></i></button>
+                    <button class="re-qbtn" id="re-q-chatbox" title="Open Chatbox"><i class="fa-solid fa-comments"></i></button>
+                    <button class="re-qbtn" id="re-q-add" title="Add Quick Action"><i class="fa-solid fa-plus"></i></button>
                 </div>
             </div>
-            <div id="re-st-menu">
-                <div class="re-menu-item" id="re-act-forge"><i class="fa-solid fa-wand-magic-sparkles"></i> Forge Background</div>
-                <div class="re-menu-item" id="re-act-toggle-map"><i class="fa-solid fa-map"></i> Toggle Map</div>
-                <div class="re-menu-item" id="re-act-st-menu"><i class="fa-solid fa-bars"></i> Chat Menu</div>
-                <div class="re-menu-item" id="re-act-author"><i class="fa-solid fa-pen-nib"></i> Author's Note</div>
-                <div class="re-menu-item" id="re-act-cfg"><i class="fa-solid fa-scale-balanced"></i> CFG Scale</div>
-                <div class="re-menu-item" id="re-act-tokens"><i class="fa-solid fa-chart-pie"></i> Token Probabilities</div>
-                <div class="re-menu-item" id="re-act-newchat"><i class="fa-solid fa-comment"></i> Start New Chat</div>
-                <div class="re-menu-item" id="re-act-manage"><i class="fa-solid fa-folder-open"></i> Manage Chat Files</div>
-                <div class="re-menu-item" id="re-act-delete"><i class="fa-solid fa-trash"></i> Delete Messages</div>
-                <div class="re-menu-item" id="re-act-closechat"><i class="fa-solid fa-xmark"></i> Close Chat</div>
-                <div class="re-menu-item" id="re-act-regenerate"><i class="fa-solid fa-rotate-right"></i> Regenerate</div>
-                <div class="re-menu-item" id="re-act-continue"><i class="fa-solid fa-forward"></i> Continue</div>
-                <div class="re-menu-item" id="re-act-impersonate"><i class="fa-solid fa-user-pen"></i> Impersonate</div>
-                <div class="re-menu-item" id="re-act-stop"><i class="fa-solid fa-stop"></i> Stop</div>
+        </div>
+
+        <div id="re-st-menu">
+            <div class="re-menu-item" id="re-act-continue"><i class="fa-solid fa-forward"></i> Continue</div>
+            <div class="re-menu-item" id="re-act-regenerate"><i class="fa-solid fa-rotate-right"></i> Regenerate</div>
+            <div class="re-menu-item" id="re-act-stop"><i class="fa-solid fa-stop"></i> Stop</div>
+            <div style="height:1px; background:rgba(255,255,255,0.1); margin:4px 0;"></div>
+            <div class="re-menu-item" id="re-act-impersonate"><i class="fa-solid fa-user-pen"></i> Impersonate</div>
+            <div class="re-menu-item" id="re-act-author"><i class="fa-solid fa-pen-nib"></i> Author's Note</div>
+            <div class="re-menu-item" id="re-act-cfg"><i class="fa-solid fa-sliders"></i> CFG / Presets</div>
+            <div class="re-menu-item" id="re-act-tokens"><i class="fa-solid fa-chart-pie"></i> Token Probs</div>
+            <div style="height:1px; background:rgba(255,255,255,0.1); margin:4px 0;"></div>
+            <div class="re-menu-item" id="re-act-forge"><i class="fa-solid fa-wand-magic-sparkles"></i> Forge Background</div>
+            <div class="re-menu-item" id="re-act-toggle-map"><i class="fa-solid fa-map"></i> Toggle Map</div>
+            <div style="height:1px; background:rgba(255,255,255,0.1); margin:4px 0;"></div>
+            <div class="re-menu-item" id="re-act-newchat"><i class="fa-solid fa-comment"></i> Start New Chat</div>
+            <div class="re-menu-item" id="re-act-manage"><i class="fa-solid fa-folder-open"></i> Manage Chats</div>
+            <div class="re-menu-item" id="re-act-delete"><i class="fa-solid fa-trash"></i> Delete Messages</div>
+            <div class="re-menu-item" id="re-act-closechat"><i class="fa-solid fa-xmark"></i> Close Chat</div>
+        </div>
+
+        <!-- VN Settings Modal -->
+        <div id="re-vn-settings-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:2147483650; align-items:center; justify-content:center; pointer-events:auto;">
+            <div style="background:#111; border:1px solid #444; padding:20px; border-radius:12px; width:320px; color:#fff;">
+                <h3 style="margin:0 0 15px 0; color:#cba35c; border-bottom:1px solid #333; padding-bottom:10px;">VN Settings</h3>
+
+                <label style="display:block; margin-bottom:10px; font-weight:bold;">
+                    Text Speed (ms/char)
+                    <input type="range" id="re-vn-speed" min="0" max="100" value="30" style="width:100%;">
+                    <div style="font-size:0.8em; color:#888; text-align:right;">Lower is faster</div>
+                </label>
+
+                <label style="display:flex; gap:10px; align-items:center; margin-bottom:10px; font-weight:bold; cursor:pointer;">
+                    <input type="checkbox" id="re-vn-auto-check">
+                    Enable Auto-Advance
+                </label>
+
+                <label style="display:block; margin-bottom:10px; font-weight:bold;">
+                    Words Per Box
+                    <input type="number" id="re-vn-words" value="50" style="background:#222; border:1px solid #555; color:#fff; width:100%; padding:5px; border-radius:4px;">
+                </label>
+
+                <label style="display:block; margin-bottom:15px; font-weight:bold;">
+                    Custom Prompt Prefix
+                    <textarea id="re-vn-prompt" placeholder="e.g. (Visual Novel Style)" style="background:#222; border:1px solid #555; color:#fff; width:100%; height:60px; padding:5px; border-radius:4px; resize:vertical;"></textarea>
+                </label>
+
+                <div style="height:1px; background:#333; margin-bottom:15px;"></div>
+                <h4 style="margin:0 0 10px 0; color:#cba35c;">Custom CSS</h4>
+
+                <label style="display:block; margin-bottom:10px; font-weight:bold;">
+                    User Bubble Style
+                    <textarea id="re-vn-css-user" placeholder="background: blue; color: white;" style="background:#222; border:1px solid #555; color:#fff; width:100%; height:50px; padding:5px; border-radius:4px; font-family:monospace; resize:vertical;"></textarea>
+                </label>
+
+                <label style="display:block; margin-bottom:15px; font-weight:bold;">
+                    AI Bubble Style
+                    <textarea id="re-vn-css-ai" placeholder="background: red; color: white;" style="background:#222; border:1px solid #555; color:#fff; width:100%; height:50px; padding:5px; border-radius:4px; font-family:monospace; resize:vertical;"></textarea>
+                </label>
+
+                <div style="display:flex; justify-content:flex-end;">
+                    <button id="re-vn-save-settings" style="background:#cba35c; color:#000; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Close</button>
+                </div>
             </div>
         </div>
+
         <div id="re-forge-modal">
             <div id="re-forge-card">
                 <div style="display:flex; gap:10px; align-items:center;">
@@ -527,6 +678,27 @@
                 <div id="re-forge-preview">
                     <img id="re-forge-img" alt="">
                     <div id="re-forge-empty" style="opacity:0.7; font-weight:900;">No preview yet</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- One-time Dev Notice (shows once, then never again) -->
+        <div id="re-dev-notice" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:2147483660; align-items:center; justify-content:center; pointer-events:auto;">
+            <div style="background:#1a1110; border:1px solid rgba(203,163,92,0.55); padding:22px; border-radius:16px; width:min(520px, 92vw); color:#fff; box-shadow:0 0 60px rgba(0,0,0,0.65);">
+                <div style="display:flex; gap:12px; align-items:flex-start;">
+                    <i class="fa-solid fa-circle-info" style="font-size:1.8em; color:#cba35c; margin-top:2px;"></i>
+                    <div style="flex:1;">
+                        <div style="font-family:'Cinzel',serif; font-weight:900; letter-spacing:0.6px; color:#cba35c; font-size:1.05em;">Reality Engine is still in development</div>
+                        <div style="opacity:0.92; line-height:1.55; margin-top:8px;">
+                            You can still use it, but you may encounter bugs, visual glitches, or incomplete features.
+                        </div>
+                        <div style="opacity:0.75; font-size:12px; margin-top:10px;">
+                            This notice will only appear once.
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
+                    <button id="re-dev-ok" style="background:#cba35c; border:none; color:#000; font-weight:900; padding:10px 16px; border-radius:10px; cursor:pointer;">OK</button>
                 </div>
             </div>
         </div>

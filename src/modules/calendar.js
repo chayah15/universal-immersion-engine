@@ -157,10 +157,10 @@ function importCalendar(file) {
           if (!title) continue;
           const exists = s.calendar.events[k].some(x => String(x?.title || "") === title);
           if (!exists) {
-            s.calendar.events[k].push({ 
-              title: title.slice(0, 80), 
-              notes: String(ev?.notes || "").slice(0, 500), 
-              ts: Number(ev?.ts || Date.now()) 
+            s.calendar.events[k].push({
+              title: title.slice(0, 80),
+              notes: String(ev?.notes || "").slice(0, 500),
+              ts: Number(ev?.ts || Date.now())
             });
           }
         }
@@ -254,22 +254,38 @@ function renderCalModalList() {
   if (!list.length) return;
   list.empty();
   const ev = Array.isArray(s.calendar.events[dateKey]) ? s.calendar.events[dateKey] : [];
+
+  const frag = document.createDocumentFragment();
+
   if (!ev.length) {
-    list.html(`<div style="opacity:0.75; padding:10px 12px; border-radius:14px; border:1px dashed rgba(255,255,255,0.12); text-align:center;">No events.</div>`);
-    return;
+    const tmpl = document.getElementById("uie-template-cal-event-empty");
+    if (tmpl) frag.appendChild(tmpl.content.cloneNode(true));
+  } else {
+    const tmpl = document.getElementById("uie-template-cal-event-item");
+    if (tmpl) {
+        ev.forEach((e, i) => {
+            const clone = tmpl.content.cloneNode(true);
+            const t = String(e?.time || "").trim();
+            const timeEl = clone.querySelector(".cal-event-time");
+            const titleEl = clone.querySelector(".cal-event-title");
+            const notesEl = clone.querySelector(".cal-event-notes");
+            const delBtn = clone.querySelector(".cal-del");
+
+            if (timeEl) timeEl.textContent = t ? `${t} ` : "";
+            if (titleEl) titleEl.textContent = e.title || "Event";
+            if (notesEl) {
+                if (e.notes) {
+                    notesEl.textContent = e.notes;
+                } else {
+                    notesEl.remove();
+                }
+            }
+            if (delBtn) delBtn.setAttribute("data-idx", i);
+            frag.appendChild(clone);
+        });
+    }
   }
-  ev.forEach((e, i) => {
-    const t = String(e?.time || "").trim();
-    list.append(`
-      <div style="padding:10px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); display:flex; gap:10px; align-items:flex-start;">
-        <div style="flex:1; min-width:0;">
-          <div style="font-weight:900;">${t ? `<span style="opacity:0.8;">${esc(t)}</span> ` : ""}${esc(e.title || "Event")}</div>
-          ${e.notes ? `<div style="opacity:0.75; font-size:12px; margin-top:4px; white-space:pre-wrap;">${esc(e.notes)}</div>` : ""}
-        </div>
-        <button class="cal-del" data-idx="${i}" style="height:34px; width:38px; border-radius:6px; border:1px solid rgba(243,139,168,0.35); background:rgba(0,0,0,0.25); color:#f38ba8; font-weight:900;">×</button>
-      </div>
-    `);
-  });
+  list.append(frag);
 }
 
 function openCalModal(dateKey, anchorEl) {
@@ -369,46 +385,147 @@ export function renderCalendar() {
     if (cb) cb.checked = s.calendar.rpEnabled === true;
     if (inp && document.activeElement !== inp) inp.value = String(s.calendar.rpDate || (s.calendar.rpEnabled ? todayKey : "")).trim();
   } catch (_) {}
+  const frag = document.createDocumentFragment();
+  const tmplEmpty = document.getElementById("uie-template-cal-day-empty");
+  const tmplDay = document.getElementById("uie-template-cal-day-cell");
+  const tmplDot = document.getElementById("uie-template-cal-day-dot");
+
+  // Fallback if templates are missing (prevents blank calendar)
+  const createDayCell = (d, key, isToday, evs) => {
+      const div = document.createElement("div");
+      div.className = "cal-day";
+      div.setAttribute("data-date", key);
+      div.style.cssText = `background:${isToday ? 'rgba(255,59,48,0.20)' : 'rgba(0,0,0,0.18)'}; border-radius:8px; padding:6px; min-height:80px; position:relative; cursor:pointer; border:1px solid rgba(255,255,255,0.05); transition:background 0.2s;`;
+      
+      const header = document.createElement("div");
+      header.style.cssText = "display:flex; justify-content:space-between; align-items:flex-start;";
+      
+      const num = document.createElement("div");
+      num.className = "cal-day-num";
+      num.textContent = d;
+      num.style.cssText = `font-weight:900; opacity:${isToday ? '1' : '0.9'}; font-size:14px; color:#fff;`;
+      
+      const dots = document.createElement("div");
+      dots.className = "cal-day-dots";
+      dots.style.cssText = "display:flex; gap:2px;";
+      
+      if (evs && evs.length) {
+          evs.slice(0, 3).forEach(() => {
+              const dot = document.createElement("div");
+              dot.style.cssText = "width:6px; height:6px; background:#f1c40f; border-radius:50%;";
+              dots.appendChild(dot);
+          });
+      }
+      
+      header.appendChild(num);
+      header.appendChild(dots);
+      div.appendChild(header);
+
+      const preview = document.createElement("div");
+      preview.className = "cal-day-preview";
+      preview.style.cssText = "font-size:10px; opacity:0.7; margin-top:4px; line-height:1.2; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; color:#ddd;";
+      if (evs && evs[0]) preview.textContent = evs[0].title || "";
+      div.appendChild(preview);
+
+      return div;
+  };
+
+  const createEmptyCell = () => {
+      const div = document.createElement("div");
+      div.style.cssText = "background:rgba(255,255,255,0.02); border-radius:8px; opacity:0.3;";
+      return div;
+  };
+
+  // Render Empty Cells
   for (let i = 0; i < startDay; i++) {
-    grid.append(`<div style="height:58px; border-radius:6px; border:1px solid rgba(255,255,255,0.05); background:rgba(255,255,255,0.02); opacity:0.3;"></div>`);
+    if (tmplEmpty) {
+        frag.appendChild(tmplEmpty.content.cloneNode(true));
+    } else {
+        frag.appendChild(createEmptyCell());
+    }
   }
+
+  // Render Days
   for (let d = 1; d <= daysInMonth; d++) {
     const dt = new Date(cursor.getFullYear(), cursor.getMonth(), d);
     const key = ymd(dt);
     const ev = Array.isArray(s.calendar.events[key]) ? s.calendar.events[key] : [];
     const isToday = key === todayKey;
-    const dots = ev.slice(0, 3).map(() => `<span style="width:6px;height:6px;border-radius:2px;background:#f1c40f;display:inline-block;"></span>`).join("");
-    grid.append(`
-      <div class="cal-day" data-date="${key}" style="height:58px; border-radius:6px; border:1px solid rgba(255,255,255,0.10); background:${isToday ? "rgba(255,59,48,0.20)" : "rgba(0,0,0,0.18)"}; padding:8px; display:flex; flex-direction:column; gap:6px; cursor:pointer;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div style="font-weight:900; opacity:${isToday ? "1" : "0.9"};">${d}</div>
-          <div style="display:flex; gap:4px;">${dots}</div>
-        </div>
-        <div style="font-size:11px; opacity:0.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ev[0] ? esc(ev[0].title || "") : ""}</div>
-      </div>
-    `);
+
+    if (tmplDay) {
+        const clone = tmplDay.content.cloneNode(true);
+        const cell = clone.querySelector(".cal-day");
+        if (cell) {
+            cell.setAttribute("data-date", key);
+            if (isToday) {
+                cell.style.background = "rgba(255,59,48,0.20)";
+            } else {
+                cell.style.background = "rgba(0,0,0,0.18)";
+            }
+
+            const numEl = cell.querySelector(".cal-day-num");
+            if (numEl) {
+                numEl.textContent = d;
+                if (isToday) numEl.style.opacity = "1";
+                else numEl.style.opacity = "0.9";
+            }
+
+            const dotsContainer = cell.querySelector(".cal-day-dots");
+            if (dotsContainer) {
+                ev.slice(0, 3).forEach(() => {
+                    if (tmplDot) {
+                        dotsContainer.appendChild(tmplDot.content.cloneNode(true));
+                    } else {
+                        const dot = document.createElement("div");
+                        dot.style.cssText = "width:6px; height:6px; background:#f1c40f; border-radius:50%;";
+                        dotsContainer.appendChild(dot);
+                    }
+                });
+            }
+
+            const previewEl = cell.querySelector(".cal-day-preview");
+            if (previewEl) {
+                previewEl.textContent = ev[0] ? (ev[0].title || "") : "";
+            }
+        }
+        frag.appendChild(clone);
+    } else {
+        frag.appendChild(createDayCell(d, key, isToday, ev));
+    }
   }
+  grid.append(frag);
 }
 
 export function initCalendar() {
-  $(document).off("click.uieCal change.uieCal");
+  const $w = $("#uie-calendar-window");
+  $w.off("click.uieCal change.uieCal");
+
+  // BLOCKER: Stop clicks on the window from closing ST drawers
+  $w.on("click.uieCalBlock contextmenu.uieCalBlock", (e) => {
+      e.stopPropagation();
+  });
 
   // Menu Toggle
-  $(document).on("click.uieCal", "#cal-menu-btn", function(e) {
+  $w.on("click.uieCal", "#cal-menu-btn", function(e) {
     e.preventDefault(); e.stopPropagation();
     const menu = $("#cal-menu-dropdown");
     if (menu.is(":visible")) menu.hide();
     else menu.css("display", "flex");
   });
 
-  // Close menu when clicking outside
-  $(document).on("click.uieCal", function(e) {
+  $w.on("click.uieCal", "#cal-close-btn", function(e) {
+    e.preventDefault(); e.stopPropagation();
+    $w.fadeOut(200);
+  });
+
+  // Close menu when clicking outside (but inside the window)
+  $w.on("click.uieCal", function(e) {
     if (!$(e.target).closest("#cal-menu-btn, #cal-menu-dropdown").length) {
       $("#cal-menu-dropdown").hide();
     }
   });
 
-  $(document).on("click.uieCal", "#cal-prev", function(e){
+  $w.on("click.uieCal", "#cal-prev", function(e){
     e.preventDefault(); e.stopPropagation();
     const s = getSettings(); ensureCalendar(s);
     const cur = parseMonthCursor(s.calendar.cursor) || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -417,7 +534,7 @@ export function initCalendar() {
     renderCalendar();
   });
 
-  $(document).on("click.uieCal", "#cal-next", function(e){
+  $w.on("click.uieCal", "#cal-next", function(e){
     e.preventDefault(); e.stopPropagation();
     const s = getSettings(); ensureCalendar(s);
     const cur = parseMonthCursor(s.calendar.cursor) || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -426,23 +543,23 @@ export function initCalendar() {
     renderCalendar();
   });
 
-  $(document).on("click.uieCal", "#cal-rp-open-btn", function (e) {
+  $w.on("click.uieCal", "#cal-rp-open-btn", function (e) {
     e.preventDefault(); e.stopPropagation();
     $("#cal-menu-dropdown").hide();
     openRpModal();
   });
 
-  $(document).on("click.uieCal", "#cal-rp-modal-close", function (e) {
+  $w.on("click.uieCal", "#cal-rp-modal-close", function (e) {
     e.preventDefault(); e.stopPropagation();
     $("#cal-rp-modal").hide();
   });
 
-  $(document).on("click.uieCal", "#cal-rp-modal", function (e) {
+  $w.on("click.uieCal", "#cal-rp-modal", function (e) {
     if ($(e.target).closest("#cal-rp-card").length) return;
     $("#cal-rp-modal").hide();
   });
 
-  $(document).on("change.uieCal", "#cal-use-rp-date", function (e) {
+  $w.on("change.uieCal", "#cal-use-rp-date", function (e) {
     e.preventDefault(); e.stopPropagation();
     const s = getSettings(); ensureCalendar(s);
     s.calendar.rpEnabled = !!this.checked;
@@ -455,7 +572,7 @@ export function initCalendar() {
     renderCalendar();
   });
 
-  $(document).on("click.uieCal", "#cal-rp-set", function (e) {
+  $w.on("click.uieCal", "#cal-rp-set", function (e) {
     e.preventDefault(); e.stopPropagation();
     const raw = String($("#cal-rp-date").val() || "").trim();
     const d = parseYmdAny(raw);
@@ -468,25 +585,25 @@ export function initCalendar() {
     renderCalendar();
   });
 
-  $(document).on("click.uieCal", "#cal-rp-prev-day", function (e) {
+  $w.on("click.uieCal", "#cal-rp-prev-day", function (e) {
     e.preventDefault(); e.stopPropagation();
     const s = getSettings();
     advanceRpDays(s, -1);
     renderCalendar();
   });
-  $(document).on("click.uieCal", "#cal-rp-next-day", function (e) {
+  $w.on("click.uieCal", "#cal-rp-next-day", function (e) {
     e.preventDefault(); e.stopPropagation();
     const s = getSettings();
     advanceRpDays(s, 1);
     renderCalendar();
   });
-  $(document).on("click.uieCal", "#cal-rp-next-week", function (e) {
+  $w.on("click.uieCal", "#cal-rp-next-week", function (e) {
     e.preventDefault(); e.stopPropagation();
     const s = getSettings();
     advanceRpDays(s, 7);
     renderCalendar();
   });
-  $(document).on("click.uieCal", "#cal-today-btn, #cal-rp-today", function (e) {
+  $w.on("click.uieCal", "#cal-today-btn, #cal-rp-today", function (e) {
     e.preventDefault(); e.stopPropagation();
     $("#cal-menu-dropdown").hide();
     const s = getSettings(); ensureCalendar(s);
@@ -495,7 +612,7 @@ export function initCalendar() {
     renderCalendar();
   });
 
-  $(document).on("click.uieCal", "#cal-refresh-btn, #cal-refresh", async function(e){
+  $w.on("click.uieCal", "#cal-refresh-btn, #cal-refresh", async function(e){
     e.preventDefault(); e.stopPropagation();
     $("#cal-menu-dropdown").hide();
     const btn = $("#cal-refresh-btn");
@@ -503,7 +620,7 @@ export function initCalendar() {
     try { await calendarScanChatLog(); } finally { btn.prop("disabled", false); }
   });
 
-  $(document).on("click.uieCal", "#cal-sparkle-gen-btn", async function(e){
+  $w.on("click.uieCal", "#cal-sparkle-gen-btn, #cal-sparkle-btn", async function(e){
     e.preventDefault(); e.stopPropagation();
     $("#cal-menu-dropdown").hide();
     const desc = (prompt("Describe the dates/events you want to add to the calendar:") || "").trim();
@@ -513,7 +630,7 @@ export function initCalendar() {
     try { await calendarGenerateFromDescription(desc); } finally { btn.prop("disabled", false); }
   });
 
-  $(document).on("click.uieCal", "#cal-add-btn", function(e){
+  $w.on("click.uieCal", "#cal-add-btn", function(e){
     e.preventDefault(); e.stopPropagation();
     $("#cal-menu-dropdown").hide();
     const s = getSettings();
@@ -522,17 +639,17 @@ export function initCalendar() {
     openCalModal(dateKey);
   });
 
-  $(document).on("click.uieCal", "#cal-grid .cal-day", function(e){
+  $w.on("click.uieCal", "#cal-grid .cal-day", function(e){
     e.preventDefault(); e.stopPropagation();
     openCalModal(String($(this).data("date") || ""), this);
   });
 
-  $(document).on("click.uieCal", "#cal-modal-close", function(e){
+  $w.on("click.uieCal", "#cal-modal-close", function(e){
     e.preventDefault(); e.stopPropagation();
     $("#cal-modal").hide();
   });
 
-  $(document).on("click.uieCal", "#cal-add", function(e){
+  $w.on("click.uieCal", "#cal-add", function(e){
     e.preventDefault(); e.stopPropagation();
     const dateKey = String($("#cal-modal").data("date") || "");
     if(!dateKey) return;
@@ -551,7 +668,7 @@ export function initCalendar() {
     renderCalendar();
   });
 
-  $(document).on("click.uieCal", "#cal-modal-list .cal-del", function(e){
+  $w.on("click.uieCal", "#cal-modal-list .cal-del", function(e){
     e.preventDefault(); e.stopPropagation();
     const idx = Number($(this).data("idx"));
     const dateKey = String($("#cal-modal").data("date") || "");
@@ -568,19 +685,19 @@ export function initCalendar() {
   });
 
   // Export/Import UI bindings
-  $(document).on("click.uieCal", "#cal-export-btn", function(e) {
+  $w.on("click.uieCal", "#cal-export-btn", function(e) {
     e.preventDefault(); e.stopPropagation();
     $("#cal-menu-dropdown").hide();
     exportCalendar();
   });
 
-  $(document).on("click.uieCal", "#cal-import-btn", function(e) {
+  $w.on("click.uieCal", "#cal-import-btn", function(e) {
     e.preventDefault(); e.stopPropagation();
     $("#cal-menu-dropdown").hide();
     $("#cal-import-file").click();
   });
 
-  $(document).on("change.uieCal", "#cal-import-file", function(e) {
+  $w.on("change.uieCal", "#cal-import-file", function(e) {
     if (this.files && this.files[0]) {
       importCalendar(this.files[0]);
       $(this).val(""); // Reset
@@ -588,7 +705,27 @@ export function initCalendar() {
   });
 }
 
-export function openCalendar() {
-  initCalendar();
-  renderCalendar();
+export async function openCalendar() {
+  let $w = $("#uie-calendar-window");
+  if (!$w.length) {
+      try {
+          const baseUrl = String(window.UIE_BASEURL || "/scripts/extensions/third-party/universal-immersion-engine/").trim();
+          const mod = await import("./templateFetch.js");
+          const fetchTemplateHtml = mod?.fetchTemplateHtml;
+          if (typeof fetchTemplateHtml === "function") {
+              let html = "";
+              for (const u of [`${baseUrl}src/templates/calendar.html`, `/scripts/extensions/third-party/universal-immersion-engine/src/templates/calendar.html`]) {
+                  try { html = await fetchTemplateHtml(u); if (html) break; } catch (_) {}
+              }
+              if (html) $("body").append(html);
+          }
+      } catch (_) {}
+      $w = $("#uie-calendar-window");
+  }
+
+  if ($w.length) {
+      $w.show();
+      initCalendar();
+      renderCalendar();
+  }
 }

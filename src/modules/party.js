@@ -1,5 +1,5 @@
 import { getSettings, saveSettings } from "./core.js";
-import { getContext } from "../../../../../extensions.js";
+import { getContext } from "/scripts/extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
@@ -188,7 +188,7 @@ function ensureMember(m) {
             return { ...x, name, description, skillType: (skillType === "passive" ? "passive" : "active") };
         })
         .filter(Boolean);
-    
+
     // Ensure stats object exists
     if (!m.stats) m.stats = {};
     // Fill missing stats with defaults
@@ -246,7 +246,7 @@ function pickLocalImage() {
     return new Promise((resolve) => {
         const input = document.getElementById("uie-party-file");
         if (!input) return resolve(null);
-        
+
         // Reset value so change event triggers even if same file selected
         input.value = "";
 
@@ -272,7 +272,7 @@ function pickLocalImage() {
             input.style.pointerEvents = "none";
             input.style.zIndex = "2147483647";
         } catch (_) {}
-        
+
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) {
@@ -291,39 +291,44 @@ function pickLocalImage() {
 }
 
 function renderRoster(s) {
-    const members = s.party.members || [];
-    const html = members.map(m => `
-        <div class="party-row ${selectedId === String(m.id) ? "active" : ""}" data-id="${m.id}" style="
-            display:flex; align-items:center; gap:12px; padding:10px; 
-            background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; margin-bottom:8px; cursor:pointer;
-        ">
-            <div style="width:46px; height:46px; border-radius:6px; background:#000; overflow:hidden; border:1px solid rgba(255,255,255,0.12);">
-                ${resolvePortraitUrl(s, m) ? `<img src="${esc(resolvePortraitUrl(s, m))}" style="width:100%;height:100%;object-fit:cover;">` : `<i class="fa-solid fa-user" style="color:#333; font-size:24px; display:flex; justify-content:center; align-items:center; height:100%;"></i>`}
-            </div>
-            <div style="flex:1;">
-                <div style="font-weight:900; color:${m.active ? '#fff' : '#888'}; font-size:1.1em;">${esc(m.identity.name)}</div>
-                <div style="font-size:0.8em; color:#aaa;">Lv.${m.progression?.level || 1} • ${esc(m.partyRole || "DPS")} • ${esc(m.identity.class || "Adventurer")}</div>
-            </div>
-            <div style="display:flex; gap:5px;">
-                <button class="party-mini" data-act="edit" data-id="${m.id}" title="Edit" style="background:none; border:none; color:#f1c40f; cursor:pointer;"><i class="fa-solid fa-pen-to-square"></i></button>
-                <button class="party-mini" data-act="toggleActive" data-id="${m.id}" title="Toggle Active" style="background:none; border:none; color:${m.active ? '#2ecc71' : '#444'}; cursor:pointer;"><i class="fa-solid fa-power-off"></i></button>
-                <button class="party-mini" data-act="leader" data-id="${m.id}" title="Make Leader" style="background:none; border:none; color:${s.party.leaderId === String(m.id) ? '#f1c40f' : '#444'}; cursor:pointer;"><i class="fa-solid fa-crown"></i></button>
-                <button class="party-mini" data-act="delete" data-id="${m.id}" title="Delete" style="background:none; border:none; color:#e74c3c; cursor:pointer;"><i class="fa-solid fa-trash"></i></button>
-            </div>
-        </div>
-    `).join("");
+    const container = $("#uie-party-body").empty();
+    const controls = document.getElementById("uie-party-roster-controls").content.cloneNode(true);
+    container.append(controls);
 
-    $("#uie-party-body").html(`
-        <div style="display:flex; gap:10px; margin-bottom:15px; justify-content:center; flex-wrap:wrap;">
-            <button id="party-scan-chat" style="padding:8px 12px; border-radius:6px; border:1px solid rgba(241,196,15,0.4); background:rgba(241,196,15,0.15); color:#f1c40f; cursor:pointer; font-weight:900; width:100%;">Scan Roster from Chat</button>
-            <button id="party-add" style="padding:8px 12px; border-radius:6px; border:1px solid #444; background:#222; color:#ccc; cursor:pointer; font-weight:900;">+ Empty</button>
-            <button id="party-import-user" style="padding:8px 12px; border-radius:6px; border:1px solid #2ecc71; background:rgba(46,204,113,0.1); color:#2ecc71; cursor:pointer; font-weight:900;">Import User</button>
-            <button id="party-import-char" style="padding:8px 12px; border-radius:6px; border:1px solid #3498db; background:rgba(52,152,219,0.1); color:#3498db; cursor:pointer; font-weight:900;">Import Character</button>
-        </div>
-        <div style="display:flex; flex-direction:column;">
-            ${html || `<div style="text-align:center; padding:40px; color:#666;">No party members.</div>`}
-        </div>
-    `);
+    const list = container.find(".party-list");
+    const members = s.party.members || [];
+
+    if (members.length === 0) {
+        container.find(".party-empty").show();
+    } else {
+        const tmpl = document.getElementById("uie-party-roster-item").content;
+        members.forEach(m => {
+            const el = $(tmpl.cloneNode(true));
+            const row = el.find(".party-row");
+            row.attr("data-id", m.id);
+            if (selectedId === String(m.id)) row.addClass("active");
+
+            const portraitUrl = resolvePortraitUrl(s, m);
+            const imgContainer = el.find(".party-row-img-container");
+            if (portraitUrl) {
+                imgContainer.html(`<img src="${esc(portraitUrl)}" style="width:100%;height:100%;object-fit:cover;">`);
+            } else {
+                imgContainer.html(`<i class="fa-solid fa-user" style="color:#333; font-size:24px;"></i>`);
+            }
+
+            el.find(".party-row-name").text(m.identity.name);
+            el.find(".party-row-name").css("color", m.active ? "#fff" : "#888");
+
+            el.find(".party-row-desc").text(`Lv.${m.progression?.level || 1} • ${m.partyRole || "DPS"} • ${m.identity.class || "Adventurer"}`);
+
+            el.find("[data-act='toggleActive']").css("color", m.active ? "#2ecc71" : "#444");
+            el.find("[data-act='leader']").css("color", s.party.leaderId === String(m.id) ? "#f1c40f" : "#444");
+
+            el.find("button").attr("data-id", m.id);
+
+            list.append(el);
+        });
+    }
 }
 
 function renderSheet(s) {
@@ -337,61 +342,63 @@ function renderSheet(s) {
     if (m && !selectedId) selectedId = String(m.id);
     ensureMember(m);
 
-    const opts = members.map(x => `<option value="${esc(x.id)}" ${String(x.id) === String(m.id) ? "selected" : ""}>${esc(x.identity?.name || "Member")}</option>`).join("");
-    
-    const statRow = (lbl, key) => `
-        <div style="display:flex; flex-direction:column; gap:4px; background:rgba(0,0,0,0.22); padding:10px; border-radius:12px; border:1px solid rgba(255,255,255,0.10);">
-            <div style="font-size:10px; color:#aaa; font-weight:900; text-transform:uppercase; letter-spacing:0.7px;">${lbl}</div>
-            <div style="color:#fff; font-weight:900; font-size:16px; width:100%; text-align:center;">${Number(m.stats[key] || 0)}</div>
-        </div>`;
+    const container = $("#uie-party-body").empty();
+    const content = $(document.getElementById("uie-party-sheet-view").content.cloneNode(true));
+    container.append(content);
 
-    $("#uie-party-body").html(`
-        <div style="display:flex; gap:10px; align-items:center; margin-bottom:15px;">
-            <div style="width:80px; height:80px; border-radius:14px; background:#000; border:1px solid #444; position:relative; overflow:hidden;">
-                ${m.images.portrait ? `<img src="${esc(m.images.portrait)}" style="width:100%;height:100%;object-fit:cover;">` : `<i class="fa-solid fa-user" style="font-size:32px; color:#333; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);"></i>`}
-            </div>
-            <div style="flex:1; min-width:0;">
-                <div style="color:#f1c40f; font-weight:900; font-size:1.4em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(m.identity.name)}</div>
-                <div style="color:#aaa; font-weight:800; font-size:0.9em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(m.identity.class || "Adventurer")} • Lv.${Number(m.progression?.level || 1)} • ${esc(m.partyRole || "DPS")}</div>
-            </div>
-            <select id="party-sheet-member" style="background:#000; border:1px solid #333; color:#fff; padding:8px; border-radius:8px;">${opts}</select>
-        </div>
+    // Portrait
+    const portraitUrl = m.images.portrait;
+    if (portraitUrl) {
+        container.find(".sheet-portrait").html(`<img src="${esc(portraitUrl)}" style="width:100%;height:100%;object-fit:cover;">`);
+    } else {
+        container.find(".sheet-portrait").html(`<i class="fa-solid fa-user" style="font-size:32px; color:#333; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);"></i>`);
+    }
 
-        <div style="display:flex; gap:10px; margin-bottom:15px;">
-            <button class="uie-party-subtab active" data-sub="stats">Stats</button>
-            <button class="uie-party-subtab" data-sub="bio">Bio & Notes</button>
-            <button class="uie-party-subtab" data-sub="css">Style</button>
-        </div>
+    // Header info
+    container.find(".sheet-name").text(m.identity.name);
+    container.find(".sheet-details").text(`${m.identity.class || "Adventurer"} • Lv.${Number(m.progression?.level || 1)} • ${m.partyRole || "DPS"}`);
 
-        <div id="pm-sub-stats">
-            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; margin-bottom:15px;">
-                ${statRow("STR", "str")} ${statRow("DEX", "dex")} ${statRow("CON", "con")} ${statRow("INT", "int")}
-                ${statRow("WIS", "wis")} ${statRow("CHA", "cha")} ${statRow("PER", "per")} ${statRow("LUK", "luk")}
-            </div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
-                <div style="background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.10); border-radius:12px; padding:10px;"><label style="font-size:10px; color:#aaa; font-weight:900; text-transform:uppercase;">HP</label><div style="margin-top:6px; font-weight:900; color:#e74c3c;">${Number(m.vitals?.hp||0)} / ${Number(m.vitals?.maxHp||0)}</div></div>
-                <div style="background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.10); border-radius:12px; padding:10px;"><label style="font-size:10px; color:#aaa; font-weight:900; text-transform:uppercase;">MP</label><div style="margin-top:6px; font-weight:900; color:#3498db;">${Number(m.vitals?.mp||0)} / ${Number(m.vitals?.maxMp||0)}</div></div>
-            </div>
-        </div>
+    // Member select
+    const select = container.find(".party-sheet-member-select");
+    select.attr("id", "party-sheet-member");
+    members.forEach(x => {
+        const opt = $("<option>").val(x.id).text(x.identity?.name || "Member");
+        if (String(x.id) === String(m.id)) opt.prop("selected", true);
+        select.append(opt);
+    });
 
-        <div id="pm-sub-bio" style="display:none;">
-            <div style="padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.22); color:#ddd; white-space:pre-wrap;">${esc(m.bio || "") || "—"}</div>
-        </div>
-        
-        <div id="pm-sub-css" style="display:none;">
-            <div style="padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.22); color:#f1c40f; font-family:monospace; white-space:pre-wrap;">${esc(m.customCSS || "") || "—"}</div>
-        </div>
-    `);
-    
-    $(".uie-party-subtab").on("click", function() {
-        $(".uie-party-subtab").removeClass("active").css({background:"transparent", color:"#aaa"});
+    // Stats Grid
+    const statGrid = container.find(".stats-grid");
+    const statTmpl = document.getElementById("uie-party-stat-row").content;
+    const stats = [
+        { l: "STR", k: "str" }, { l: "DEX", k: "dex" }, { l: "CON", k: "con" }, { l: "INT", k: "int" },
+        { l: "WIS", k: "wis" }, { l: "CHA", k: "cha" }, { l: "PER", k: "per" }, { l: "LUK", k: "luk" }
+    ];
+    stats.forEach(st => {
+        const el = $(statTmpl.cloneNode(true));
+        el.find(".stat-lbl").text(st.l);
+        el.find(".stat-val").text(Number(m.stats[st.k] || 0));
+        statGrid.append(el);
+    });
+
+    // Vitals
+    container.find(".val-hp").text(`${Number(m.vitals?.hp||0)} / ${Number(m.vitals?.maxHp||0)}`);
+    container.find(".val-mp").text(`${Number(m.vitals?.mp||0)} / ${Number(m.vitals?.maxMp||0)}`);
+
+    // Bio & CSS
+    container.find(".bio-text").text(m.bio || "—");
+    container.find(".css-text").text(m.customCSS || "—");
+
+    // Events
+    container.find(".uie-party-subtab").on("click", function() {
+        container.find(".uie-party-subtab").removeClass("active").css({background:"transparent", color:"#aaa"});
         $(this).addClass("active").css({background:"rgba(255,255,255,0.1)", color:"#fff"});
         const sub = $(this).data("sub");
-        $("#pm-sub-stats, #pm-sub-bio, #pm-sub-css").hide();
-        $(`#pm-sub-${sub}`).show();
+        container.find("#pm-sub-stats, #pm-sub-bio, #pm-sub-css").hide();
+        container.find(`#pm-sub-${sub}`).show();
     });
-    
-    $("#party-sheet-member").on("change", function() {
+
+    select.on("change", function() {
         selectedId = $(this).val();
         render();
     });
@@ -408,134 +415,166 @@ function renderGear(s) {
     if (m && !selectedId) selectedId = String(m.id);
     ensureMember(m);
 
-    const opts = members.map(x => `<option value="${esc(x.id)}" ${String(x.id) === String(m.id) ? "selected" : ""}>${esc(x.identity?.name || "Member")}</option>`).join("");
-    const slots = ["head","chest","hands","legs","boots","ring","amulet","weapon","offhand"];
-    
-    const slotHtml = slots.map(slot => {
-        const item = m.equipment?.[slot];
-        const icon = item?.img ? `<img src="${esc(item.img)}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="opacity:0.3;font-size:20px;text-transform:uppercase;">${slot[0]}</div>`;
-        return `
-            <div class="party-slot" data-slot="${slot}" style="aspect-ratio:1; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative;">
-                ${icon}
-                <div style="position:absolute; bottom:2px; right:4px; font-size:9px; opacity:0.7; text-transform:uppercase;">${slot}</div>
-            </div>
-        `;
-    }).join("");
+    const container = $("#uie-party-body").empty();
+    const content = $(document.getElementById("uie-party-gear-view").content.cloneNode(true));
+    container.append(content);
 
-    $("#uie-party-body").html(`
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
-            <div style="font-weight:900; color:#f1c40f;">Member</div>
-            <select id="party-gear-member" style="flex:1; min-width:220px; background:#000; border:1px solid #333; color:#fff; padding:10px; border-radius:12px;">${opts}</select>
-        </div>
-        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; max-width:400px; margin:0 auto;">
-            ${slotHtml}
-        </div>
-    `);
-    
-    $("#party-gear-member").on("change", function() {
+    // Member Select
+    const select = container.find(".party-gear-member-select");
+    select.attr("id", "party-gear-member");
+    members.forEach(x => {
+        const opt = $("<option>").val(x.id).text(x.identity?.name || "Member");
+        if (String(x.id) === String(m.id)) opt.prop("selected", true);
+        select.append(opt);
+    });
+
+    // Slots
+    const grid = container.find(".gear-grid");
+    const slotTmpl = document.getElementById("uie-party-gear-slot").content;
+    const slots = ["head","chest","hands","legs","boots","ring","amulet","weapon","offhand"];
+
+    slots.forEach(slot => {
+        const el = $(slotTmpl.cloneNode(true));
+        const slotEl = el.find(".party-slot");
+        slotEl.attr("data-slot", slot);
+
+        const item = m.equipment?.[slot];
+        const iconContainer = el.find(".slot-icon-container");
+
+        if (item?.img) {
+            iconContainer.html(`<img src="${esc(item.img)}" style="width:100%;height:100%;object-fit:cover;">`);
+        } else {
+            iconContainer.html(`<div style="opacity:0.3;font-size:20px;text-transform:uppercase;">${slot[0]}</div>`);
+        }
+
+        el.find(".slot-label").text(slot);
+        grid.append(el);
+    });
+
+    select.on("change", function() {
         selectedId = $(this).val();
         render();
     });
 }
 
 function renderInventory(s) {
-    const items = s.party.sharedItems || [];
-    const html = items.length 
-        ? items.map((it, i) => `
-            <div style="display:flex; gap:10px; align-items:center; padding:8px; border-bottom:1px solid rgba(255,255,255,0.1);">
-                <div style="flex:1; font-weight:700; color:#ccc;">${esc(it.name || "Item")}</div>
-                <div style="font-size:12px; color:#888;">${esc(it.type || "Misc")}</div>
-                <button class="party-inv-del" data-idx="${i}" style="color:#e74c3c; background:none; border:none; cursor:pointer;"><i class="fa-solid fa-trash"></i></button>
-            </div>`).join("")
-        : `<div style="text-align:center; padding:20px; color:#666;">Empty Party Stash</div>`;
+    const container = $("#uie-party-body").empty();
+    const content = $(document.getElementById("uie-party-inventory-view").content.cloneNode(true));
+    container.append(content);
 
-    $("#uie-party-body").html(`
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <div style="font-weight:900; color:#f1c40f;">Shared Stash</div>
-            <button id="party-inv-add" style="padding:6px 12px; border-radius:8px; background:rgba(255,255,255,0.1); color:#fff; border:none; cursor:pointer;">+ Add Item</button>
-        </div>
-        <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:12px; overflow:hidden;">
-            ${html}
-        </div>
-    `);
+    const btn = container.find(".party-inv-add");
+    btn.attr("id", "party-inv-add");
+
+    const items = s.party.sharedItems || [];
+    const list = container.find(".party-inv-list");
+
+    if (items.length) {
+        const itemTmpl = document.getElementById("uie-party-inventory-item").content;
+        items.forEach((it, i) => {
+            const el = $(itemTmpl.cloneNode(true));
+            el.find(".inv-name").text(it.name || "Item");
+            el.find(".inv-type").text(it.type || "Misc");
+            const delBtn = el.find(".party-inv-del");
+            delBtn.attr("data-idx", i);
+            list.append(el);
+        });
+    } else {
+        container.find(".party-inv-empty").show();
+    }
 }
 
 function renderTactics(s) {
+    const container = $("#uie-party-body").empty();
+    const content = $(document.getElementById("uie-party-tactics-view").content.cloneNode(true));
+    container.append(content);
+
     const members = Array.isArray(s.party.members) ? s.party.members : [];
     const activeMembers = members.filter(m => m && m.active !== false);
     const presets = ["Balanced", "Aggressive", "Defensive", "Support", "Stealth"];
     if (!s.party.partyTactics) s.party.partyTactics = { preset: "Balanced", conserveMana: false, protectLeader: false };
     const pt = s.party.partyTactics;
-    const memberOpts = activeMembers.map(m => `<option value="${esc(m.id)}">${esc(m.identity?.name || "Member")}</option>`).join("");
-    const rows = activeMembers.map(m => {
-        ensureMember(m);
-        const focusOpts = [
-            { v: "auto", t: "Auto" },
-            { v: "weakest", t: "Weakest" },
-            { v: "strongest", t: "Strongest" },
-            { v: "protect", t: "Protect" }
-        ];
-        const presetSel = presets.map(p => `<option value="${esc(p)}" ${String(m.tactics?.preset||"Balanced")===p ? "selected":""}>${esc(p)}</option>`).join("");
-        const focusSel = focusOpts.map(o => `<option value="${esc(o.v)}" ${String(m.tactics?.focus||"auto")===o.v ? "selected":""}>${esc(o.t)}</option>`).join("");
-        const protectSel = `<option value="">—</option>` + memberOpts.replace(`value="${esc(m.id)}"`, `value="${esc(m.id)}" disabled`);
-        return `
-          <div style="border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); border-radius:10px; padding:10px; margin-bottom:10px;">
-            <div style="display:flex; gap:10px; align-items:center;">
-              <div style="font-weight:900; min-width:0; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(m.identity?.name || "Member")}</div>
-              <div style="opacity:0.75; font-weight:900; font-size:12px;">Lv ${Number(m.progression?.level||1)} • ${esc(m.partyRole||"DPS")}</div>
-            </div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
-              <div>
-                <div style="font-size:11px; opacity:0.7; font-weight:900; margin-bottom:6px;">Preset</div>
-                <select class="member-tac-preset" data-id="${esc(m.id)}" style="width:100%; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; padding:0 10px;">${presetSel}</select>
-              </div>
-              <div>
-                <div style="font-size:11px; opacity:0.7; font-weight:900; margin-bottom:6px;">Focus</div>
-                <select class="member-tac-focus" data-id="${esc(m.id)}" style="width:100%; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; padding:0 10px;">${focusSel}</select>
-              </div>
-              <div style="grid-column:1 / -1;">
-                <div style="font-size:11px; opacity:0.7; font-weight:900; margin-bottom:6px;">Protect Target (when Focus=Protect)</div>
-                <select class="member-tac-protect" data-id="${esc(m.id)}" style="width:100%; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; padding:0 10px;">${protectSel}</select>
-              </div>
-              <div style="grid-column:1 / -1; display:flex; gap:10px; align-items:center;">
-                <label style="display:flex; gap:10px; align-items:center; font-weight:900; opacity:0.85;">
-                  <input class="member-tac-mana" data-id="${esc(m.id)}" type="checkbox" ${m.tactics?.conserveMana ? "checked":""}>
-                  Conserve MP
-                </label>
-              </div>
-            </div>
-          </div>
-        `;
-    }).join("");
 
-    $("#uie-party-body").html(`
-      <div style="font-weight:900; color:#f1c40f; margin-bottom:10px;">Party Tactics</div>
-      <div style="border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); border-radius:10px; padding:10px; margin-bottom:12px;">
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-          <div>
-            <div style="font-size:11px; opacity:0.7; font-weight:900; margin-bottom:6px;">Preset</div>
-            <select id="party-tac-preset" style="width:100%; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; padding:0 10px;">
-              ${presets.map(p => `<option value="${esc(p)}" ${String(pt.preset||"Balanced")===p ? "selected":""}>${esc(p)}</option>`).join("")}
-            </select>
-          </div>
-          <div style="display:flex; flex-direction:column; justify-content:flex-end; gap:8px;">
-            <label style="display:flex; gap:10px; align-items:center; font-weight:900; opacity:0.85;">
-              <input id="party-tac-conserve" type="checkbox" ${pt.conserveMana ? "checked":""}>
-              Conserve MP
-            </label>
-            <label style="display:flex; gap:10px; align-items:center; font-weight:900; opacity:0.85;">
-              <input id="party-tac-protect-leader" type="checkbox" ${pt.protectLeader ? "checked":""}>
-              Protect Leader
-            </label>
-          </div>
-        </div>
-      </div>
-      <div style="font-weight:900; color:#f1c40f; margin-bottom:10px;">Member Tactics</div>
-      ${rows || `<div style="opacity:0.75; text-align:center; padding:30px; border-radius:14px; border:1px dashed rgba(255,255,255,0.18);">Add party members first.</div>`}
-    `);
+    // Party Settings
+    const presetSel = container.find(".party-tac-preset");
+    presetSel.attr("id", "party-tac-preset");
+    presets.forEach(p => {
+        const opt = $("<option>").val(p).text(p);
+        if ((pt.preset||"Balanced") === p) opt.prop("selected", true);
+        presetSel.append(opt);
+    });
+
+    const conserveCheck = container.find(".party-tac-conserve");
+    conserveCheck.attr("id", "party-tac-conserve");
+    conserveCheck.prop("checked", pt.conserveMana);
+
+    const protectCheck = container.find(".party-tac-protect-leader");
+    protectCheck.attr("id", "party-tac-protect-leader");
+    protectCheck.prop("checked", pt.protectLeader);
+
+    // Member Tactics
+    const list = container.find(".tactics-list");
+    if (activeMembers.length) {
+        const rowTmpl = document.getElementById("uie-party-tactics-row").content;
+
+        activeMembers.forEach(m => {
+            ensureMember(m);
+            const el = $(rowTmpl.cloneNode(true));
+            el.find(".tac-name").text(m.identity?.name || "Member");
+            el.find(".tac-details").text(`Lv ${Number(m.progression?.level||1)} • ${m.partyRole||"DPS"}`);
+
+            // Preset
+            const mPreset = el.find(".member-tac-preset");
+            mPreset.attr("data-id", m.id);
+            presets.forEach(p => {
+                const opt = $("<option>").val(p).text(p);
+                if ((m.tactics?.preset||"Balanced")===p) opt.prop("selected", true);
+                mPreset.append(opt);
+            });
+
+            // Focus
+            const mFocus = el.find(".member-tac-focus");
+            mFocus.attr("data-id", m.id);
+            const focusOpts = [
+                { v: "auto", t: "Auto" },
+                { v: "weakest", t: "Weakest" },
+                { v: "strongest", t: "Strongest" },
+                { v: "protect", t: "Protect" }
+            ];
+            focusOpts.forEach(o => {
+                const opt = $("<option>").val(o.v).text(o.t);
+                if ((m.tactics?.focus||"auto")===o.v) opt.prop("selected", true);
+                mFocus.append(opt);
+            });
+
+            // Protect
+            const mProtect = el.find(".member-tac-protect");
+            mProtect.attr("data-id", m.id);
+            mProtect.append(`<option value="">—</option>`);
+            // Add member options, disable self
+            activeMembers.forEach(am => {
+                const opt = $("<option>").val(am.id).text(am.identity?.name || "Member");
+                if (String(am.id) === String(m.id)) opt.prop("disabled", true);
+                if (String(m.tactics?.protectId) === String(am.id)) opt.prop("selected", true);
+                mProtect.append(opt);
+            });
+
+            // Conserve MP
+            const mMana = el.find(".member-tac-mana");
+            mMana.attr("data-id", m.id);
+            mMana.prop("checked", m.tactics?.conserveMana);
+
+            list.append(el);
+        });
+    } else {
+        container.find(".tactics-empty").show();
+    }
 }
 
 function renderFormation(s) {
+    const container = $("#uie-party-body").empty();
+    const content = $(document.getElementById("uie-party-formation-view").content.cloneNode(true));
+    container.append(content);
+
     const members = Array.isArray(s.party.members) ? s.party.members : [];
     const activeMembers = members.filter(m => m && m.active !== false);
     if (!s.party.formation) s.party.formation = { lanes: { front: [], mid: [], back: [] } };
@@ -545,53 +584,69 @@ function renderFormation(s) {
     const available = activeMembers.filter(m => !allIds.has(String(m.id)));
     const roleOptions = ["Tank","Healer","DPS","Support","Mage","Ranger","Scout","Leader","Bruiser"];
 
-    const availOpts = `<option value="">Select member…</option>` + available.map(m => `<option value="${esc(m.id)}">${esc(m.identity?.name || "Member")}</option>`).join("");
+    const lanesContainer = container.find(".formation-lanes");
+    const laneTmpl = document.getElementById("uie-party-formation-lane").content;
+    const memberTmpl = document.getElementById("uie-party-formation-member").content;
 
-    const laneBlock = (key, title) => {
-        const list = (lanes[key] || []).map(id => {
-            const m = getMember(s, id);
-            if (!m) return "";
-            ensureMember(m);
-            const roleSel = roleOptions.map(r => `<option value="${esc(r)}" ${String(m.partyRole||"DPS")===r ? "selected":""}>${esc(r)}</option>`).join("");
-            return `
-              <div class="party-form-member" data-id="${esc(m.id)}" style="display:flex; gap:10px; align-items:center; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); margin-bottom:8px; cursor:pointer;">
-                <div style="flex:1; min-width:0;">
-                  <div style="font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(m.identity?.name || "Member")}</div>
-                  <div style="font-size:12px; opacity:0.75; font-weight:900;">Lv ${Number(m.progression?.level||1)} • ${esc(m.identity?.class||"Adventurer")}</div>
-                </div>
-                <select class="form-role" data-id="${esc(m.id)}" style="width:140px; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; padding:0 10px;">${roleSel}</select>
-                <div style="display:flex; gap:6px; align-items:center;">
-                  <button class="form-mv" data-act="up" data-lane="${esc(key)}" data-id="${esc(m.id)}" style="width:34px; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">↑</button>
-                  <button class="form-mv" data-act="down" data-lane="${esc(key)}" data-id="${esc(m.id)}" style="width:34px; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">↓</button>
-                  <button class="form-rm" data-lane="${esc(key)}" data-id="${esc(m.id)}" style="width:34px; height:34px; border-radius:10px; border:1px solid rgba(243,139,168,0.35); background:rgba(0,0,0,0.18); color:#f38ba8; font-weight:900;">×</button>
-                </div>
-              </div>
-            `;
-        }).join("");
+    const laneConfigs = [
+        { key: "front", title: "Front Line" },
+        { key: "mid", title: "Mid Line" },
+        { key: "back", title: "Back Line" }
+    ];
 
-        return `
-          <div style="border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); border-radius:12px; padding:10px;">
-            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
-              <div style="font-weight:900; color:#f1c40f;">${esc(title)}</div>
-              <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
-                <select id="form-add-${esc(key)}" style="height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; padding:0 10px; min-width:200px;">${availOpts}</select>
-                <button class="form-add" data-lane="${esc(key)}" style="height:34px; padding:0 12px; border-radius:10px; border:none; background:#2ecc71; color:#000; font-weight:900;">Add</button>
-              </div>
-            </div>
-            ${list || `<div style="opacity:0.7; font-weight:900; padding:10px;">Empty lane</div>`}
-          </div>
-        `;
-    };
+    laneConfigs.forEach(cfg => {
+        const laneEl = $(laneTmpl.cloneNode(true));
+        laneEl.find(".lane-title").text(cfg.title);
 
-    $("#uie-party-body").html(`
-      <div style="font-weight:900; color:#f1c40f; margin-bottom:10px;">Formation & Roles</div>
-      <div style="opacity:0.75; font-weight:900; margin-bottom:12px;">Assign members to lanes and set their combat roles.</div>
-      <div style="display:flex; flex-direction:column; gap:12px;">
-        ${laneBlock("front", "Front Line")}
-        ${laneBlock("mid", "Mid Line")}
-        ${laneBlock("back", "Back Line")}
-      </div>
-    `);
+        // Add Select
+        const addSel = laneEl.find(".form-add-select");
+        addSel.attr("id", `form-add-${cfg.key}`);
+        addSel.append(`<option value="">Select member…</option>`);
+        available.forEach(m => {
+            addSel.append($("<option>").val(m.id).text(m.identity?.name || "Member"));
+        });
+
+        // Add Button
+        const addBtn = laneEl.find(".form-add-btn");
+        addBtn.addClass("form-add"); // for event
+        addBtn.attr("data-lane", cfg.key);
+
+        const list = laneEl.find(".lane-list");
+        const laneIds = lanes[cfg.key] || [];
+
+        if (laneIds.length) {
+            laneIds.forEach(id => {
+                const m = getMember(s, id);
+                if (!m) return;
+                ensureMember(m);
+
+                const memEl = $(memberTmpl.cloneNode(true));
+                const memDiv = memEl.find(".party-form-member");
+                memDiv.attr("data-id", m.id);
+
+                memEl.find(".form-mem-name").text(m.identity?.name || "Member");
+                memEl.find(".form-mem-details").text(`Lv ${Number(m.progression?.level||1)} • ${m.identity?.class||"Adventurer"}`);
+
+                const roleSel = memEl.find(".form-role");
+                roleSel.attr("data-id", m.id);
+                roleOptions.forEach(r => {
+                    const opt = $("<option>").val(r).text(r);
+                    if ((m.partyRole||"DPS")===r) opt.prop("selected", true);
+                    roleSel.append(opt);
+                });
+
+                memEl.find(".form-mv-up").addClass("form-mv").attr("data-act", "up").attr("data-lane", cfg.key).attr("data-id", m.id);
+                memEl.find(".form-mv-down").addClass("form-mv").attr("data-act", "down").attr("data-lane", cfg.key).attr("data-id", m.id);
+                memEl.find(".form-rm").attr("data-lane", cfg.key).attr("data-id", m.id);
+
+                list.append(memEl);
+            });
+        } else {
+            laneEl.find(".lane-empty").show();
+        }
+
+        lanesContainer.append(laneEl);
+    });
 }
 
 function render() {
@@ -608,11 +663,11 @@ function render() {
     if (partyBg) {
         $("#uie-party-window").css({ backgroundImage: `url("${partyBg}")`, backgroundSize: "cover", backgroundPosition: "center" });
     } else {
-        $("#uie-party-window").css({ backgroundImage: "", backgroundSize: "", backgroundPosition: "" });
+        $("#uie-party-window").css({ background: "#050505", backgroundImage: "", backgroundSize: "", backgroundPosition: "" });
     }
 
     try { syncPartyUserFromCore(); } catch (_) {}
-    
+
     // Render Header
     $("#uie-party-name").text(s.party.name || "My Party");
     const leader = s.party.members.find(m => String(m.id) === String(s.party.leaderId));
@@ -620,7 +675,7 @@ function render() {
     $("#uie-party-name-input").val(s.party.name || "");
 
     // Tabs
-    $(".uie-party-tab").css({background:"rgba(0,0,0,0.18)", color:"#fff", borderColor:"rgba(255,255,255,0.1)"});
+    $(".uie-party-tab").css({background:"rgba(0,0,0,0.95)", color:"#fff", borderColor:"rgba(255,255,255,0.1)"});
     $(`.uie-party-tab[data-tab="${tab}"]`).css({background:"rgba(241,196,15,0.15)", color:"#f1c40f", borderColor:"rgba(241,196,15,0.3)"});
 
     if (tab === "roster") renderRoster(s);
@@ -654,7 +709,7 @@ function importChatChar(s) {
         const input = prompt("Enter character name to import:", name);
         if (input === null) return;
         const finalName = input.trim() || name;
-        
+
         const m = defaultMember(finalName);
         m.roles.push("Character");
         s.party.members.push(m);
@@ -668,7 +723,7 @@ function importChatChar(s) {
 async function scanPartyFromChat() {
     const s = getSettings();
     ensureParty(s);
-    
+
     // Gather Chat Context
     let raw = "";
     $(".chat-msg-txt").slice(-25).each(function() { raw += $(this).text() + "\n"; });
@@ -711,7 +766,7 @@ async function scanPartyFromChat() {
         for (const char of data.active) {
             const name = String(char.name || "").trim();
             if (!name) continue;
-            
+
             let m = s.party.members.find(x => x.identity.name.toLowerCase() === name.toLowerCase());
             if (!m) {
                 // New Member
@@ -721,12 +776,12 @@ async function scanPartyFromChat() {
                 changes++;
                 notify("success", `${name} joined the party!`, "Party", "scan");
             }
-            
+
             // Update Info
             if (char.class) m.identity.class = char.class;
             if (char.role) m.partyRole = char.role;
             if (char.level && Number(char.level) > (m.progression.level || 0)) m.progression.level = Number(char.level);
-            
+
             // Try to auto-link portrait if friend exists
             if (!m.images.portrait) {
                 const friend = s.social?.friends?.find(f => f.name.toLowerCase() === name.toLowerCase());
@@ -739,6 +794,7 @@ async function scanPartyFromChat() {
         saveSettings();
         render();
         notify("success", "Party Roster Updated.", "Party", "scan");
+        try { injectRpEvent(`[System: Party roster updated via chat scan.]`); } catch (_) {}
     } else {
         notify("info", "No roster changes detected.", "Party", "scan");
     }
@@ -752,7 +808,7 @@ function renderMemberModal(s, m) {
         const card = document.getElementById("uie-party-member-card");
         if (card) {
             if (bg) {
-                card.style.backgroundImage = `linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.55)), url("${bg}")`;
+                card.style.backgroundImage = `linear-gradient(180deg, rgba(0,0,0,0.95), rgba(0,0,0,0.55)), url("${bg}")`;
                 card.style.backgroundSize = "cover";
                 card.style.backgroundPosition = "center";
             } else {
@@ -763,198 +819,195 @@ function renderMemberModal(s, m) {
         }
     } catch (_) {}
 
-    const dis = memberEdit ? "" : "disabled";
-    const pe = memberEdit ? "" : "pointer-events:none;opacity:0.85;";
-    const roleOptions = ["Tank","Healer","DPS","Support","Mage","Ranger","Scout","Leader","Bruiser"];
-    const roleSelect = `<select id="party-mm-role" style="flex:1; min-width:160px; height:34px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; padding:0 10px; border-radius:10px;">
-        ${roleOptions.map(r => `<option value="${esc(r)}" ${String(m.partyRole||"DPS")===r ? "selected" : ""}>${esc(r)}</option>`).join("")}
-    </select>`;
-    const slots = ["head","chest","legs","feet","hands","weapon","offhand","accessory1","accessory2"];
-    const slotLabel = {
-        head: "Head",
-        chest: "Chest",
-        legs: "Legs",
-        feet: "Feet",
-        hands: "Hands",
-        weapon: "Main Hand",
-        offhand: "Off Hand",
-        accessory1: "Accessory 1",
-        accessory2: "Accessory 2"
-    };
-    const equipRows = slots.map(k => {
-        const val = String(m.equipment?.[k] || "");
-        return `<div style="display:grid; grid-template-columns: 132px 1fr; gap:10px; align-items:center; padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18);">
-            <div style="font-weight:900; opacity:0.9; letter-spacing:0.2px;">${esc(slotLabel[k] || k)}</div>
-            <input ${dis} data-eq="${esc(k)}" value="${esc(val)}" style="height:34px; border-radius:6px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; padding:0 10px; ${pe}">
-        </div>`;
-    }).join("");
+    const container = $("#uie-party-member-content").empty();
+    const layout = $(document.getElementById("uie-party-modal-layout").content.cloneNode(true));
+    container.append(layout);
 
-    const statKeys = ["str","dex","con","int","wis","cha","per","luk"];
-    const statGrid = statKeys.map(k => {
-        const val = Number(m.stats?.[k] || 0);
-        return `<div style="display:flex; flex-direction:column; gap:4px; padding:8px; border-radius:12px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.22);">
-            <div style="font-size:10px; font-weight:900; opacity:0.75; letter-spacing:0.6px;">${esc(k.toUpperCase())}</div>
-            <input ${dis} data-stat="${esc(k)}" type="number" value="${val}" style="height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.25); color:#fff; text-align:center; font-weight:900; ${pe}">
-        </div>`;
-    }).join("");
+    // Active Tab
+    container.find(`.party-mm-tab[data-tab="${memberModalTab}"]`)
+        .css({background: "rgba(241,196,15,0.18)", color: "#f1c40f"});
 
-    const bar = (lbl, cur, max, color) => {
-        const c = Number(cur || 0);
-        const mxx = Math.max(1, Number(max || 0));
-        const pct = Math.max(0, Math.min(100, (c / mxx) * 100));
-        return `<div style="margin-bottom:10px;">
-            <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:900; opacity:0.9; margin-bottom:6px;"><div>${lbl}</div></div>
-            <div style="position:relative;height:14px; border-radius:7px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.35); overflow:hidden;">
-                <div style="height:100%; width:${pct}%; background:${color};"></div>
-                <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; color:rgba(255,255,255,0.92); text-shadow:0 1px 2px rgba(0,0,0,0.7);">${c}/${mxx}</div>
-            </div>
-        </div>`;
-    };
+    container.find(`#party-mm-pane-${memberModalTab}`).show();
 
-    const skillsText = Array.isArray(m.skills) ? m.skills.map(x => String(x?.name || x || "").trim()).filter(Boolean).join("\n") : "";
-    const resolvedSkills = resolveMemberSkills(s, m);
-    const skillsList = resolvedSkills.map((sk) => {
-        const src = sk.source === "Inventory" ? "INV" : "PTY";
-        const srcColor = sk.source === "Inventory" ? "rgba(52,152,219,0.85)" : "rgba(241,196,15,0.85)";
-        return `<div class="party-skill" data-name="${esc(sk.name)}" data-desc="${esc(sk.desc || "")}" style="display:flex; gap:10px; align-items:flex-start; padding:10px; border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); cursor:pointer;">
-            <div style="flex:0 0 auto; min-width:44px; height:24px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); display:grid; place-items:center; font-weight:900; font-size:11px; color:${srcColor};">${src}</div>
-            <div style="flex:1; min-width:0;">
-                <div style="font-weight:900; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(sk.name)}</div>
-                <div style="opacity:0.72; font-size:12px; line-height:1.35; margin-top:2px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${esc(sk.desc || "")}</div>
-            </div>
-        </div>`;
-    }).join("");
-    const fx = Array.isArray(m.statusEffects) ? m.statusEffects : [];
-    const fxIcons = fx.slice(0, 16).map((x) => {
-        const raw = String(x || "").trim().slice(0, 120);
-        const label = raw ? raw[0].toUpperCase() : "!";
-        return `<div class="party-fx" title="${esc(raw)}" style="width:28px;height:28px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.25);display:grid;place-items:center;font-weight:900;color:rgba(255,255,255,0.9);user-select:none;">${esc(label)}</div>`;
-    }).join("");
-    const fxText = fx.join(", ");
+    // --- SHEET PANE ---
+    const sheetPane = container.find("#party-mm-pane-sheet");
+    const sheetTmpl = document.getElementById("uie-party-modal-sheet-pane").content.cloneNode(true);
+    const sheetEl = $(sheetTmpl);
+    sheetPane.append(sheetEl);
 
-    const mmTabs = `
-        <div style="display:flex; gap:8px; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20);">
-            <button class="party-mm-tab" data-tab="sheet" style="height:32px; padding:0 12px; border:1px solid rgba(255,255,255,0.12); background:${memberModalTab === "sheet" ? "rgba(241,196,15,0.18)" : "rgba(0,0,0,0.25)"}; color:${memberModalTab === "sheet" ? "#f1c40f" : "#fff"}; font-weight:900; cursor:pointer;">Sheet</button>
-            <button class="party-mm-tab" data-tab="equip" style="height:32px; padding:0 12px; border:1px solid rgba(255,255,255,0.12); background:${memberModalTab === "equip" ? "rgba(241,196,15,0.18)" : "rgba(0,0,0,0.25)"}; color:${memberModalTab === "equip" ? "#f1c40f" : "#fff"}; font-weight:900; cursor:pointer;">Equip</button>
-            <button class="party-mm-tab" data-tab="skills" style="height:32px; padding:0 12px; border:1px solid rgba(255,255,255,0.12); background:${memberModalTab === "skills" ? "rgba(241,196,15,0.18)" : "rgba(0,0,0,0.25)"}; color:${memberModalTab === "skills" ? "#f1c40f" : "#fff"}; font-weight:900; cursor:pointer;">Skills</button>
-        </div>
-    `;
-
+    // Portrait
     const portrait = resolvePortraitUrl(s, m);
-    const sheetPane = `
-        <div style="padding:12px; display:flex; flex-direction:column; gap:12px;">
-            <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
-                <div style="width:120px; height:120px; border-radius:6px; background:rgba(0,0,0,0.18); overflow:hidden; border:1px solid rgba(255,255,255,0.12);">
-                    ${portrait ? `<img src="${esc(portrait)}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="width:100%;height:100%;display:grid;place-items:center;opacity:0.55;font-weight:900;">Portrait</div>`}
-                </div>
-                <div style="flex:1; min-width:200px;">
-                    <input ${dis} id="party-mm-name" value="${esc(m.identity?.name || "")}" style="width:100%; height:36px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); color:#f1c40f; font-weight:900; padding:0 10px; ${pe}">
-                    <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">
-                        <input ${dis} id="party-mm-class" value="${esc(m.identity?.class || "")}" style="flex:1; min-width:160px; height:34px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; padding:0 10px; ${pe}">
-                        <input ${dis} id="party-mm-level" type="number" value="${Number(m.progression?.level || 1)}" style="width:110px; height:34px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; text-align:center; font-weight:900; ${pe}">
-                        ${roleSelect}
-                    </div>
-                </div>
-            </div>
+    const pContainer = sheetEl.find(".sheet-portrait-container");
+    if (portrait) {
+        pContainer.html(`<img src="${esc(portrait)}" style="width:100%;height:100%;object-fit:cover;">`);
+    } else {
+        pContainer.html(`<div style="width:100%;height:100%;display:grid;place-items:center;opacity:0.55;font-weight:900;">Portrait</div>`);
+    }
 
-            <div style="border-top:1px solid rgba(255,255,255,0.10); padding-top:12px;">
-                ${bar("HP", m.vitals?.hp, m.vitals?.maxHp, "#e74c3c")}
-                ${bar("MP", m.vitals?.mp, m.vitals?.maxMp, "#3498db")}
-                ${bar("AP", m.vitals?.ap, m.vitals?.maxAp, "#f1c40f")}
-            </div>
+    // Inputs
+    const dis = memberEdit ? false : true;
+    const pe = memberEdit ? {} : { "pointer-events": "none", "opacity": "0.85" };
 
-            <div style="border-top:1px solid rgba(255,255,255,0.10); padding-top:12px;">
-                <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                    <div style="font-weight:900;">Status</div>
-                </div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">${fxIcons || `<div style="opacity:0.6; font-weight:900;">None</div>`}</div>
-                ${memberEdit ? `<input id="party-mm-fx" value="${esc(fxText)}" placeholder="comma-separated" style="margin-top:10px; width:100%; height:34px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.25); color:#fff; padding:0 10px;">` : ``}
-            </div>
+    sheetEl.find("#party-mm-name").val(m.identity?.name || "").prop("disabled", dis).css(pe);
+    sheetEl.find("#party-mm-class").val(m.identity?.class || "").prop("disabled", dis).css(pe);
+    sheetEl.find("#party-mm-level").val(Number(m.progression?.level || 1)).prop("disabled", dis).css(pe);
 
-            <div style="border-top:1px solid rgba(255,255,255,0.10); padding-top:12px;">
-                <div style="font-weight:900; margin-bottom:8px;">Stats</div>
-                <div style="display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:8px;">
-                    ${statGrid}
-                </div>
-            </div>
+    const roleSel = sheetEl.find("#party-mm-role");
+    ["Tank","Healer","DPS","Support","Mage","Ranger","Scout","Leader","Bruiser"].forEach(r => {
+        const opt = $("<option>").val(r).text(r);
+        if ((m.partyRole||"DPS")===r) opt.prop("selected", true);
+        roleSel.append(opt);
+    });
+    roleSel.prop("disabled", dis).css(pe);
 
-            ${memberEdit ? `<button id="party-mm-save" style="width:100%; height:42px; border:1px solid rgba(241,196,15,0.30); background:rgba(241,196,15,0.18); color:#f1c40f; font-weight:900; cursor:pointer;">Save Changes</button>` : ``}
-        </div>
-    `;
+    // Bars
+    const barTmpl = document.getElementById("uie-party-modal-bar").content;
+    const vitalsSection = sheetEl.find(".vitals-section");
+    const bars = [
+        { l: "HP", c: m.vitals?.hp, m: m.vitals?.maxHp, col: "#e74c3c", k: "hp" },
+        { l: "MP", c: m.vitals?.mp, m: m.vitals?.maxMp, col: "#3498db", k: "mp" },
+        { l: "AP", c: m.vitals?.ap, m: m.vitals?.maxAp, col: "#f1c40f", k: "ap" }
+    ];
+    bars.forEach(b => {
+        const el = $(barTmpl.cloneNode(true));
+        el.find(".bar-lbl").text(b.l);
+        const cur = Number(b.c||0);
+        const max = Math.max(1, Number(b.m||0));
+        const pct = Math.max(0, Math.min(100, (cur/max)*100));
+        el.find(".bar-fill").css({ width: `${pct}%`, background: b.col });
+        el.find(".bar-text").text(`${cur}/${max}`);
 
-    const equipPane = `
-        <div style="padding:12px; display:flex; flex-direction:column; gap:12px;">
-            <div style="display:grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap:12px; align-items:start;">
-                <div style="border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.16); overflow:hidden;">
-                    <div id="party-paperdoll-pick" style="width:100%; height:min(62vh, 560px); background:rgba(0,0,0,0.12); display:grid; place-items:center; cursor:${memberEdit ? "pointer" : "default"};">
-                        ${m.images.paperDoll ? `<img src="${esc(m.images.paperDoll)}" style="width:100%;height:100%;object-fit:contain; background:rgba(0,0,0,0.10);">` : `<div style="opacity:0.7; font-weight:900;">Paper Doll</div>`}
-                    </div>
-                </div>
-                <div style="display:flex; flex-direction:column; gap:10px;">
-                    <div style="font-weight:900;">Equipment</div>
-                    <div style="display:flex; flex-direction:column; gap:8px;">${equipRows}</div>
-                </div>
-            </div>
-            ${memberEdit ? `<button id="party-mm-save" style="width:100%; height:42px; border:1px solid rgba(241,196,15,0.30); background:rgba(241,196,15,0.18); color:#f1c40f; font-weight:900; cursor:pointer;">Save Changes</button>` : ``}
-        </div>
-    `;
+        vitalsSection.append(el);
+    });
 
-    const skillsEditRows = (Array.isArray(m.skills) ? m.skills : []).slice(0, 60).map((sk, idx) => `
-        <div style="border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); border-radius:14px; padding:10px; margin-bottom:10px;">
-            <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-                <input data-skill-name="${idx}" value="${esc(sk?.name || "")}" placeholder="Skill name" style="flex:1; min-width:0; height:34px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); color:#fff; padding:0 10px; font-weight:900;">
-                <select data-skill-type="${idx}" style="height:34px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); color:#fff; padding:0 10px; font-weight:900;">
-                    <option value="active" ${String(sk?.skillType||"active")==="active" ? "selected" : ""}>Active</option>
-                    <option value="passive" ${String(sk?.skillType||"active")==="passive" ? "selected" : ""}>Passive</option>
-                </select>
-                <button class="party-mm-skill-del" data-skill-del="${idx}" style="width:38px; height:34px; border-radius:12px; border:1px solid rgba(243,139,168,0.35); background:rgba(0,0,0,0.18); color:#f38ba8; font-weight:900; cursor:pointer;">×</button>
-            </div>
-            <textarea data-skill-desc="${idx}" placeholder="Description" style="width:100%; height:86px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); color:#fff; padding:10px 12px; resize:vertical;">${esc(sk?.description || "")}</textarea>
-        </div>
-    `).join("");
+    // Status FX
+    const fxList = sheetEl.find(".status-fx-list");
+    const fx = Array.isArray(m.statusEffects) ? m.statusEffects : [];
+    if (fx.length === 0) fxList.html(`<div style="opacity:0.6; font-weight:900;">None</div>`);
+    else {
+        fx.slice(0, 16).forEach(x => {
+            const raw = String(x||"").trim();
+            const label = raw ? raw[0].toUpperCase() : "!";
+            const icon = $(`<div class="party-fx" title="${esc(raw)}" style="width:28px;height:28px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.95);display:grid;place-items:center;font-weight:900;color:rgba(255,255,255,0.9);user-select:none;">${esc(label)}</div>`);
+            fxList.append(icon);
+        });
+    }
 
-    const medalOpts = Object.values(MEDALLIONS).map(md => `<option value="${md.id}" ${m.progression.activeMedallion === md.id ? "selected" : ""}>${md.name}</option>`).join("");
-    
-    const rebirthSection = (m.progression.level >= 150 || m.progression.reborn || memberEdit) ? `
-        <div style="border-top:1px solid rgba(255,255,255,0.10); padding-top:12px;">
-            <div style="font-weight:900; margin-bottom:8px; color:#9b59b6;">Rebirth & Medallions</div>
-            <div style="display:flex; gap:10px; align-items:center;">
-                <label style="display:flex; gap:8px; align-items:center; font-weight:bold;">
-                    <input type="checkbox" id="party-mm-reborn" ${m.progression.reborn ? "checked" : ""} ${dis}> Is Reborn
-                </label>
-                <select id="party-mm-medallion" ${dis} style="flex:1; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; padding:0 10px;">
-                    <option value="">(No Medallion)</option>
-                    ${medalOpts}
-                </select>
-            </div>
-        </div>
-    ` : "";
+    if (memberEdit) {
+        sheetEl.find("#party-mm-fx").val(fx.join(", ")).show();
+        sheetEl.find("#party-mm-save").show();
+    }
 
-    const skillsPane = `
-        <div style="padding:12px;">
-            ${rebirthSection}
-            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; margin-top:15px;">
-                <div style="font-weight:900;">Skills</div>
-                ${memberEdit ? `<button id="party-mm-add-skill" style="margin-left:auto; height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(241,196,15,0.30); background:rgba(241,196,15,0.18); color:#f1c40f; font-weight:900; cursor:pointer;">Add</button>` : ``}
-            </div>
-            ${memberEdit
-                ? (skillsEditRows || `<div style="opacity:0.7; font-weight:900; padding:10px; border:1px dashed rgba(255,255,255,0.18); border-radius:14px;">No skills yet.</div>`)
-                : `<div style="max-height:min(60vh, 420px); overflow:auto; display:flex; flex-direction:column; gap:8px;">${skillsList || `<div style="opacity:0.6; font-weight:900;">No skills</div>`}</div>`
-            }
-            ${memberEdit ? `<div style="margin-top:12px;"><button id="party-mm-save" style="width:100%; height:42px; border:1px solid rgba(241,196,15,0.30); background:rgba(241,196,15,0.18); color:#f1c40f; font-weight:900; cursor:pointer;">Save Changes</button></div>` : ``}
-        </div>
-    `;
+    // Stats
+    const statsGrid = sheetEl.find(".stats-grid");
+    const statInputTmpl = document.getElementById("uie-party-modal-stat-input").content;
+    const statKeys = ["str","dex","con","int","wis","cha","per","luk"];
+    statKeys.forEach(k => {
+        const el = $(statInputTmpl.cloneNode(true));
+        el.find(".stat-lbl").text(k.toUpperCase());
+        const input = el.find(".stat-val");
+        input.val(Number(m.stats?.[k] || 0));
+        input.attr("data-stat", k); // for save handler
+        input.prop("disabled", dis).css(pe);
+        statsGrid.append(el);
+    });
 
-    $("#uie-party-member-content").html(`
-        <div style="display:flex; flex-direction:column; min-height:0;">
-            ${mmTabs}
-            <div style="flex:1; min-height:0; overflow:auto; padding-bottom:18px;">
-                <div id="party-mm-pane-sheet" style="display:${memberModalTab === "sheet" ? "block" : "none"};">${sheetPane}</div>
-                <div id="party-mm-pane-equip" style="display:${memberModalTab === "equip" ? "block" : "none"};">${equipPane}</div>
-                <div id="party-mm-pane-skills" style="display:${memberModalTab === "skills" ? "block" : "none"};">${skillsPane}</div>
-            </div>
-        </div>
-    `);
+    // --- EQUIP PANE ---
+    const equipPane = container.find("#party-mm-pane-equip");
+    const equipTmpl = document.getElementById("uie-party-modal-equip-pane").content.cloneNode(true);
+    const equipEl = $(equipTmpl);
+    equipPane.append(equipEl);
+
+    const pdPick = equipEl.find("#party-paperdoll-pick");
+    pdPick.css("cursor", memberEdit ? "pointer" : "default");
+    if (m.images.paperDoll) {
+        pdPick.html(`<img src="${esc(m.images.paperDoll)}" style="width:100%;height:100%;object-fit:contain; background:rgba(0,0,0,0.10);">`);
+    } else {
+        pdPick.html(`<div style="opacity:0.7; font-weight:900;">Paper Doll</div>`);
+    }
+
+    const equipRows = equipEl.find(".equip-rows");
+    const eqRowTmpl = document.getElementById("uie-party-modal-equip-row").content;
+    const slotLabel = {
+        head: "Head", chest: "Chest", legs: "Legs", feet: "Feet", hands: "Hands",
+        weapon: "Main Hand", offhand: "Off Hand", accessory1: "Accessory 1", accessory2: "Accessory 2"
+    };
+    ["head","chest","legs","feet","hands","weapon","offhand","accessory1","accessory2"].forEach(k => {
+        const el = $(eqRowTmpl.cloneNode(true));
+        el.find(".eq-lbl").text(slotLabel[k] || k);
+        const input = el.find(".eq-val");
+        input.val(m.equipment?.[k] || "");
+        input.attr("data-eq", k); // for save handler
+        input.prop("disabled", dis).css(pe);
+        equipRows.append(el);
+    });
+
+    if (memberEdit) equipEl.find(".party-mm-save-btn").show();
+
+    // --- SKILLS PANE ---
+    const skillsPane = container.find("#party-mm-pane-skills");
+    const skillsTmpl = document.getElementById("uie-party-modal-skills-pane").content.cloneNode(true);
+    const skillsEl = $(skillsTmpl);
+    skillsPane.append(skillsEl);
+
+    // Rebirth
+    if (m.progression.level >= 150 || m.progression.reborn || memberEdit) {
+        const rbSec = skillsEl.find(".rebirth-section");
+        rbSec.show();
+        rbSec.find("#party-mm-reborn").prop("checked", m.progression.reborn).prop("disabled", dis);
+        const medSel = rbSec.find("#party-mm-medallion");
+        medSel.prop("disabled", dis);
+        Object.values(MEDALLIONS).forEach(md => {
+            const opt = $("<option>").val(md.id).text(md.name);
+            if (m.progression.activeMedallion === md.id) opt.prop("selected", true);
+            medSel.append(opt);
+        });
+    }
+
+    if (memberEdit) skillsEl.find("#party-mm-add-skill").show();
+
+    const skillsList = skillsEl.find(".skills-list");
+    if (memberEdit) {
+        // Edit Mode: Rows
+        const editRowTmpl = document.getElementById("uie-party-modal-skill-edit-row").content;
+        const skillData = Array.isArray(m.skills) ? m.skills : [];
+        if (skillData.length === 0) {
+            skillsList.html(`<div style="opacity:0.7; font-weight:900; padding:10px; border:1px dashed rgba(255,255,255,0.18); border-radius:14px;">No skills yet.</div>`);
+        } else {
+            skillData.forEach((sk, idx) => {
+                const el = $(editRowTmpl.cloneNode(true));
+                el.find(".skill-name-in").val(sk.name || "").attr("data-skill-name", idx);
+                el.find(".skill-desc-in").val(sk.description || "").attr("data-skill-desc", idx);
+                const typeSel = el.find(".skill-type-in").attr("data-skill-type", idx);
+                typeSel.val((sk.skillType||"active") === "passive" ? "passive" : "active");
+                el.find(".party-mm-skill-del").attr("data-skill-del", idx);
+                skillsList.append(el);
+            });
+        }
+        skillsEl.find(".skills-save-container").show();
+    } else {
+        // View Mode: Items
+        const viewRowTmpl = document.getElementById("uie-party-modal-skill-view-row").content;
+        const resolvedSkills = resolveMemberSkills(s, m);
+        if (resolvedSkills.length === 0) {
+            skillsList.html(`<div style="opacity:0.6; font-weight:900;">No skills</div>`);
+        } else {
+            resolvedSkills.forEach(sk => {
+                const el = $(viewRowTmpl.cloneNode(true));
+                const src = sk.source === "Inventory" ? "INV" : "PTY";
+                const color = sk.source === "Inventory" ? "rgba(52,152,219,0.85)" : "rgba(241,196,15,0.85)";
+                el.find(".skill-src").text(src).css("color", color);
+                el.find(".skill-name").text(sk.name);
+                el.find(".skill-desc").text(sk.desc || "");
+
+                const skillDiv = el.find(".party-skill");
+                skillDiv.attr("data-name", sk.name);
+                skillDiv.attr("data-desc", sk.desc || "");
+
+                skillsList.append(el);
+            });
+        }
+    }
 }
 
 function openMemberModal(s, id, edit = false) {
@@ -999,15 +1052,22 @@ export function initParty() {
     const s = getSettings();
     ensureParty(s);
 
-    $(document).off("click.party change.party");
-    let lastTouchOpenAt = 0;
+    const $win = $("#uie-party-window");
+    const $modal = $("#uie-party-member-modal");
     
-    $(document).on("click.party", ".uie-party-tab", function() {
+    // Clear previous namespaces
+    $(document).off("click.party change.party pointerup.party");
+    $win.off("click.party change.party pointerup.party");
+    $modal.off("click.party change.party pointerup.party");
+
+    let lastTouchOpenAt = 0;
+
+    $win.on("click.party", ".uie-party-tab", function() {
         tab = $(this).data("tab");
         render();
     });
 
-    $(document).on("click.party", ".party-mm-tab", function (e) {
+    $modal.on("click.party", ".party-mm-tab", function (e) {
         e.preventDefault();
         e.stopPropagation();
         memberModalTab = String($(this).data("tab") || "sheet");
@@ -1016,22 +1076,22 @@ export function initParty() {
         if (m) renderMemberModal(s2, m);
     });
 
-    $(document).on("click.party", "#party-add", function() {
+    $win.on("click.party", "#party-add", function() {
         const s = getSettings();
         s.party.members.push(defaultMember("New Member"));
         saveSettings();
         render();
     });
 
-    $(document).on("click.party", "#party-import-user", function() {
+    $win.on("click.party", "#party-import-user", function() {
         importUser(getSettings());
     });
 
-    $(document).on("click.party", "#party-import-char", function() {
+    $win.on("click.party", "#party-import-char", function() {
         importChatChar(getSettings());
     });
 
-    $(document).on("click.party", "#uie-party-save-meta", function() {
+    $win.on("click.party", "#uie-party-save-meta", function() {
         const s = getSettings();
         s.party.name = $("#uie-party-name-input").val();
         saveSettings();
@@ -1039,7 +1099,7 @@ export function initParty() {
         if(window.toastr) toastr.success("Party info saved.");
     });
 
-    $(document).on("click.party", "#uie-party-bg-edit", async function (e) {
+    $win.on("click.party", "#uie-party-bg-edit", async function (e) {
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();
@@ -1052,7 +1112,7 @@ export function initParty() {
         render();
     });
 
-    $(document).on("click.party", "#uie-party-member-bg-edit", async function (e) {
+    $modal.on("click.party", "#uie-party-member-bg-edit", async function (e) {
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();
@@ -1064,13 +1124,13 @@ export function initParty() {
         saveSettings();
         const card = document.getElementById("uie-party-member-card");
         if (card) {
-            card.style.backgroundImage = `linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.55)), url("${img}")`;
+            card.style.backgroundImage = `linear-gradient(180deg, rgba(0,0,0,0.95), rgba(0,0,0,0.55)), url("${img}")`;
             card.style.backgroundSize = "cover";
             card.style.backgroundPosition = "center";
         }
     });
 
-    $(document).on("click.party pointerup.party", ".party-row", function(e) {
+    $win.on("click.party pointerup.party", ".party-row", function(e) {
         if (e.type === "pointerup") {
             const pt = String(e.pointerType || "").toLowerCase();
             if (pt && pt !== "touch" && pt !== "pen") return;
@@ -1087,7 +1147,7 @@ export function initParty() {
         openMemberModal(getSettings(), String($(this).data("id")));
     });
 
-    $(document).on("click.party pointerup.party", ".party-form-member", function(e) {
+    $win.on("click.party pointerup.party", ".party-form-member", function(e) {
         if (e.type === "pointerup") {
             const pt = String(e.pointerType || "").toLowerCase();
             if (pt && pt !== "touch" && pt !== "pen") return;
@@ -1104,20 +1164,20 @@ export function initParty() {
         openMemberModal(getSettings(), String($(this).data("id")));
     });
 
-    $(document).on("click.party", "#uie-party-member-close", function(e){
+    $modal.on("click.party", "#uie-party-member-close", function(e){
         e.preventDefault();
         e.stopPropagation();
         closeMemberModal();
     });
 
-    $(document).on("click.party", "#uie-party-member-modal", function(e){
+    $modal.on("click.party", function(e){
         if (e.target && e.target.id !== "uie-party-member-modal") return;
         e.preventDefault();
         e.stopPropagation();
         closeMemberModal();
     });
 
-    $(document).on("click.party", "#party-paperdoll-pick", async function(e){
+    $modal.on("click.party", "#party-paperdoll-pick", async function(e){
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();
@@ -1126,7 +1186,7 @@ export function initParty() {
         await pickPortraitForMember(s2, m, "paperDoll");
     });
 
-    $(document).on("click.party", "#party-mm-add-skill", function (e) {
+    $modal.on("click.party", "#party-mm-add-skill", function (e) {
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();
@@ -1138,7 +1198,7 @@ export function initParty() {
         renderMemberModal(s2, m);
     });
 
-    $(document).on("click.party", ".party-mm-skill-del", function (e) {
+    $modal.on("click.party", ".party-mm-skill-del", function (e) {
         e.preventDefault();
         e.stopPropagation();
         const idx = Number($(this).data("skill-del"));
@@ -1147,12 +1207,14 @@ export function initParty() {
         const m = selectedId ? getMember(s2, selectedId) : null;
         if (!m) return;
         ensureMember(m);
+        const removed = m.skills[idx];
         m.skills.splice(idx, 1);
         saveSettings();
         renderMemberModal(s2, m);
+        try { injectRpEvent(`[System: Removed skill '${removed?.name || "Unknown"}' from ${m.identity.name}.]`); } catch (_) {}
     });
 
-    $(document).on("click.party", "#party-mm-save", function(e){
+    $modal.on("click.party", "#party-mm-save", function(e){
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();
@@ -1210,7 +1272,7 @@ export function initParty() {
         renderMemberModal(s2, m);
     });
 
-    $(document).on("click.party", ".party-fx", function (e) {
+    $modal.on("click.party", ".party-fx", function (e) {
         e.preventDefault();
         e.stopPropagation();
         const txt = String(this.getAttribute("title") || "").trim();
@@ -1226,7 +1288,7 @@ export function initParty() {
         box.textContent = txt;
     });
 
-    $(document).on("click.party", ".party-skill", function (e) {
+    $modal.on("click.party", ".party-skill", function (e) {
         e.preventDefault();
         e.stopPropagation();
         const name = String(this.getAttribute("data-name") || "").trim();
@@ -1244,7 +1306,7 @@ export function initParty() {
         box.textContent = txt;
     });
 
-    $(document).on("click.party", ".party-mini", function(e) {
+    $win.on("click.party", ".party-mini", function(e) {
         e.stopPropagation();
         const act = $(this).data("act");
         const id = String($(this).data("id"));
@@ -1305,13 +1367,13 @@ export function initParty() {
             saveSettings();
             render();
         } else if (act === "toggleActive") {
-            s.party.members[idx].active = s.party.members[idx].active === false; 
+            s.party.members[idx].active = s.party.members[idx].active === false;
             saveSettings();
             render();
         }
     });
 
-    $(document).on("change.party", "#party-tac-preset, #party-tac-conserve, #party-tac-protect-leader", function(e){
+    $win.on("change.party", "#party-tac-preset, #party-tac-conserve, #party-tac-protect-leader", function(e){
         e.preventDefault();
         const s2 = getSettings();
         ensureParty(s2);
@@ -1322,7 +1384,7 @@ export function initParty() {
         saveSettings();
     });
 
-    $(document).on("change.party", ".member-tac-preset, .member-tac-focus, .member-tac-protect, .member-tac-mana", function(e){
+    $win.on("change.party", ".member-tac-preset, .member-tac-focus, .member-tac-protect, .member-tac-mana", function(e){
         e.preventDefault();
         const id = String($(this).data("id") || "");
         if (!id) return;
@@ -1339,7 +1401,7 @@ export function initParty() {
         saveSettings();
     });
 
-    $(document).on("click.party", ".form-add", function(e){
+    $win.on("click.party", ".form-add", function(e){
         e.preventDefault();
         e.stopPropagation();
         const lane = String($(this).data("lane") || "");
@@ -1357,7 +1419,7 @@ export function initParty() {
         render();
     });
 
-    $(document).on("click.party", ".form-rm", function(e){
+    $win.on("click.party", ".form-rm", function(e){
         e.preventDefault();
         e.stopPropagation();
         const lane = String($(this).data("lane") || "");
@@ -1371,7 +1433,7 @@ export function initParty() {
         render();
     });
 
-    $(document).on("click.party", ".form-mv", function(e){
+    $win.on("click.party", ".form-mv", function(e){
         e.preventDefault();
         e.stopPropagation();
         const act = String($(this).data("act") || "");
@@ -1394,7 +1456,7 @@ export function initParty() {
         render();
     });
 
-    $(document).on("change.party", ".form-role", function(e){
+    $win.on("change.party", ".form-role", function(e){
         e.preventDefault();
         const id = String($(this).data("id") || "");
         if (!id) return;
@@ -1408,11 +1470,11 @@ export function initParty() {
         render();
     });
 
-    $(document).on("click.party", "#pm-save", function() {
+    $win.on("click.party", "#pm-save", function() {
         const s = getSettings();
         const m = getMember(s, selectedId);
         if (!m) return;
-        
+
         m.identity.name = $("#pm-name").val();
         m.identity.class = $("#pm-class").val();
         m.stats.str = Number($("#pm-str").val());
@@ -1423,7 +1485,7 @@ export function initParty() {
         m.stats.cha = Number($("#pm-cha").val());
         m.stats.per = Number($("#pm-per").val());
         m.stats.luk = Number($("#pm-luk").val());
-        
+
         m.vitals.hp = Number($("#pm-hp").val());
         m.vitals.maxHp = Number($("#pm-maxhp").val());
         m.vitals.mp = Number($("#pm-mp").val());
@@ -1444,7 +1506,7 @@ export function initParty() {
         render();
     });
 
-    $(document).on("click.party", "#party-pick-portrait", async function() {
+    $win.on("click.party", "#party-pick-portrait", async function() {
         const id = $(this).data("id");
         const s = getSettings();
         const m = getMember(s, id);
@@ -1459,3 +1521,4 @@ export function initParty() {
 
     render();
 }
+

@@ -217,13 +217,15 @@ async function listFolderFiles(folder) {
 
 async function renderActivePack() {
     const pack = stickerPacks.find(p => p.id === activePackId);
-    const $grid = $("#uie-sticker-grid");
-    const $empty = $("#uie-sticker-empty");
-    if (!$grid.length || !$empty.length) return;
-    $grid.empty();
+    const grid = document.getElementById("uie-sticker-grid");
+    const empty = document.getElementById("uie-sticker-empty");
+    if (!grid || !empty) return;
+
+    grid.innerHTML = "";
 
     if (!pack) {
-        $empty.text("No packs found.").show();
+        empty.textContent = "No packs found.";
+        empty.style.display = "block";
         return;
     }
 
@@ -246,18 +248,34 @@ async function renderActivePack() {
     }
 
     if (!imgs.length) {
-        $empty.html(`No stickers in <b>${esc(pack.name)}</b>.`).show();
+        empty.innerHTML = `No stickers in <b>${esc(pack.name)}</b>.`;
+        empty.style.display = "block";
         return;
     }
 
-    $empty.hide();
+    empty.style.display = "none";
+
+    const tmpl = document.getElementById("uie-template-diary-sticker-tile");
+    if (!tmpl) return;
+
+    const frag = document.createDocumentFragment();
     imgs.slice(0, 800).forEach(im => {
-        $grid.append(`
-            <div class="uie-sticker-tile" data-pack="${esc(pack.id)}" data-name="${esc(im.name)}" data-src="${esc(im.src)}" data-emotion="${esc(im.emotion)}" title="${esc(im.name)}">
-                <img src="${esc(im.src)}" alt="${esc(im.name)}">
-            </div>
-        `);
+        const clone = tmpl.content.cloneNode(true);
+        const tile = clone.querySelector(".uie-sticker-tile");
+        const img = clone.querySelector("img");
+
+        tile.dataset.pack = esc(pack.id);
+        tile.dataset.name = esc(im.name);
+        tile.dataset.src = esc(im.src);
+        tile.dataset.emotion = esc(im.emotion);
+        tile.title = esc(im.name);
+
+        img.src = esc(im.src);
+        img.alt = esc(im.name);
+
+        frag.appendChild(clone);
     });
+    grid.appendChild(frag);
 }
 
 let dragTarget = null;
@@ -273,7 +291,7 @@ function renderStickerStrip() {
     if (!$layer.length) return;
     $layer.empty();
     if (!list.length) return;
-    
+
     list.forEach((st, i) => {
         const src = String(st?.src || "");
         if (!src) return;
@@ -282,7 +300,7 @@ function renderStickerStrip() {
         const y = Number(st.y) || 50 + (i * 10);
         const rot = Number(st.rotation) || 0;
         const scale = Number(st.scale) || 1;
-        
+
         $layer.append(`
             <div class="uie-diary-sticker" data-i="${i}" style="left:${x}px; top:${y}px; transform: rotate(${rot}deg) scale(${scale});">
                 <img src="${esc(src)}" draggable="false" alt="">
@@ -321,36 +339,39 @@ export function renderDiary() {
 export function initDiary() {
     if (!stickerInit) {
         stickerInit = true;
-        $(document).off("click.uieDiaryStickers");
-        $(document).off("click.uieDiaryClose", "#uie-diary-close");
-        $(document).on("click.uieDiaryClose", "#uie-diary-close", function (e) {
+        const $win = $("#uie-diary-window");
+        
+        $win.off("click.uieDiaryStickers click.uieDiaryClose");
+        $(document).off("click.uieDiaryStickers click.uieDiaryClose"); // Clean up old globals
+
+        $win.on("click.uieDiaryClose", "#uie-diary-close", function (e) {
             e.preventDefault();
             e.stopPropagation();
             try { $("#uie-diary-sticker-drawer").hide(); } catch (_) {}
-            $("#uie-diary-window").hide();
+            $win.hide();
         });
-        $(document).on("click.uieDiaryStickers", "#uie-diary-stickers", async function(e) {
+        $win.on("click.uieDiaryStickers", "#uie-diary-stickers", async function(e) {
             e.preventDefault();
             e.stopPropagation();
             $("#uie-diary-sticker-drawer").css("display", "flex");
             await refreshStickerPacks();
         });
-        $(document).on("click.uieDiaryStickers", "#uie-sticker-close", function(e) {
+        $win.on("click.uieDiaryStickers", "#uie-sticker-close", function(e) {
             e.preventDefault();
             e.stopPropagation();
             $("#uie-diary-sticker-drawer").hide();
         });
-        $(document).on("click.uieDiaryStickers", "#uie-diary-sticker-drawer", function(e) {
+        $win.on("click.uieDiaryStickers", "#uie-diary-sticker-drawer", function(e) {
             if (e.target && e.target.id === "uie-diary-sticker-drawer") $("#uie-diary-sticker-drawer").hide();
         });
-        $(document).on("click.uieDiaryStickers", ".uie-sticker-tab", async function(e) {
+        $win.on("click.uieDiaryStickers", ".uie-sticker-tab", async function(e) {
             e.preventDefault();
             e.stopPropagation();
             activePackId = String($(this).data("pack") || "");
             renderStickerTabs();
             await renderActivePack();
         });
-        $(document).on("click.uieDiaryStickers", ".uie-sticker-tile", function(e) {
+        $win.on("click.uieDiaryStickers", ".uie-sticker-tile", function(e) {
             e.preventDefault();
             e.stopPropagation();
             const src = String($(this).data("src") || "");
@@ -363,13 +384,13 @@ export function initDiary() {
             ensureDiaryModel(s);
             if (!s.diary[idx]) s.diary[idx] = { date: new Date().toLocaleString(), text: "", img: "", stickers: [] };
             if (!Array.isArray(s.diary[idx].stickers)) s.diary[idx].stickers = [];
-            
+
             // Randomized center placement for new stickers
             const layer = document.getElementById("uie-diary-sticker-layer");
             const rect = layer ? layer.getBoundingClientRect() : { width: 300, height: 300 };
             const x = (rect.width / 2) - 40 + (Math.random() * 40 - 20);
             const y = (rect.height / 2) - 40 + (Math.random() * 40 - 20);
-            
+
             s.diary[idx].stickers.push({
                 pack: pack.name,
                 name,
@@ -382,7 +403,7 @@ export function initDiary() {
             renderDiary();
             $("#uie-diary-sticker-drawer").hide();
         });
-        $(document).on("click.uieDiaryStickers", ".uie-diary-sticker-x", function(e) {
+        $win.on("click.uieDiaryStickers", ".uie-diary-sticker-x", function(e) {
             e.preventDefault();
             e.stopPropagation();
             const i = Number($(this).data("i"));
@@ -395,48 +416,57 @@ export function initDiary() {
             saveSettings();
             renderDiary();
         });
-        
+
         // DRAG LOGIC (Touch + Mouse)
         const onDragStart = (e) => {
             const t = $(e.target).closest(".uie-diary-sticker");
             // Ignore if clicking the delete X
             if (!t.length || $(e.target).closest(".uie-diary-sticker-x").length) return;
+
+            // e.preventDefault(); // Don't prevent default immediately if we want inputs? But stickers aren't inputs.
+            // For touch, preventing default stops scrolling, which is good for drag.
+            if (e.type === 'touchstart') {
+                 // handled by passive: false in addEventListener usually, but here we might need to call it?
+                 // jQuery event wrapper might affect this.
+            }
+            e.preventDefault(); 
             
-            e.preventDefault();
             dragTarget = t;
             t.addClass("active");
-            
+
             // Bring to front visual
             t.appendTo(t.parent());
-            
-            const p = e.touches ? e.touches[0] : e;
+
+            const p = (e.touches || e.originalEvent?.touches) ? (e.touches || e.originalEvent.touches)[0] : e;
             dragStart = { x: p.clientX, y: p.clientY };
             dragOrig = { x: parseFloat(t.css("left")) || 0, y: parseFloat(t.css("top")) || 0 };
+
+            window.addEventListener("mousemove", onDragMove);
+            window.addEventListener("touchmove", onDragMove, { passive: false });
+            window.addEventListener("mouseup", onDragEnd);
+            window.addEventListener("touchend", onDragEnd);
         };
-        
+
         const onDragMove = (e) => {
             if (!dragTarget) return;
-            e.preventDefault(); // Prevent scrolling while dragging
-            const p = e.touches ? e.touches[0] : e;
+            if(e.cancelable) e.preventDefault(); // Prevent scrolling while dragging
+            const p = (e.touches) ? e.touches[0] : e;
             const dx = p.clientX - dragStart.x;
             const dy = p.clientY - dragStart.y;
             dragTarget.css({ left: dragOrig.x + dx, top: dragOrig.y + dy });
         };
-        
+
         const onDragEnd = (e) => {
+            window.removeEventListener("mousemove", onDragMove);
+            window.removeEventListener("touchmove", onDragMove);
+            window.removeEventListener("mouseup", onDragEnd);
+            window.removeEventListener("touchend", onDragEnd);
+
             if (!dragTarget) return;
             const i = Number(dragTarget.data("i"));
             const s = getSettings();
             ensureDiaryModel(s);
-            // Re-find the index because DOM order might have changed? 
-            // Actually data-i is static, but splice invalidates it.
-            // If we just move, it's fine.
-            // Wait, if I appendTo to bring to front, the DOM order changes but data-i stays.
-            // But when I renderDiary(), I rebuild from array. 
-            // So I need to update the array at index `i`.
-            // BUT if I brought to front, I should technically move it to end of array to persist Z-order?
-            // For now, let's just update X/Y.
-            
+
             if (s.diary[idx] && s.diary[idx].stickers && s.diary[idx].stickers[i]) {
                 s.diary[idx].stickers[i].x = parseFloat(dragTarget.css("left")) || 0;
                 s.diary[idx].stickers[i].y = parseFloat(dragTarget.css("top")) || 0;
@@ -446,28 +476,12 @@ export function initDiary() {
             dragTarget = null;
         };
 
-        // Attach listeners to layer (delegation for start) and window (for move/end)
-        // We use native listeners for better passive control
-        const layer = document.getElementById("uie-diary-sticker-layer");
-        // We need to attach to something that exists. 
-        // Since layer is rebuilt, we should attach to document or use a stable container.
-        // #uie-diary-window is stable? No, it's in a template.
-        // Let's attach to document with delegation check.
-        
-        document.addEventListener("mousedown", (e) => {
-            if ($(e.target).closest("#uie-diary-sticker-layer").length) onDragStart(e);
+        // Attach drag start to window content
+        $win.on("mousedown touchstart", "#uie-diary-sticker-layer", function(e) {
+             onDragStart(e);
         });
-        document.addEventListener("touchstart", (e) => {
-             if ($(e.target).closest("#uie-diary-sticker-layer").length) onDragStart(e);
-        }, { passive: false });
-        
-        window.addEventListener("mousemove", onDragMove);
-        window.addEventListener("touchmove", onDragMove, { passive: false });
-        window.addEventListener("mouseup", onDragEnd);
-        window.addEventListener("touchend", onDragEnd);
 
-
-        $(document).on("click.uieDiaryStickers", "#uie-sticker-import", function(e) {
+        $win.on("click.uieDiaryStickers", "#uie-sticker-import", function(e) {
             e.preventDefault();
             e.stopPropagation();
             const name = (prompt("Pack name:", "MyPack") || "").trim();
@@ -475,7 +489,8 @@ export function initDiary() {
             importPendingName = name.slice(0, 50);
             $("#uie-sticker-import-files").trigger("click");
         });
-        $(document).on("change.uieDiaryStickers", "#uie-sticker-import-files", async function() {
+        
+        $win.on("change.uieDiaryStickers", "#uie-sticker-import-files", async function() {
             const files = Array.from(this.files || []);
             $(this).val("");
             const name = String(importPendingName || "").trim();
@@ -500,136 +515,137 @@ export function initDiary() {
             renderStickerTabs();
             await renderActivePack();
         });
-    }
+    
+        // Auto-save input
+        $win.on("input", "#uie-diary-title", function() {
+            const s = getSettings();
+            ensureDiaryModel(s);
+            if(!s.diary[idx]) s.diary[idx] = { title: "", date: new Date().toLocaleString(), text: "", img: "", stickers: [] };
+            s.diary[idx].title = String($(this).val() || "").slice(0, 80);
+            saveSettings();
+        });
+        $win.on("input", "#uie-diary-text", function() {
+            const s = getSettings();
+            ensureDiaryModel(s);
+            if(!s.diary[idx]) s.diary[idx] = { title: "", date: new Date().toLocaleString(), text: "", img: "", stickers: [] };
+            s.diary[idx].text = $(this).val();
+            saveSettings();
+        });
 
-    // Auto-save input
-    $(document).on("input", "#uie-diary-title", function() {
-        const s = getSettings();
-        ensureDiaryModel(s);
-        if(!s.diary[idx]) s.diary[idx] = { title: "", date: new Date().toLocaleString(), text: "", img: "", stickers: [] };
-        s.diary[idx].title = String($(this).val() || "").slice(0, 80);
-        saveSettings();
-    });
-    $(document).on("input", "#uie-diary-text", function() {
-        const s = getSettings();
-        ensureDiaryModel(s);
-        if(!s.diary[idx]) s.diary[idx] = { title: "", date: new Date().toLocaleString(), text: "", img: "", stickers: [] };
-        s.diary[idx].text = $(this).val();
-        saveSettings();
-    });
+        $win.on("click", "#uie-diary-photo", function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $("#uie-diary-photo-file").trigger("click");
+        });
 
-    $(document).on("click", "#uie-diary-photo", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        $("#uie-diary-photo-file").trigger("click");
-    });
+        $win.on("change", "#uie-diary-photo-file", function() {
+            const file = this.files && this.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const s = getSettings();
+                if(!s.diary[idx]) s.diary[idx] = { date: new Date().toLocaleString() };
+                s.diary[idx].img = String(ev.target.result || "");
+                saveSettings();
+                renderDiary();
+            };
+            reader.readAsDataURL(file);
+            $(this).val("");
+        });
 
-    $(document).on("change", "#uie-diary-photo-file", function() {
-        const file = this.files && this.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(ev) {
+        $win.on("click", "#uie-diary-photo-clear", function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             const s = getSettings();
             if(!s.diary[idx]) s.diary[idx] = { date: new Date().toLocaleString() };
-            s.diary[idx].img = String(ev.target.result || "");
+            s.diary[idx].img = "";
             saveSettings();
             renderDiary();
-        };
-        reader.readAsDataURL(file);
-        $(this).val("");
-    });
+        });
 
-    $(document).on("click", "#uie-diary-photo-clear", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const s = getSettings();
-        if(!s.diary[idx]) s.diary[idx] = { date: new Date().toLocaleString() };
-        s.diary[idx].img = "";
-        saveSettings();
-        renderDiary();
-    });
+        $win.on("click", "#uie-diary-photo-copy", async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const s = getSettings();
+            ensureDiaryModel(s);
+            const img = String(s.diary?.[idx]?.img || "");
+            if (!img) { try { if (window.toastr) window.toastr.info("No image to copy."); } catch (_) {} return; }
+            const blob = dataUrlToBlob(img);
+            if (!blob) { try { if (window.toastr) window.toastr.error("Copy failed."); } catch (_) {} return; }
+            try {
+                if (!navigator.clipboard?.write) throw new Error("no clipboard.write");
+                await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+                try { if (window.toastr) window.toastr.success("Image copied."); } catch (_) {}
+            } catch (_) {
+                try { if (window.toastr) window.toastr.info("Copy not available on this device."); } catch (_) {}
+            }
+        });
 
-    $(document).on("click", "#uie-diary-photo-copy", async function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const s = getSettings();
-        ensureDiaryModel(s);
-        const img = String(s.diary?.[idx]?.img || "");
-        if (!img) { try { if (window.toastr) window.toastr.info("No image to copy."); } catch (_) {} return; }
-        const blob = dataUrlToBlob(img);
-        if (!blob) { try { if (window.toastr) window.toastr.error("Copy failed."); } catch (_) {} return; }
-        try {
-            if (!navigator.clipboard?.write) throw new Error("no clipboard.write");
-            await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-            try { if (window.toastr) window.toastr.success("Image copied."); } catch (_) {}
-        } catch (_) {
-            try { if (window.toastr) window.toastr.info("Copy not available on this device."); } catch (_) {}
-        }
-    });
+        // Paste on window (for images)
+        $win.on("paste", function(e) {
+            try {
+                const items = e?.originalEvent?.clipboardData?.items || e?.clipboardData?.items || [];
+                if (!items || !items.length) return;
+                for (const it of items) {
+                    const type = String(it?.type || "");
+                    if (!type.startsWith("image/")) continue;
+                    const f = it.getAsFile?.();
+                    if (!f) continue;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    applyDiaryImageFromFile(f);
+                    try { if (window.toastr) window.toastr.success("Pasted image."); } catch (_) {}
+                    return;
+                }
+            } catch (_) {}
+        });
 
-    $(document).on("paste", "#uie-diary-window, #uie-diary-text, #uie-diary-title", async function(e) {
-        try {
-            const items = e?.originalEvent?.clipboardData?.items || e?.clipboardData?.items || [];
-            if (!items || !items.length) return;
-            for (const it of items) {
-                const type = String(it?.type || "");
-                if (!type.startsWith("image/")) continue;
-                const f = it.getAsFile?.();
-                if (!f) continue;
-                e.preventDefault();
-                e.stopPropagation();
-                await applyDiaryImageFromFile(f);
-                try { if (window.toastr) window.toastr.success("Pasted image."); } catch (_) {}
+        // DELETE PAGE
+        $win.on("click", "#uie-diary-delete", () => {
+            if (!confirm("Delete this page? This cannot be undone.")) return;
+            const s = getSettings();
+            ensureDiaryModel(s);
+            if (s.diary.length <= 1) {
+                s.diary = [{ title: "", text: "", date: new Date().toLocaleString(), img: "", stickers: [] }];
+                idx = 0;
+                saveSettings();
+                renderDiary();
+                if(window.toastr) toastr.info("Cleared diary (cannot delete last page).");
                 return;
             }
-        } catch (_) {}
-    });
-
-    // DELETE PAGE
-    $(document).on("click", "#uie-diary-delete", () => {
-        if (!confirm("Delete this page? This cannot be undone.")) return;
-        const s = getSettings();
-        ensureDiaryModel(s);
-        if (s.diary.length <= 1) {
-            s.diary = [{ title: "", text: "", date: new Date().toLocaleString(), img: "", stickers: [] }];
-            idx = 0;
+            s.diary.splice(idx, 1);
+            if (idx >= s.diary.length) idx = s.diary.length - 1;
             saveSettings();
             renderDiary();
-            if(window.toastr) toastr.info("Cleared diary (cannot delete last page).");
-            return;
-        }
-        s.diary.splice(idx, 1);
-        if (idx >= s.diary.length) idx = s.diary.length - 1;
-        saveSettings();
-        renderDiary();
-        if(window.toastr) toastr.success("Page Deleted");
-    });
+            if(window.toastr) toastr.success("Page Deleted");
+        });
 
-    // NEW PAGE
-    $(document).on("click", "#uie-diary-new", () => {
-        const s = getSettings();
-        // Registers date and time no matter what it is
-        ensureDiaryModel(s);
-        s.diary.push({title: "", text: "", date: new Date().toLocaleString(), img: "", stickers: []});
-        idx = s.diary.length - 1; // Jump to end
-        saveSettings();
-        renderDiary();
-        // Visual feedback
-        $("#uie-diary-title").focus();
-        if(window.toastr) toastr.success("New Page Created");
-    });
+        // NEW PAGE
+        $win.on("click", "#uie-diary-new", () => {
+            const s = getSettings();
+            // Registers date and time no matter what it is
+            ensureDiaryModel(s);
+            s.diary.push({title: "", text: "", date: new Date().toLocaleString(), img: "", stickers: []});
+            idx = s.diary.length - 1; // Jump to end
+            saveSettings();
+            renderDiary();
+            // Visual feedback
+            $("#uie-diary-title").focus();
+            if(window.toastr) toastr.success("New Page Created");
+        });
 
-    $(document).on("click", "#uie-diary-prev", () => {
-        if (idx > 0) { idx--; renderDiary(); }
-    });
+        $win.on("click", "#uie-diary-prev", () => {
+            if (idx > 0) { idx--; renderDiary(); }
+        });
 
-    $(document).on("click", "#uie-diary-next", () => {
-        const s = getSettings();
-        if (idx < s.diary.length - 1) { idx++; renderDiary(); }
-        else {
-            if(window.toastr) toastr.info("End of Diary. Click 'New Page' to add more.");
-        }
-    });
+        $win.on("click", "#uie-diary-next", () => {
+            const s = getSettings();
+            if (idx < s.diary.length - 1) { idx++; renderDiary(); }
+            else {
+                if(window.toastr) toastr.info("End of Diary. Click 'New Page' to add more.");
+            }
+        });
+    }
 
     renderDiary();
 }

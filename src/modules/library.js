@@ -47,15 +47,26 @@ function renderShelf() {
     if(!s.library) s.library = [DEFAULT_GUIDE];
     const shelf = $("#uie-lib-shelf").empty();
     
+    const tmpl = document.getElementById("uie-template-lib-book");
+    if (!tmpl) return;
+
+    const frag = document.createDocumentFragment();
+
     s.library.forEach(b => {
         let icon = "fa-book";
         if(b.type === "comic" || b.type === "manga") icon = "fa-book-open";
         
-        shelf.append(`
-            <div class="lib-book-item" data-id="${b.id}" style="padding:10px; cursor:pointer; border-bottom:1px solid #d7ccc8; display:flex; align-items:center; gap:10px;">
-                <i class="fa-solid ${icon}" style="color:#5d4037;"></i>
-                <div style="font-weight:bold; font-size:0.9em; color:#3e2723;">${b.title}</div>
-            </div>
-        `);
+        const clone = tmpl.content.cloneNode(true);
+        const item = clone.querySelector(".lib-book-item");
+        if (item) item.setAttribute("data-id", b.id);
+        
+        const iEl = clone.querySelector("i");
+        if (iEl) iEl.classList.add(icon);
+        
+        const titleEl = clone.querySelector(".lib-book-title");
+        if (titleEl) titleEl.textContent = b.title;
+        
+        frag.appendChild(clone);
     });
+    shelf.append(frag);
 }

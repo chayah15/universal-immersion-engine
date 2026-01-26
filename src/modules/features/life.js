@@ -60,11 +60,15 @@ function render() {
   $list.empty();
 
   if (!s.life.trackers.length) {
-    $list.html(`<div style="color:rgba(255,255,255,.65); font-weight:900; padding:10px;">
-      No trackers yet. Tap <b>New</b>.
-    </div>`);
+    const $msg = $("<div>").css({color:"rgba(255,255,255,.65)", fontWeight:900, padding:"10px"});
+    $msg.append(document.createTextNode("No trackers yet. Tap "));
+    $msg.append($("<b>").text("New"));
+    $msg.append(document.createTextNode("."));
+    $list.append($msg);
     return;
   }
+
+  const template = document.getElementById("life-card-template");
 
   for (let i = 0; i < s.life.trackers.length; i++) {
     const t = s.life.trackers[i] || {};
@@ -76,37 +80,33 @@ function render() {
     const barPct = pct(cur, max);
 
     const isSel = deleteMode && selected.has(i);
-    const pick = deleteMode ? `<div class="life-pick ${isSel ? "on" : ""}"><i class="fa-solid fa-check" style="font-size:10px; opacity:${isSel ? "1" : "0"};"></i></div>` : "";
 
-    const card = $(`
-      <div class="life-card ${deleteMode ? "selecting" : ""} ${isSel ? "selected" : ""}" data-idx="${i}">
-        <div class="life-row">
-          <div class="life-name">
-            <div class="life-dot" style="background:${esc(color)};"></div>
-            <div>${esc(name)}</div>
-          </div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <div class="life-meta">${esc(cur)}/${esc(max)}</div>
-            ${pick}
-          </div>
-        </div>
-
-        <div class="life-bar">
-          <div class="life-fill" style="width:${barPct}%; background:${esc(color)};"></div>
-        </div>
-
-        ${notes ? `<div style="margin-top:8px; padding:10px 12px; border-radius:14px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.06); color:rgba(255,255,255,.82); font-size:12px; font-weight:900;">${esc(notes)}</div>` : ""}
-
-        ${deleteMode ? "" : `
-          <div class="life-ctrls">
-            <button class="life-mini" data-act="minus">-</button>
-            <button class="life-mini" data-act="plus">+</button>
-          </div>
-        `}
-      </div>
-    `);
-
-    $list.append(card);
+    const clone = template.content.cloneNode(true);
+    const $card = $(clone).find(".life-card");
+    
+    $card.attr("data-idx", i);
+    if (deleteMode) $card.addClass("selecting");
+    if (isSel) $card.addClass("selected");
+    
+    $card.find(".life-dot").css("background", color);
+    $card.find(".name-text").text(name);
+    $card.find(".life-meta").text(`${cur}/${max}`);
+    $card.find(".life-fill").css({width: `${barPct}%`, background: color});
+    
+    if (notes) {
+      $card.find(".life-notes").text(notes).show();
+    }
+    
+    if (deleteMode) {
+      const $pick = $("<div>").addClass("life-pick");
+      if (isSel) $pick.addClass("on");
+      $("<i>").addClass("fa-solid fa-check").css({fontSize:"10px", opacity: isSel ? "1" : "0"}).appendTo($pick);
+      $card.find(".life-pick-container").append($pick);
+      
+      $card.find(".life-ctrls").remove();
+    }
+    
+    $list.append($card);
   }
 }
 
@@ -196,6 +196,7 @@ function deleteSelected() {
   saveSafe(s);
   toggleDeleteMode(false);
   $(document).trigger("uie:updateVitals");
+  injectRpEvent(`[System: Deleted ${idxs.length} Life Tracker(s).]`);
 }
 
 /* avoid rare save failures */

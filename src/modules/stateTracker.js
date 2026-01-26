@@ -1,12 +1,10 @@
 import { getSettings, commitStateUpdate } from "./core.js";
-import { getContext } from "../../../../../extensions.js";
+import { getContext } from "/scripts/extensions.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { normalizeStatusList, normalizeStatusEffect, statusKey } from "./statusFx.js";
 import { getChatTranscriptText, getRecentChatSnippet } from "./chatLog.js";
 import { safeJsonParseObject } from "./jsonUtil.js";
-
-import { getST } from "./interaction.js";
 
 /**
  * Ensures the state tracking object exists.
@@ -51,6 +49,35 @@ function ensureSocial(s) {
     }
     if (!s.socialMeta || typeof s.socialMeta !== "object") s.socialMeta = { autoScan: false, deletedNames: [] };
     if (!Array.isArray(s.socialMeta.deletedNames)) s.socialMeta.deletedNames = [];
+}
+
+function ensureParty(s) {
+    if (!s.party) s.party = { members: [], sharedItems: [], relationships: {}, partyTactics: {}, formation: { lanes: { front:[], mid:[], back:[] } } };
+    if (!Array.isArray(s.party.members)) s.party.members = [];
+    if (!Array.isArray(s.party.sharedItems)) s.party.sharedItems = [];
+}
+
+function createMember(name) {
+    return {
+        id: Date.now() + Math.random().toString(36).substr(2, 5),
+        identity: { name: name || "Member", class: "Adventurer", species: "Human" },
+        images: { portrait: "" },
+        stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10, per: 10, luk: 10 },
+        vitals: { hp: 100, maxHp: 100, mp: 50, maxMp: 50, ap: 10, maxAp: 10 },
+        progression: { level: 1, xp: 0, skillPoints: 0, perkPoints: 0 },
+        equipment: {},
+        partyRole: "DPS",
+        roles: ["Character"],
+        statusEffects: [],
+        active: true,
+        tactics: { preset: "Balanced", focus: "auto" }
+    };
+}
+
+function ensureEquipArrays(s) {
+    if (!s.inventory) s.inventory = {};
+    if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
+    if (!Array.isArray(s.inventory.equipped)) s.inventory.equipped = [];
 }
 
 function roleToTab(role) {
@@ -126,7 +153,7 @@ export async function scanEverything(opts = {}) {
     const lastMsg = await getRecentChatSnippet(1);
     const currencyGain = lastMsg.match(/(?:found|received|gained|picked up|looted|loot|earned|rewarded|added)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
     const currencyLoss = lastMsg.match(/(?:lost|paid|spent|gave|removed|pay|subtracted)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
-    
+
     let currencyChanged = false;
     if (currencyGain) {
         const amt = parseInt(currencyGain[1]);
@@ -154,7 +181,7 @@ export async function scanEverything(opts = {}) {
 
     // --- PHASE 2: AI SCAN (Everything Else) ---
     // Only proceed if AI features are enabled
-    if (s.enabled === false) return; 
+    if (s.enabled === false) return;
 
     const ctx = getContext ? getContext() : {};
     const userName = String(ctx.name1 || "User").trim();
@@ -202,14 +229,18 @@ Task: Return a SINGLE JSON object with these keys:
 11. "statusEffects": (optional) { "add":[""], "remove":[""] } (NO EMOJIS)
 12. "social": (optional) { "add":[{"name":"","role":"","affinity":50}], "remove":[""] } for ANY character present in the scene.
 13. "battle": (optional) { "active": true|false, "enemies":[{"name":"","hp":null,"status":"","threat":""}], "log":[\"...\"] } when combat happens.
+14. "party": (optional) { "joined": [{"name":"","class":"","role":""}], "left": ["Name"] } for party roster changes.
+15. "equipped": (optional) { "equip": [{"item":"","slot":""}], "unequip": ["slot" or "item"] } if user equips/unequips gear.
 
 Rules:
 - "inventory": CHECK AGGRESSIVELY. If the user picks up, buys, is given, or creates an item, ADD IT. Even if implied.
 - "added": [{ "name": "Item Name", "type": "item|weapon|armor", "qty": 1, "desc": "Description" }]
 - "removed": ["Item Name"]
+- "equipped": Only if explicitly stated (e.g. "User equips the sword"). Slot examples: "head","chest","main","off".
 - "skills.add": Only add if it is NEW (not in Existing Skills).
 - "social": Scan for ANY character names in the chat who are not in 'Existing Social Names'. If a character speaks or is described, ADD THEM.
 - "social.add": [{ "name": "Name", "role": "friend|rival|romance|family", "affinity": 50 }]
+- "party": Only if they explicitly JOIN or LEAVE the player's traveling party.
 - EXCLUDE from social: "${userName}", "System", "Narrator", "Game", "Omniscient", or any metadata card names.
 - "world": Keep values short.
 - If no change, omit the key or leave empty.
@@ -413,7 +444,7 @@ ${chatSnippet}
             // Checking journal.js structure: s.journal is likely Quest Log or Diary?
             // Earlier I saw diary.js using s.diary.
             // journal.js uses s.journal for quests.
-            if (!s.journal) s.journal = { quests: [], active: 0 }; 
+            if (!s.journal) s.journal = { quests: [], active: 0 };
             if (Array.isArray(s.journal)) { // Legacy fix? Or is it s.quests?
                  // Let's assume s.quests for Quests and s.diary for Diary.
                  // Checking journal.js again...
@@ -422,7 +453,7 @@ ${chatSnippet}
                  // Let's use s.quests for Quests.
             }
             if (!s.quests) s.quests = [];
-            
+
             data.quests.forEach(q => {
                 if (!q.title) return;
                 // Check dupes
@@ -460,7 +491,7 @@ ${chatSnippet}
         if (Array.isArray(data.messages)) {
             if (!s.phone) s.phone = { smsThreads: {} };
             if (!s.phone.smsThreads) s.phone.smsThreads = {};
-            
+
             data.messages.forEach(m => {
                 if (!m.from || !m.text) return;
                 const threadId = m.from;
@@ -569,6 +600,101 @@ ${chatSnippet}
             }
         }
 
+        // 9. Party
+        if (data.party && typeof data.party === "object") {
+            ensureParty(s);
+            // Joined
+            if (Array.isArray(data.party.joined)) {
+                for (const p of data.party.joined) {
+                    const nm = String(p?.name || "").trim();
+                    if (!nm) continue;
+                    // Check duplicate
+                    if (s.party.members.some(m => m.identity.name.toLowerCase() === nm.toLowerCase())) continue;
+
+                    const m = createMember(nm);
+                    if (p.class) m.identity.class = String(p.class).trim().slice(0, 40);
+                    if (p.role) m.partyRole = String(p.role).trim().slice(0, 40);
+
+                    // Try to link avatar from social
+                    ensureSocial(s);
+                    const friend = ["friends","romance","family","rivals"].flatMap(k => s.social[k]).find(x => x.name.toLowerCase() === nm.toLowerCase());
+                    if (friend && friend.avatar) m.images.portrait = friend.avatar;
+
+                    s.party.members.push(m);
+                    notify("success", `${nm} joined the party!`, "Party", "party");
+                    needsSave = true;
+                }
+            }
+            // Left
+            if (Array.isArray(data.party.left)) {
+                for (const name of data.party.left) {
+                    const idx = s.party.members.findIndex(m => m.identity.name.toLowerCase() === String(name).toLowerCase());
+                    if (idx !== -1) {
+                        const m = s.party.members[idx];
+                        s.party.members.splice(idx, 1);
+                        notify("info", `${m.identity.name} left the party.`, "Party", "party");
+                        needsSave = true;
+                    }
+                }
+            }
+        }
+
+        // 10. Equipped (User)
+        if (data.equipped && typeof data.equipped === "object") {
+            ensureEquipArrays(s);
+            // Equip
+            if (Array.isArray(data.equipped.equip)) {
+                for (const eq of data.equipped.equip) {
+                    const itemName = String(eq?.item || "").trim();
+                    const slot = String(eq?.slot || "").trim().toLowerCase();
+                    if (!itemName || !slot) continue;
+
+                    // Find item in inventory
+                    const idx = s.inventory.items.findIndex(x => x.name.toLowerCase().includes(itemName.toLowerCase()));
+                    if (idx === -1) continue;
+
+                    const item = s.inventory.items[idx];
+
+                    // Unequip existing slot if any
+                    const existingIdx = s.inventory.equipped.findIndex(x => x.slotId === slot);
+                    if (existingIdx !== -1) {
+                         const old = s.inventory.equipped[existingIdx];
+                         delete old.slotId;
+                         s.inventory.items.push(old);
+                         s.inventory.equipped.splice(existingIdx, 1);
+                    }
+
+                    // Move new item
+                    s.inventory.items.splice(idx, 1);
+                    item.slotId = slot;
+                    s.inventory.equipped.push(item);
+                    notify("success", `Equipped ${item.name}`, "Equipment", "armor");
+                    needsSave = true;
+                }
+            }
+            // Unequip
+            if (Array.isArray(data.equipped.unequip)) {
+                for (const val of data.equipped.unequip) {
+                    const v = String(val || "").trim().toLowerCase();
+                    if (!v) continue;
+
+                    // Try by slot first
+                    let eIdx = s.inventory.equipped.findIndex(x => x.slotId === v);
+                    // Then by name
+                    if (eIdx === -1) eIdx = s.inventory.equipped.findIndex(x => x.name.toLowerCase().includes(v));
+
+                    if (eIdx !== -1) {
+                        const item = s.inventory.equipped[eIdx];
+                        delete item.slotId;
+                        s.inventory.equipped.splice(eIdx, 1);
+                        s.inventory.items.push(item);
+                        notify("info", `Unequipped ${item.name}`, "Equipment", "armor");
+                        needsSave = true;
+                    }
+                }
+            }
+        }
+
         if (needsSave) {
             commitStateUpdate({ save: true, layout: true, emit: true });
         }
@@ -591,4 +717,4 @@ export function getWorldState() {
 }
 
 // Deprecated individual exports if needed for backward compat, but we replace usage.
-export const scanWorldState = scanEverything; 
+export const scanWorldState = scanEverything;

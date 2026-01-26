@@ -189,6 +189,8 @@ function syncToMainChat(actionDescription) {
 }
 
 export function initPhone() {
+    const $win = $("#uie-phone-window");
+    $win.off("click.phone change.phone input.phone keypress.phone");
     $(document).off("click.phone change.phone input.phone keypress.phone");
     
     // BIND OPEN BUTTON (Fix for "Can't Open")
@@ -451,9 +453,7 @@ export function initPhone() {
             #uie-phone-window .phone-app-content { background: ${theme.surface2}; color:${theme.text}; }
             #uie-phone-window .phone-nav-bar { background: ${theme.surface}; border-top: 1px solid rgba(255,255,255,0.10); }
             #uie-phone-window .p-nav-btn { color: rgba(255,255,255,0.88); }
-            #uie-phone-window .p-browser-bar { background: ${theme.surface}; border-bottom: 1px solid rgba(255,255,255,0.10); }
-            #uie-phone-window #p-browser-url { background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.12); color: ${theme.text}; }
-            #uie-phone-window #p-browser-go { color: ${theme.accent}; }
+
             #uie-phone-window #p-browser-content { background: #fff; color:#222; }
             #uie-phone-window .p-input-area{ display:flex; gap:8px; padding:10px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); background:${theme.surface}; border-top:1px solid rgba(255,255,255,0.10); position:sticky; bottom:0; z-index:5; align-items:flex-end; }
             #uie-phone-window #msg-input{ background: rgba(0,0,0,0.18); border:1px solid rgba(255,255,255,0.12); color:${theme.text}; min-height:40px; border-radius:18px; padding:10px 14px; outline:none; pointer-events:auto; line-height:1.35; }
@@ -733,7 +733,7 @@ export function initPhone() {
         }
     };
 
-    $(document).off("click.phoneDialRecentsClear", "#dial-recents-clear").on("click.phoneDialRecentsClear", "#dial-recents-clear", function (e) {
+    $win.off("click.phoneDialRecentsClear", "#dial-recents-clear").on("click.phoneDialRecentsClear", "#dial-recents-clear", function (e) {
         e.preventDefault();
         e.stopPropagation();
         const ok = confirm("Clear call log?");
@@ -745,7 +745,7 @@ export function initPhone() {
         renderDialRecents();
     });
 
-    $(document).off("click.phoneDialRecentCall", "#dial-recents .dial-recent-call").on("click.phoneDialRecentCall", "#dial-recents .dial-recent-call", function (e) {
+    $win.off("click.phoneDialRecentCall", "#dial-recents .dial-recent-call").on("click.phoneDialRecentCall", "#dial-recents .dial-recent-call", function (e) {
         e.preventDefault();
         e.stopPropagation();
         const raw = String($(this).data("number") || "").trim();
@@ -756,7 +756,7 @@ export function initPhone() {
         $("#dial-call").trigger("click");
     });
 
-    $(document).off("click.phoneDialRecentPick", "#dial-recents .dial-recent-row").on("click.phoneDialRecentPick", "#dial-recents .dial-recent-row", function (e) {
+    $win.off("click.phoneDialRecentPick", "#dial-recents .dial-recent-row").on("click.phoneDialRecentPick", "#dial-recents .dial-recent-row", function (e) {
         if ($(e.target).closest(".dial-recent-call").length) return;
         e.preventDefault();
         e.stopPropagation();
@@ -842,8 +842,8 @@ export function initPhone() {
         container.scrollTop(container.prop("scrollHeight"));
     };
     
-    $(document).off("click.phoneMsgSend", "#msg-send-btn");
-    $(document).on("click.phoneMsgSend", "#msg-send-btn", async (e) => {
+    $win.off("click.phoneMsgSend", "#msg-send-btn");
+    $win.on("click.phoneMsgSend", "#msg-send-btn", async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const t = String($("#msg-input").val() || "");
@@ -963,7 +963,7 @@ ${chat}`.slice(0, 6000);
         } catch(e) {}
     });
 
-    $(document)
+    $win
         .off("keydown.phoneMsgEnter", "#msg-input")
         .on("keydown.phoneMsgEnter", "#msg-input", function (e) {
             if (e.key !== "Enter") return;
@@ -974,7 +974,7 @@ ${chat}`.slice(0, 6000);
         });
 
 
-    $(document).off("input.phoneMsgGrow", "#msg-input").on("input.phoneMsgGrow", "#msg-input", function () {
+    $win.off("input.phoneMsgGrow", "#msg-input").on("input.phoneMsgGrow", "#msg-input", function () {
         try {
             this.style.height = "0px";
             const max = 120;
@@ -983,12 +983,12 @@ ${chat}`.slice(0, 6000);
         } catch (_) {}
     });
 
-    $(document).off("click.phoneMsgAttach", "#msg-attach-btn").on("click.phoneMsgAttach", "#msg-attach-btn", function(e){
+    $win.off("click.phoneMsgAttach", "#msg-attach-btn").on("click.phoneMsgAttach", "#msg-attach-btn", function(e){
         e.preventDefault();
         e.stopPropagation();
         $("#msg-attach-file").trigger("click");
     });
-    $(document).off("change.phoneMsgAttach", "#msg-attach-file").on("change.phoneMsgAttach", "#msg-attach-file", async function(e){
+    $win.off("change.phoneMsgAttach", "#msg-attach-file").on("change.phoneMsgAttach", "#msg-attach-file", async function(e){
         const f = (e.target.files || [])[0];
         $(this).val("");
         if (!f) return;
@@ -1096,7 +1096,7 @@ ${chat}`.slice(0, 6000);
         if (root) root.style.display = "none";
     };
 
-    $(document)
+    $win
         .off("click.phoneStickerOpen pointerup.phoneStickerOpen touchend.phoneStickerOpen", "#msg-sticker-btn")
         .on("click.phoneStickerOpen pointerup.phoneStickerOpen touchend.phoneStickerOpen", "#msg-sticker-btn", function(e){
         if (e.type === "pointerup") {
@@ -1107,12 +1107,12 @@ ${chat}`.slice(0, 6000);
         e.stopPropagation();
         openStickerDrawer();
     });
-    $(document).off("click.phoneStickerClose", "#uie-phone-sticker-close").on("click.phoneStickerClose", "#uie-phone-sticker-close", function(e){
+    $("body").off("click.phoneStickerClose", "#uie-phone-sticker-close").on("click.phoneStickerClose", "#uie-phone-sticker-close", function(e){
         e.preventDefault();
         e.stopPropagation();
         closeStickerDrawer();
     });
-    $(document).off("click.phoneStickerTab", ".uie-phone-sticker-tab").on("click.phoneStickerTab", ".uie-phone-sticker-tab", function(e){
+    $("body").off("click.phoneStickerTab", ".uie-phone-sticker-tab").on("click.phoneStickerTab", ".uie-phone-sticker-tab", function(e){
         e.preventDefault();
         e.stopPropagation();
         const pack = String($(this).data("pack") || "");
@@ -1122,7 +1122,7 @@ ${chat}`.slice(0, 6000);
         saveSettings();
         renderStickerDrawer();
     });
-    $(document).off("click.phoneStickerImport", "#uie-phone-sticker-import").on("click.phoneStickerImport", "#uie-phone-sticker-import", function(e){
+    $("body").off("click.phoneStickerImport", "#uie-phone-sticker-import").on("click.phoneStickerImport", "#uie-phone-sticker-import", function(e){
         e.preventDefault();
         e.stopPropagation();
         const name = (prompt("Sticker pack name:", "My Stickers") || "").trim();
@@ -1133,7 +1133,7 @@ ${chat}`.slice(0, 6000);
         const input = root.querySelector("#uie-phone-sticker-files");
         try { input?.click(); } catch (_) {}
     });
-    $(document).off("change.phoneStickerFiles", "#uie-phone-sticker-files").on("change.phoneStickerFiles", "#uie-phone-sticker-files", async function(e){
+    $("body").off("change.phoneStickerFiles", "#uie-phone-sticker-files").on("change.phoneStickerFiles", "#uie-phone-sticker-files", async function(e){
         const root = document.getElementById("uie-phone-sticker-drawer");
         const name = String(root?.getAttribute("data-import-name") || "").trim();
         if (root) root.removeAttribute("data-import-name");
@@ -1161,7 +1161,7 @@ ${chat}`.slice(0, 6000);
         saveSettings();
         renderStickerDrawer();
     });
-    $(document).off("click.phoneStickerPick", ".uie-phone-sticker-tile").on("click.phoneStickerPick", ".uie-phone-sticker-tile", async function(e){
+    $("body").off("click.phoneStickerPick", ".uie-phone-sticker-tile").on("click.phoneStickerPick", ".uie-phone-sticker-tile", async function(e){
         e.preventDefault();
         e.stopPropagation();
         if (!activeContact) return;
@@ -1188,7 +1188,7 @@ ${chat}`.slice(0, 6000);
         } catch (_) {}
     });
 
-    $(document).off("click.phoneMsgThread", "#msg-container .contact-row[data-thread]").on("click.phoneMsgThread", "#msg-container .contact-row[data-thread]", function(e){
+    $win.off("click.phoneMsgThread", "#msg-container .contact-row[data-thread]").on("click.phoneMsgThread", "#msg-container .contact-row[data-thread]", function(e){
         e.preventDefault();
         e.stopPropagation();
         activeContact = String($(this).data("thread") || "");
@@ -1205,9 +1205,9 @@ ${chat}`.slice(0, 6000);
         } catch (_) {}
     };
 
-    $(document).off("click.phoneMsgDel", "#msg-container .msg-del");
+    $win.off("click.phoneMsgDel", "#msg-container .msg-del");
 
-    $(document).off("click.phoneMsgDelThread", "#msg-del-thread").on("click.phoneMsgDelThread", "#msg-del-thread", function(e){
+    $win.off("click.phoneMsgDelThread", "#msg-del-thread").on("click.phoneMsgDelThread", "#msg-del-thread", function(e){
         e.preventDefault();
         e.stopPropagation();
         const s = getSettings();
@@ -1236,7 +1236,7 @@ ${chat}`.slice(0, 6000);
         renderMessages();
     });
 
-    $(document).off("click.phoneSnoop", "#msg-snoop").on("click.phoneSnoop", "#msg-snoop", async function(e){
+    $win.off("click.phoneSnoop", "#msg-snoop").on("click.phoneSnoop", "#msg-snoop", async function(e){
         e.preventDefault();
         e.stopPropagation();
         const snooper = (prompt("Who is going through your phone?") || "").trim();
@@ -1258,7 +1258,7 @@ ${chat}`.slice(0, 6000);
         await injectRpEvent(`${snooper} goes through your phone and reads your messages:\n${lines.join("\n")}`, { uie: { type: "phone_snoop", who: snooper } });
     });
 
-    $(document).off("click.phoneMsgBlock", "#msg-block").on("click.phoneMsgBlock", "#msg-block", function(e){
+    $win.off("click.phoneMsgBlock", "#msg-block").on("click.phoneMsgBlock", "#msg-block", function(e){
         e.preventDefault();
         e.stopPropagation();
         if (!activeContact) return;
@@ -1329,7 +1329,7 @@ ${chat}`.slice(0, 6000);
     };
     try { window.UIE_phone_openThread = openThread; } catch (_) {}
 
-    $(document).off("click.phoneMsgNewNumber", "#msg-new-number").on("click.phoneMsgNewNumber", "#msg-new-number", function(e){
+    $win.off("click.phoneMsgNewNumber", "#msg-new-number").on("click.phoneMsgNewNumber", "#msg-new-number", function(e){
         e.preventDefault();
         e.stopPropagation();
         const raw = (prompt("Text which number?") || "").trim();
@@ -1356,7 +1356,7 @@ ${chat}`.slice(0, 6000);
         openThread(formatted);
     });
 
-    $(document).off("click.phoneContactRow", "#contact-list .contact-row").on("click.phoneContactRow", "#contact-list .contact-row", function (e) {
+    $win.off("click.phoneContactRow", "#contact-list .contact-row").on("click.phoneContactRow", "#contact-list .contact-row", function (e) {
         if ($(e.target).closest(".phone-msg-trigger, .phone-call-trigger").length) return;
         e.preventDefault();
         e.stopPropagation();
@@ -1364,7 +1364,7 @@ ${chat}`.slice(0, 6000);
     });
 
     // TRIGGER MESSAGE FROM CONTACT
-    $(document).on("click.phone", ".phone-msg-trigger", function(e) {
+    $win.on("click.phone", ".phone-msg-trigger", function(e) {
         e.stopPropagation();
         e.preventDefault();
         openThread($(this).data("name"));
@@ -1386,12 +1386,12 @@ ${chat}`.slice(0, 6000);
         saveSettings();
         renderContacts();
     };
-    $(document).on("click.phone", "#contact-add-manual", (e) => { e.preventDefault(); e.stopPropagation(); promptAddContact(); });
-    $(document).on("click.phone", "#contact-add-fab", (e) => { e.preventDefault(); e.stopPropagation(); promptAddContact(); });
+    $win.on("click.phone", "#contact-add-manual", (e) => { e.preventDefault(); e.stopPropagation(); promptAddContact(); });
+    $win.on("click.phone", "#contact-add-fab", (e) => { e.preventDefault(); e.stopPropagation(); promptAddContact(); });
 
     // --- CALL LOGIC ---
-    $(document).off("click.phoneCallTrigger", ".phone-call-trigger");
-    $(document).on("click.phoneCallTrigger", ".phone-call-trigger", function(e) {
+    $win.off("click.phoneCallTrigger", ".phone-call-trigger");
+    $win.on("click.phoneCallTrigger", ".phone-call-trigger", function(e) {
         e.stopPropagation();
         activeContact = $(this).data("name");
         startCall(activeContact, { dir: "out" });
@@ -1576,8 +1576,8 @@ ${chat}`.slice(0, 6000), "System Check");
         } catch (e) { console.warn("[UIE] Incoming text handler failed:", e); }
     };
 
-    $(document).off("click.phoneCallEnd", "#call-end-btn").on("click.phoneCallEnd", "#call-end-btn", endCall);
-    $(document).off("click.phoneCallSpeak", "#call-speak-btn").on("click.phoneCallSpeak", "#call-speak-btn", () => {
+    $win.off("click.phoneCallEnd", "#call-end-btn").on("click.phoneCallEnd", "#call-end-btn", endCall);
+    $win.off("click.phoneCallSpeak", "#call-speak-btn").on("click.phoneCallSpeak", "#call-speak-btn", () => {
         const t = $("#call-input").val().trim();
         if(!t) return;
         $("#call-transcript").append(`<div style="text-align:right;color:white;margin:5px;">${t}</div>`);
@@ -1643,21 +1643,21 @@ ${chat}`.slice(0, 6000), "System Check");
     };
 
     // --- STANDARD BINDINGS ---
-    $(document).on("click.phone", "#app-store", () => openApp("#uie-app-store-view"));
-    $(document).on("click.phone", "#app-settings", () => openApp("#uie-app-settings-view"));
-    $(document).on("click.phone", "#app-contacts", () => openApp("#uie-app-contacts-view"));
-    $(document).on("click.phone", "#dock-btn-phone", () => { openApp("#uie-app-dial-view"); try { $("#dial-display").text(dialBuf || "—"); } catch (_) {} });
-    $(document).on("click.phone", "#app-msg, #dock-btn-msg", () => openApp("#uie-app-msg-view"));
-    $(document).on("click.phone", "#app-browser, #dock-btn-browser", () => openApp("#uie-app-browser-view"));
-    $(document).on("click.phone", "#app-books", () => openApp("#uie-app-books-view"));
-    $(document).on("click.phone", "#app-calc", () => openApp("#uie-app-calc-view"));
-    $(document).on("click.phone", "#app-cookies", () => openApp("#uie-app-cookies-view"));
+    $win.on("click.phone", "#app-store", () => openApp("#uie-app-store-view"));
+    $win.on("click.phone", "#app-settings", () => openApp("#uie-app-settings-view"));
+    $win.on("click.phone", "#app-contacts", () => openApp("#uie-app-contacts-view"));
+    $win.on("click.phone", "#dock-btn-phone", () => { openApp("#uie-app-dial-view"); try { $("#dial-display").text(dialBuf || "—"); } catch (_) {} });
+    $win.on("click.phone", "#app-msg, #dock-btn-msg", () => openApp("#uie-app-msg-view"));
+    $win.on("click.phone", "#app-browser, #dock-btn-browser", () => openApp("#uie-app-browser-view"));
+    $win.on("click.phone", "#app-books", () => openApp("#uie-app-books-view"));
+    $win.on("click.phone", "#app-calc", () => openApp("#uie-app-calc-view"));
+    $win.on("click.phone", "#app-cookies", () => openApp("#uie-app-cookies-view"));
     
     const setDialDisplay = () => {
         try { $("#dial-display").text(dialBuf ? dialBuf : "—"); } catch (_) {}
     };
 
-    $(document).off("click.phoneDialBtn", "#uie-app-dial-view .dial-btn").on("click.phoneDialBtn", "#uie-app-dial-view .dial-btn", function(e){
+    $win.off("click.phoneDialBtn", "#uie-app-dial-view .dial-btn").on("click.phoneDialBtn", "#uie-app-dial-view .dial-btn", function(e){
         e.preventDefault();
         e.stopPropagation();
         const d = String($(this).data("digit") || "");
@@ -1666,13 +1666,13 @@ ${chat}`.slice(0, 6000), "System Check");
         dialBuf += d;
         setDialDisplay();
     });
-    $(document).off("click.phoneDialDel", "#dial-backspace").on("click.phoneDialDel", "#dial-backspace", function(e){
+    $win.off("click.phoneDialDel", "#dial-backspace").on("click.phoneDialDel", "#dial-backspace", function(e){
         e.preventDefault();
         e.stopPropagation();
         dialBuf = dialBuf.slice(0, -1);
         setDialDisplay();
     });
-    $(document).off("click.phoneDialCall", "#dial-call").on("click.phoneDialCall", "#dial-call", function(e){
+    $win.off("click.phoneDialCall", "#dial-call").on("click.phoneDialCall", "#dial-call", function(e){
         e.preventDefault();
         e.stopPropagation();
         const s = getSettings();
@@ -1688,7 +1688,7 @@ ${chat}`.slice(0, 6000), "System Check");
         setDialDisplay();
         startCall(target, { dir: "out", number: formatNumber(digits) });
     });
-    $(document).off("click.phoneDialSave", "#dial-save").on("click.phoneDialSave", "#dial-save", function(e){
+    $win.off("click.phoneDialSave", "#dial-save").on("click.phoneDialSave", "#dial-save", function(e){
         e.preventDefault();
         e.stopPropagation();
         const digits = normalizeNumber(dialBuf);
@@ -1715,7 +1715,7 @@ ${chat}`.slice(0, 6000), "System Check");
         goHome();
     };
 
-    $(document)
+    $win
         .off("click.phoneBack pointerup.phoneBack", "#uie-phone-window .phone-back-btn, #uie-phone-window #p-browser-home")
         .on("click.phoneBack pointerup.phoneBack", "#uie-phone-window .phone-back-btn, #uie-phone-window #p-browser-home", function(e){
             if (e.type === "pointerup" && e.pointerType !== "touch") return;
@@ -1723,16 +1723,16 @@ ${chat}`.slice(0, 6000), "System Check");
             e.stopPropagation();
             smartBack(this);
         });
-    $(document).on("click.phone", "#uie-phone-close", () => $("#uie-phone-window").hide());
+    $win.on("click.phone", "#uie-phone-close", () => $("#uie-phone-window").hide());
 
-    $(document).on("click.phone", "#uie-phone-lock-btn", () => {
+    $win.on("click.phone", "#uie-phone-lock-btn", () => {
         $(".phone-app-window").hide();
         $("#uie-phone-homescreen").hide();
         $("#uie-phone-lockscreen").css("display", "flex");
         $("#uie-phone-pin").val("");
     });
 
-    $(document).on("click.phone", "#uie-phone-unlock-btn", (e) => {
+    $win.on("click.phone", "#uie-phone-unlock-btn", (e) => {
         e.preventDefault();
         const s = getSettings();
         const storedPin = s.phone ? s.phone.pin : "";
@@ -1788,7 +1788,7 @@ ${chat}`.slice(0, 6000), "System Check");
         } catch (_) {}
     };
 
-    $(document).on("click.phone", ".calc-btn", function(e) {
+    $win.on("click.phone", ".calc-btn", function(e) {
         e.preventDefault(); e.stopPropagation();
         const act = $(this).data("act");
         const val = $(this).data("val");
@@ -1839,8 +1839,8 @@ ${chat}`.slice(0, 6000), "System Check");
         browserRender(t);
     };
 
-    $(document).off("click.phone", "#p-browser-go");
-    $(document).on("click.phone", "#p-browser-refresh", async () => {
+    $win.off("click.phone", "#p-browser-go");
+    $win.on("click.phone", "#p-browser-refresh", async () => {
         const t = String($("#p-browser-url").val() || "").trim();
         if(!t) return;
         const s0 = getSettings();
@@ -1855,7 +1855,7 @@ ${chat}`.slice(0, 6000), "System Check");
         browserRender(t);
     });
 
-    $(document).on("click.phone", "#p-browser-go", async () => {
+    $win.on("click.phone", "#p-browser-go", async () => {
         const t = String($("#p-browser-url").val() || "").trim();
         if (!t) return;
         const s = getSettings();
@@ -1865,7 +1865,7 @@ ${chat}`.slice(0, 6000), "System Check");
         }
         await browserNavigate(t);
     });
-    $(document).on("click.phone", "#p-browser-back", () => {
+    $win.on("click.phone", "#p-browser-back", () => {
         const s = getSettings();
         if(!s?.phone?.browser) return;
         const b = s.phone.browser;
@@ -1874,7 +1874,7 @@ ${chat}`.slice(0, 6000), "System Check");
         saveSettings();
         browserRender(b.history[b.index]);
     });
-    $(document).on("click.phone", "#p-browser-fwd", () => {
+    $win.on("click.phone", "#p-browser-fwd", () => {
         const s = getSettings();
         if(!s?.phone?.browser) return;
         const b = s.phone.browser;
@@ -1884,21 +1884,15 @@ ${chat}`.slice(0, 6000), "System Check");
         browserRender(b.history[b.index]);
     });
 
-    $(document).on("keydown.phone", "#p-browser-url", (e) => {
+    $win.on("keydown.phone", "#p-browser-url", (e) => {
         if (e.key === "Enter") {
             e.preventDefault();
             $("#p-browser-go").click();
         }
     });
-    $(document).on("input.phone", "#p-browser-url", function () {
-        try {
-            this.style.height = "auto";
-            const h = Math.min(70, Math.max(34, this.scrollHeight || 34));
-            this.style.height = `${h}px`;
-        } catch (_) {}
-    });
 
-    $(document)
+
+    $win
         .off("click.phoneWeb pointerup.phoneWeb", "#p-browser-content a")
         .on("click.phoneWeb pointerup.phoneWeb", "#p-browser-content a", function(e){
             if (e.type === "pointerup" && e.pointerType !== "touch") return;
@@ -1984,7 +1978,7 @@ ${chat}`.slice(0, 6000), "System Check");
         $c.html(`<div style="background:#fff; color:#222;">${items}</div>`);
     }
 
-    $(document).on("click.phone", "#p-browser-save", function(e){
+    $win.on("click.phone", "#p-browser-save", function(e){
         e.preventDefault(); e.stopPropagation();
         const key = String($("#p-browser-url").val() || "").trim();
         if (!key) return;
@@ -1999,7 +1993,7 @@ ${chat}`.slice(0, 6000), "System Check");
         notify("success", "Saved.", "Phone", "phoneMessages");
     });
 
-    $(document).on("click.phone", "#p-browser-content .p-bookmark", function(e){
+    $win.on("click.phone", "#p-browser-content .p-bookmark", function(e){
         e.preventDefault(); e.stopPropagation();
         const url = String($(this).data("url") || "").trim();
         if (!url) return;
@@ -2039,7 +2033,7 @@ ${chat}`.slice(0, 6000), "System Check");
         return false;
     }
 
-    $(document).on("click.phone", "#p-save-btn", () => {
+    $win.on("click.phone", "#p-save-btn", () => {
         const s = getSettings();
         if(!s.phone) s.phone = {};
         s.phone.pin = $("#p-set-pin").val();
@@ -2055,7 +2049,7 @@ ${chat}`.slice(0, 6000), "System Check");
         goHome();
     });
 
-    $(document).on("change.phone", "#p-set-bg-file", function(e){
+    $win.on("change.phone", "#p-set-bg-file", function(e){
         const f = e.target.files[0];
         if(f){
             const r = new FileReader();
@@ -2071,7 +2065,7 @@ ${chat}`.slice(0, 6000), "System Check");
     });
 
     // Browser Interactions
-    $(document).on("click.phone", ".browser-app-mode #p-browser-content *", async function(e) {
+    $win.on("click.phone", ".browser-app-mode #p-browser-content *", async function(e) {
         const target = $(this);
         if(!target.is("button, a, div[onclick], li, span.clickable, div.card, .btn")) return;
         if (target.is("a")) {
@@ -2395,14 +2389,14 @@ Requirements:
         });
     };
 
-    $(document).on("click.phone", ".btn-delete-app", function() {
+    $win.on("click.phone", ".btn-delete-app", function() {
         const id = $(this).data("id"); if(confirm("Delete app?")) {
             const s = getSettings(); s.phone.customApps = s.phone.customApps.filter(a => a.id != id);
             saveSettings(); loadPhoneVisuals(); renderAppStore();
         }
     });
     
-    $(document).on("click.phone", ".custom-app-icon", function(e) {
+    $win.on("click.phone", ".custom-app-icon", function(e) {
         if($(e.target).hasClass("custom-app-delete")) return;
         const id = $(this).data("id");
         const app = getSettings().phone.customApps.find(a => a.id == id);
@@ -2419,7 +2413,7 @@ Requirements:
     startArrivalWatcher();
 
     // Settings: Wallpaper / Lockscreen local pickers
-    $(document).off("change.phoneBg", "#p-set-bg-file").on("change.phoneBg", "#p-set-bg-file", function() {
+    $win.off("change.phoneBg", "#p-set-bg-file").on("change.phoneBg", "#p-set-bg-file", function() {
         const f = this.files && this.files[0];
         if(!f) return;
         const r = new FileReader();
@@ -2434,7 +2428,7 @@ Requirements:
         r.readAsDataURL(f);
     });
 
-    $(document).off("change.phoneLock", "#p-set-lock-file").on("change.phoneLock", "#p-set-lock-file", function() {
+    $win.off("change.phoneLock", "#p-set-lock-file").on("change.phoneLock", "#p-set-lock-file", function() {
         const f = this.files && this.files[0];
         if(!f) return;
         const r = new FileReader();
@@ -2479,6 +2473,7 @@ function renderBooks() {
     const s = getSettings();
     if(!s.phone) s.phone = {};
     if(!Array.isArray(s.phone.books)) s.phone.books = [];
+    const $win = $("#uie-phone-window");
 
     $("#books-view-guide").show();
     $("#books-view-library").hide();
@@ -2499,14 +2494,14 @@ function renderBooks() {
         });
     }
 
-    $(document).off("click.phoneBooksTabs");
-    $(document).on("click.phoneBooksTabs", "#books-tab-guide", () => {
+    $win.off("click.phoneBooksTabs");
+    $win.on("click.phoneBooksTabs", "#books-tab-guide", () => {
         $("#books-view-guide").show();
         $("#books-view-library").hide();
         $("#books-tab-guide").addClass("active");
         $("#books-tab-library").removeClass("active");
     });
-    $(document).on("click.phoneBooksTabs", "#books-tab-library", () => {
+    $win.on("click.phoneBooksTabs", "#books-tab-library", () => {
         $("#books-view-guide").hide();
         $("#books-view-library").show();
         $("#books-tab-guide").removeClass("active");
@@ -2535,18 +2530,18 @@ function renderBooks() {
         $("#books-tab-library").addClass("active");
     };
 
-    $(document).off("click.phoneBooksGen").on("click.phoneBooksGen", "#books-go", async (e) => {
+    $win.off("click.phoneBooksGen").on("click.phoneBooksGen", "#books-go", async (e) => {
         e.preventDefault(); e.stopPropagation();
         await doGen();
     });
 
-    $(document).off("keydown.phoneBooksPrompt").on("keydown.phoneBooksPrompt", "#books-prompt", async (e) => {
+    $win.off("keydown.phoneBooksPrompt").on("keydown.phoneBooksPrompt", "#books-prompt", async (e) => {
         if (e.key !== "Enter") return;
         e.preventDefault(); e.stopPropagation();
         await doGen();
     });
 
-    $(document).off("click.phoneBooksOpen").on("click.phoneBooksOpen", "#books-list .book-row", function() {
+    $win.off("click.phoneBooksOpen").on("click.phoneBooksOpen", "#books-list .book-row", function() {
         const id = Number($(this).data("id"));
         const s2 = getSettings();
         const b = (s2.phone.books || []).find(x => Number(x.id) === id);
@@ -2555,7 +2550,13 @@ function renderBooks() {
         $("#books-reader").show();
     });
 
-    $(document).off("click.phoneBooksClose").on("click.phoneBooksClose", "#books-reader-close", () => {
+    $win.off("click.phoneBooksClose").on("click.phoneBooksClose", "#books-reader-close", () => {
         $("#books-reader").hide();
     });
 }
+
+const togglePhone = () => {
+    $("#uie-phone-window").fadeToggle(200);
+};
+
+export { togglePhone };

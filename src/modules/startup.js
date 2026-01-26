@@ -1,5 +1,7 @@
-import { getSettings } from "./core.js";
+import { getSettings, updateLayout } from "./core.js";
 import { fetchTemplateHtml } from "./templateFetch.js";
+import { initTurboUi } from "./apiClient.js";
+import { initImageUi } from "./imageGen.js";
 
 const baseUrl = (() => {
     try {
@@ -21,33 +23,36 @@ export async function loadTemplates() {
                     const st = document.createElement("style");
                     st.id = "uie-launcher-fallback-style";
                     st.textContent = `
-#uie-launcher{position:fixed;right:18px;bottom:18px;width:54px;height:54px;z-index:2147483645;border-radius:18px;border:1px solid rgba(241,196,15,0.35);background:rgba(0,0,0,0.65);cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,0.45)}
-#uie-launcher .uie-launcher-fallback{display:block}
+#uie-launcher{position:fixed;right:18px;bottom:18px;width:54px;height:54px;z-index:2147483645;cursor:pointer;background:transparent;}
+#uie-launcher .uie-launcher-fallback{display:block; filter: drop-shadow(0 0 4px rgba(0,0,0,0.8));}
 `;
                     document.head.appendChild(st);
                 } catch (_) {}
             }, 550);
         } catch (_) {}
-        // SVG Icon fallback in case image fails
+        // SVG Icon fallback
         const launcherHtml = `
             <div id="uie-launcher" title="Open Menu">
-                <svg viewBox="0 0 24 24" style="width:100%;height:100%;fill:none;stroke:#cba35c;stroke-width:2;display:none;" class="uie-launcher-fallback">
+                <svg viewBox="0 0 24 24" style="width:100%;height:100%;fill:none;stroke:#cba35c;stroke-width:2;" class="uie-launcher-fallback">
                     <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
                 </svg>
             </div>`;
         $("body").append(launcherHtml);
-        
-        // Show SVG if background image fails to load (handled via CSS or error event usually, 
-        // but here we just leave it hidden unless we need it. 
+        try { updateLayout(); } catch(_) {}
+
+        // Show SVG if background image fails to load (handled via CSS or error event usually,
+        // but here we just leave it hidden unless we need it.
         // Actually, let's just rely on the CSS background image, but ensure the DIV is there.)
     }
 
-    const required = ["menu", "inventory"];
+    const required = ["menu", "inventory", "world"];
+    const ts = Date.now();
     for (const f of required) {
         if ($(`#uie-${f === "menu" ? "main-menu" : `${f}-window`}`).length) continue;
         const urls = [
-            `${baseUrl}src/templates/${f}.html`,
-            `/scripts/extensions/third-party/universal-immersion-engine/src/templates/${f}.html`
+            `${baseUrl}src/templates/${f}.html?v=${ts}`,
+            `${baseUrl}templates/${f}.html?v=${ts}`,
+            `/scripts/extensions/third-party/universal-immersion-engine/src/templates/${f}.html?v=${ts}`
         ];
         let html = "";
         for (const url of urls) {
@@ -64,12 +69,20 @@ export async function loadTemplates() {
         $("body").append(html);
     }
 
-    const optional = ['phone', 'calendar', 'debug', 'journal', 'social', 'diary', 'settings_window', 'shop', 'world', 'map', 'party', 'databank', 'battle', 'chatbox', 'launcher_options', 'sprites', 'activities', 'stats'];
+    const optional = ['phone', 'calendar', 'debug', 'journal', 'social', 'diary', 'settings_window', 'shop', 'map', 'party', 'databank', 'battle', 'chatbox', 'launcher_options', 'sprites', 'activities', 'stats'];
     Promise.allSettled(
         optional.map(async (f) => {
-            const url = `${baseUrl}src/templates/${f}.html`;
+            const url = `${baseUrl}src/templates/${f}.html?v=${ts}`;
             const html = await fetchTemplateHtml(url);
-            $("body").append(html);
+            
+            // SPECIAL HANDLING: Chatbox needs to go into #reality-stage if possible, others to body
+            if (f === "chatbox") {
+                 const stage = document.getElementById("reality-stage");
+                 if (stage) $(stage).append(html);
+                 else $("body").append(html);
+            } else {
+                 $("body").append(html);
+            }
             return { f, url };
         })
     ).then((results) => {
@@ -116,10 +129,31 @@ export function injectSettingsUI() {
             try {
                 const html = await fetchTemplateHtml(`${baseUrl}src/templates/settings.html`);
                 target.append($(html).attr("id", "uie-settings-block"));
+                initTurboUi();
+                initImageUi();
             } catch(e) {}
         } else {
             setTimeout(inject, 2000);
         }
     };
     inject();
+
+    // Add Drawer Listener - DISABLED (Conflicts with core SillyTavern drawer listener)
+    /*
+    $(document).on("click", ".inline-drawer-toggle", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const root = $(this).closest(".inline-drawer");
+        const content = root.find(".inline-drawer-content");
+        const icon = root.find(".inline-drawer-icon");
+
+        if (content.is(":visible")) {
+            content.slideUp(200);
+            icon.css("transform", "rotate(-90deg)");
+        } else {
+            content.slideDown(200);
+            icon.css("transform", "rotate(0deg)");
+        }
+    });
+    */
 }

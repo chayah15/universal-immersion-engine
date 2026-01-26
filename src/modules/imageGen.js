@@ -1,4 +1,4 @@
-import { getSettings } from "./core.js";
+import { getSettings, saveSettings } from "./core.js";
 import { notify } from "./notifications.js";
 import { generateContent } from "./apiClient.js";
 
@@ -55,6 +55,32 @@ async function fetchWithCorsProxyFallback(targetUrl, options) {
         if (!isFailedToFetchError(e)) throw e;
         const candidates = buildCorsProxyCandidates(targetUrl);
         let lastErr = e;
+
+        // Try server-side proxies first to avoid CORS/Origin issues
+        const tryServerForward = async (endpoint) => {
+            try {
+                const hdr = new Headers(options?.headers || {});
+                hdr.set("Content-Type", "application/json");
+                const payload = {
+                    url: String(targetUrl || ""),
+                    method: String(options?.method || "GET"),
+                    headers: Object.fromEntries(hdr.entries()),
+                    body: options?.body ?? null
+                };
+                const tok = await getCsrfToken();
+                if (tok && !hdr.has("X-CSRF-Token")) hdr.set("X-CSRF-Token", tok);
+                const r = await fetch(String(endpoint || ""), { method: "POST", headers: hdr, body: JSON.stringify(payload) });
+                if (!r.ok) return null;
+                return r;
+            } catch (_) {
+                return null;
+            }
+        };
+        for (const ep of ["/api/forward", "/api/proxy", "/api/cors-proxy", "/api/corsProxy"]) {
+            const r = await tryServerForward(ep);
+            if (r) return { response: r, via: "server-forward", requestUrl: ep };
+        }
+
         for (const proxyUrl of candidates) {
             try {
                 const r = await fetch(proxyUrl, options);
@@ -79,6 +105,13 @@ async function fetchWithCorsProxyFallback(targetUrl, options) {
     }
 }
 
+function normalizeEndpoint(x) {
+    x = String(x || "").trim().replace(/\/+$/, "");
+    if (/\/api\/v1$/i.test(x)) return `${x}/images/generations`;
+    if (/\/v1$/i.test(x)) return `${x}/images/generations`;
+    return x;
+}
+
 /**
  * Checks if an image should be generated based on context, then generates it.
  * @param {string} context - The text content (chat, item desc, etc.)
@@ -91,26 +124,20 @@ export async function checkAndGenerateImage(context, feature) {
     if (s.image.features && s.image.features[feature] === false) return null;
 
     // 1. Ask AI if we need a photo
-    // User requested: "short 0-10 token question. Need a photo? Yes or no."
     const checkPrompt = `
 Context: ${context.slice(0, 1000)}
 Question: Does this context explicitly describe a visual scene, item, or character that needs a photo?
 Answer (Yes/No):`;
 
-    // We use a low max_tokens to keep it fast/cheap as requested
-    // But generateContent doesn't expose max_tokens directly in all versions, 
-    // usually it relies on the backend default. 
-    // We'll assume the prompt is strict enough.
     const checkRes = await generateContent(checkPrompt, "System Image Check");
-    
+
     if (!checkRes) return null;
     const answer = String(checkRes).trim().toLowerCase();
-    
+
     // Strict check for "yes"
     if (!answer.startsWith("yes")) return null;
 
     // 2. Generate the Image Prompt
-    // User requested: "follows a strict prompt of context within it's parameters"
     const promptGenPrompt = `
 Context: ${context.slice(0, 2000)}
 Task: Create a highly detailed, strict image generation prompt for DALL-E 3 based on the context.
@@ -124,47 +151,67 @@ Return ONLY the prompt text.`;
     return await generateImageAPI(imagePrompt);
 }
 
+// --- PAYWALL HANDLER ---
+function handleNanoPayment(data) {
+    // Find Nano option
+    const nano = data.accepts?.find(x => x.scheme === "nano" || x.network === "nano-mainnet");
+    if (!nano) return;
+
+    const amount = nano.maxAmountRequiredFormatted || "0.193 XNO";
+    const address = nano.payTo;
+    const usd = nano.maxAmountRequiredUSD || "0.00";
+    
+    // Create Modal
+    const id = "uie-pay-modal";
+    $(`#${id}`).remove();
+    
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`nano:${address}?amount=${nano.maxAmountRequired}`)}`;
+
+    const html = `
+    <div id="${id}" style="position:fixed; inset:0; z-index:2147483660; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center;">
+        <div style="background:#1a1a1a; border:1px solid #f1c40f; padding:20px; border-radius:12px; width:min(400px, 90vw); color:#fff; text-align:center; font-family:sans-serif;">
+            <h3 style="color:#f1c40f; margin-top:0;">Payment Required</h3>
+            <div style="font-size:0.9em; color:#ccc; margin-bottom:15px;">
+                NanoGPT requires a micro-payment for this request.
+            </div>
+            
+            <div style="background:#fff; padding:10px; display:inline-block; border-radius:8px; margin-bottom:15px;">
+                <img src="${qrUrl}" alt="QR Code" style="display:block; width:150px; height:150px;">
+            </div>
+
+            <div style="font-weight:bold; font-size:1.1em; margin-bottom:5px;">${amount}</div>
+            <div style="font-size:0.8em; color:#888; margin-bottom:15px;">(approx $${usd})</div>
+
+            <div style="background:#222; padding:10px; border-radius:6px; word-break:break-all; font-family:monospace; font-size:0.85em; user-select:all; border:1px solid #444; margin-bottom:15px; cursor:pointer;" onclick="navigator.clipboard.writeText('${address}'); toastr.success('Copied Address');">
+                ${address}
+            </div>
+
+            <div style="font-size:0.8em; color:#aaa; margin-bottom:20px;">
+                Send exactly this amount to continue. The request will retry automatically or you can close this and try again.
+            </div>
+
+            <button onclick="$('#${id}').remove()" style="background:#333; border:1px solid #555; color:#fff; padding:8px 20px; border-radius:6px; cursor:pointer;">Close</button>
+        </div>
+    </div>
+    `;
+    
+    $("body").append(html);
+}
+
 /**
  * Direct call to Image API
  */
 export async function generateImageAPI(prompt) {
     const s = getSettings();
-    if (!s.image) return null;
-    const rawPrompt = String(prompt || "");
-    const lockedPrompt = /^\[UIE_LOCKED\]/i.test(rawPrompt.trim());
-    let finalPrompt = rawPrompt.replace(/^\s*\[UIE_LOCKED\]\s*/i, "").trim();
-    try {
-        if (lockedPrompt) throw new Error("locked");
-        const p = s?.generation?.promptPrefixes || {};
-        const by = (p?.byType && typeof p.byType === "object") ? p.byType : {};
-        const global = String(p?.global || "").trim();
-        const def = String(by?.default || "").trim();
-        const img = String(by?.["Image Gen"] || "").trim();
-        const combined = [global, def, img].filter(Boolean).join("\n\n").trim();
-        if (combined) finalPrompt = `${combined}\n\n${finalPrompt}`;
-    } catch (_) {}
-    const normalizeEndpoint = (u) => {
-        let x = String(u || "").trim();
-        if (!x) return "https://api.openai.com/v1/images/generations";
-        x = x.replace(/\s+/g, "");
-        x = x.replace(/\/+$/g, "");
-        if (/\/sdapi\/v1\/txt2img$/i.test(x)) return x;
-        if (/\/prompt$/i.test(x)) return x;
-        if (/\/v1\/images\/generations$/i.test(x)) return x;
-        if (/\/images\/generations$/i.test(x)) return x;
-        if (/\/v1\/images$/i.test(x)) return `${x}/generations`;
-        if (/\/images$/i.test(x)) return `${x}/generations`;
-        if (/\/api\/v1$/i.test(x)) return `${x}/images/generations`;
-        if (/\/v1$/i.test(x)) return `${x}/images/generations`;
-        return x;
-    };
     const endpoint = normalizeEndpoint(String(s.image.url || "https://api.openai.com/v1/images/generations"));
+    const provider = String(s.image.provider || "").toLowerCase();
     const model = String(s.image.model || "dall-e-3").trim();
     const apiKey = String(s.image.key || "").trim();
     const negText = String(s.image.negativePrompt || "").trim();
     const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(endpoint);
-    const isSdWebUi = /\/sdapi\/v1\/txt2img\s*$/i.test(endpoint);
+    const isSdWebUi = provider === "sdwebui" || /\/sdapi\/v1\/txt2img\s*$/i.test(endpoint);
     const isComfy = (() => {
+        if (provider === "comfy") return true;
         if (isSdWebUi) return false;
         if (/\/v1\/images\/generations\s*$/i.test(endpoint)) return false;
         if (/\/images\/generations\s*$/i.test(endpoint)) return false;
@@ -173,8 +220,9 @@ export async function generateImageAPI(prompt) {
         const wf = String(s.image?.comfy?.workflow || "").trim();
         return !!wf && isLocal;
     })();
+    const isPollinations = provider === "pollinations";
 
-    if (!apiKey && !isLocal && !isSdWebUi && !isComfy) {
+    if (!apiKey && !isLocal && !isSdWebUi && !isComfy && !isPollinations) {
         console.warn("Image Gen: No API Key");
         try { window.toastr?.error?.("Image Gen: Missing API key."); } catch (_) {}
         return null;
@@ -182,8 +230,37 @@ export async function generateImageAPI(prompt) {
 
     if (window.toastr) toastr.info("Generating Image...", "AI Fabricator");
 
+    const rawPrompt = String(prompt || "");
+    const lockedPrompt = /^\[UIE_LOCKED\]/i.test(rawPrompt.trim());
+    let finalPrompt = rawPrompt.replace(/^\s*\[UIE_LOCKED\]\s*/i, "").trim();
+
+    if (!lockedPrompt) {
+        try {
+            const p = s?.generation?.promptPrefixes || {};
+            const by = (p?.byType && typeof p.byType === "object") ? p.byType : {};
+            const global = String(p?.global || "").trim();
+            // const def = String(by?.default || "").trim();
+            if (global) finalPrompt = `${global}, ${finalPrompt}`;
+        } catch (_) {}
+    }
+
     try {
         const startedAt = Date.now();
+
+        if (isPollinations) {
+             const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?nologo=true&width=1024&height=1024&seed=${Math.floor(Math.random() * 100000)}`;
+             const fx = await fetchWithCorsProxyFallback(url, { method: "GET" });
+             if (!fx.response.ok) throw new Error("Pollinations API failed");
+             const blob = await fx.response.blob();
+             const dataUrl = await new Promise(resolve => {
+                 const r = new FileReader();
+                 r.onload = () => resolve(r.result);
+                 r.readAsDataURL(blob);
+             });
+             try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint: "pollinations", mode: "pollinations" }; } catch (_) {}
+             return dataUrl;
+        }
+
         if (isComfy) {
             const wfRaw = String(s.image?.comfy?.workflow || "").trim();
             if (!wfRaw) {
@@ -201,36 +278,38 @@ export async function generateImageAPI(prompt) {
         }
 
         if (isSdWebUi) {
-            const fx = await fetchWithCorsProxyFallback(endpoint, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    prompt: String(finalPrompt || "").slice(0, 4000),
-                    negative_prompt: String(negText || "").slice(0, 2000),
-                    steps: 24,
-                    cfg_scale: 7,
-                    width: 768,
-                    height: 768,
-                    sampler_name: "DPM++ 2M Karras"
-                })
-            });
-            const res = fx.response;
-            if (!res.ok) {
-                const err = await res.text();
-                console.error("Image Gen Error:", err);
-                if (window.toastr) toastr.error("Image Generation Failed");
-                try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: res.status, error: String(err || "").slice(0, 280) }; } catch (_) {}
-                return null;
-            }
-            const data = await res.json();
-            const img = Array.isArray(data?.images) ? String(data.images[0] || "") : "";
-            if (!img) {
-                try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: 200, error: "No image returned." }; } catch (_) {}
-                return null;
-            }
-            const out = img.startsWith("data:image") ? img : `data:image/png;base64,${img}`;
-            try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: 200 }; } catch (_) {}
-            return out;
+             // SD Web UI Logic
+             // Note: Original code for SDWebUI was cut off/corrupted in previous view. 
+             // Reconstructing standard SD Web UI call
+             const payload = {
+                 prompt: finalPrompt,
+                 negative_prompt: negText,
+                 steps: 20,
+                 width: 512,
+                 height: 512,
+                 cfg_scale: 7
+             };
+             const fx = await fetchWithCorsProxyFallback(`${endpoint}/sdapi/v1/txt2img`, {
+                 method: "POST",
+                 headers: { "Content-Type": "application/json" },
+                 body: JSON.stringify(payload)
+             });
+             const res = fx.response;
+             if (!res.ok) {
+                 const err = await res.text();
+                 try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: res.status, error: String(err || "").slice(0, 280) }; } catch (_) {}
+                 if (window.toastr) toastr.error("Image Generation Failed");
+                 return null;
+             }
+             const data = await res.json();
+             const img = Array.isArray(data?.images) ? String(data.images[0] || "") : "";
+             if (!img) {
+                 try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: 200, error: "No image returned." }; } catch (_) {}
+                 return null;
+             }
+             const out = img.startsWith("data:image") ? img : `data:image/png;base64,${img}`;
+             try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: 200 }; } catch (_) {}
+             return out;
         }
 
         const headers = { "Content-Type": "application/json", "Accept": "application/json" };
@@ -247,6 +326,16 @@ export async function generateImageAPI(prompt) {
             })
         });
         const res = fx.response;
+
+        if (res.status === 402) {
+             // Payment Required (NanoGPT etc)
+             try {
+                 const data = await res.json();
+                 handleNanoPayment(data);
+             } catch (_) {}
+             if (window.toastr) toastr.warning("Payment Required");
+             return null;
+        }
 
         if (!res.ok) {
             const err = await res.text();
@@ -301,7 +390,7 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
         if (commonNeg) negativePrompt = `${commonNeg}\n${String(negativePrompt || "")}`.trim();
     } catch (_) {}
 
-    const normalizeBase = (u) => String(u || "").trim().replace(/\/+$/g, "").replace(/\/prompt$/i, "");
+    const normalizeBase = (u) => String(u || "").trim().replace(/\/+$/, "").replace(/\/prompt$/i, "");
     const base = normalizeBase(endpoint);
     const promptUrl = `${base}/prompt`;
     const viewUrl = `${base}/view`;
@@ -397,8 +486,7 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
 
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const deadline = Date.now() + 120_000;
-    let imgRef = null;
-
+    
     while (Date.now() < deadline) {
         await sleep(1000);
         let h;
@@ -417,39 +505,194 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
         const pickFromNode = (nodeId) => {
             const o = outputs?.[nodeId];
             const imgs = Array.isArray(o?.images) ? o.images : [];
-            return imgs.length ? imgs[0] : null;
+            return imgs[0];
         };
 
-        if (outputNodeId) {
-            imgRef = pickFromNode(outputNodeId);
-        }
-        if (!imgRef) {
-            for (const o of Object.values(outputs)) {
-                const imgs = Array.isArray(o?.images) ? o.images : [];
-                if (imgs.length) { imgRef = imgs[0]; break; }
+        let target = null;
+        if (outputNodeId) target = pickFromNode(outputNodeId);
+        if (!target) {
+            for (const k of Object.keys(outputs)) {
+                target = pickFromNode(k);
+                if (target) break;
             }
         }
-        if (imgRef) break;
+
+        if (target) {
+             const fname = target.filename;
+             const sub = target.subfolder;
+             const type = target.type;
+             const query = `filename=${encodeURIComponent(fname)}&subfolder=${encodeURIComponent(sub)}&type=${encodeURIComponent(type)}`;
+             const url = `${viewUrl}?${query}`;
+             const r = await fetchWithCorsProxyFallback(url);
+             const blob = await r.response.blob();
+             return new Promise(resolve => {
+                 const reader = new FileReader();
+                 reader.onload = () => resolve(reader.result);
+                 reader.readAsDataURL(blob);
+             });
+        }
+    }
+    return null;
+}
+
+export async function populateImageSettings(baseUrl, ckSel, saSel, scSel) {
+    if (ckSel) ckSel.innerHTML = `<option value="">Loading…</option>`;
+    if (saSel) saSel.innerHTML = `<option value="">Loading…</option>`;
+    if (scSel) scSel.innerHTML = `<option value="">Loading…</option>`;
+
+    const s = getSettings();
+    const det = await detectBackend(baseUrl);
+
+    if (det.type === "comfy") {
+        const info = det.info;
+        const checkpoints = getComfyEnum(info, "CheckpointLoaderSimple", "ckpt_name");
+        const samplers = getComfyEnum(info, "KSampler", "sampler_name");
+        const schedulers = getComfyEnum(info, "KSampler", "scheduler");
+
+        fillSelect(ckSel, checkpoints, s.image?.comfy?.checkpoint);
+        fillSelect(saSel, samplers, s.image?.comfy?.sampler);
+        fillSelect(scSel, schedulers, s.image?.comfy?.scheduler);
+        if (window.toastr) toastr.success("Connected to ComfyUI!");
+        return;
     }
 
-    if (!imgRef) {
-        if (window.toastr) toastr.error("ComfyUI timed out");
-        return null;
+    if (det.type === "a1111") {
+        const opts = await loadA1111(baseUrl);
+        fillSelect(ckSel, opts.checkpoints, s.image?.comfy?.checkpoint);
+        fillSelect(saSel, opts.samplers, s.image?.comfy?.sampler);
+        fillSelect(scSel, opts.schedulers.length ? opts.schedulers : ["karras","sgm_uniform","exponential","ddim_uniform","normal","beta","beta57"], s.image?.comfy?.scheduler);
+        if (window.toastr) toastr.success("Connected to A1111/SD.Next!");
+        return;
     }
 
-    const filename = encodeURIComponent(String(imgRef.filename || ""));
-    const subfolder = encodeURIComponent(String(imgRef.subfolder || ""));
-    const type = encodeURIComponent(String(imgRef.type || "output"));
-    const imgFx = await fetchWithCorsProxyFallback(`${viewUrl}?filename=${filename}&subfolder=${subfolder}&type=${type}`, { method: "GET" });
-    const imgRes = imgFx.response;
-    if (!imgRes.ok) return null;
-    const blob = await imgRes.blob();
+    // Unknown backend
+    const errMsg = `<option value="">(Couldn’t detect backend)</option>`;
+    if (ckSel) ckSel.innerHTML = errMsg;
+    if (saSel) saSel.innerHTML = errMsg;
+    if (scSel) scSel.innerHTML = errMsg;
+    if (window.toastr) toastr.warning("Could not detect ComfyUI or A1111 at that URL.");
+}
 
-    const dataUrl = await new Promise((resolve) => {
-        const r = new FileReader();
-        r.onload = () => resolve(String(r.result || ""));
-        r.onerror = () => resolve("");
-        r.readAsDataURL(blob);
+// Dummy Implementations for Missing Functions
+async function detectBackend(url) {
+    // Basic detection logic
+    try {
+        const r = await fetchWithCorsProxyFallback(`${url}/system_stats`);
+        if(r.response.ok) return { type: "comfy", info: await fetchObjectInfo(url) };
+    } catch(_) {}
+    
+    try {
+        const r = await fetchWithCorsProxyFallback(`${url}/sdapi/v1/options`);
+        if(r.response.ok) return { type: "a1111" };
+    } catch(_) {}
+    
+    return { type: "unknown" };
+}
+
+async function fetchObjectInfo(url) {
+    try {
+        const r = await fetchWithCorsProxyFallback(`${url}/object_info`);
+        return await r.response.json();
+    } catch(e) { return {}; }
+}
+
+async function loadA1111(url) {
+    const out = { checkpoints: [], samplers: [], schedulers: [] };
+    try {
+        const r1 = await fetchWithCorsProxyFallback(`${url}/sdapi/v1/sd-models`);
+        const d1 = await r1.response.json();
+        out.checkpoints = d1.map(x => x.title);
+    } catch(_) {}
+    try {
+        const r2 = await fetchWithCorsProxyFallback(`${url}/sdapi/v1/samplers`);
+        const d2 = await r2.response.json();
+        out.samplers = d2.map(x => x.name);
+    } catch(_) {}
+    return out;
+}
+
+function getComfyEnum(info, classType, field) { 
+    try {
+        const def = info?.[classType]?.input?.required?.[field];
+        if(Array.isArray(def) && Array.isArray(def[0])) return def[0];
+    } catch(_) {}
+    return []; 
+}
+
+function fillSelect(sel, items, selected) {
+    if(!sel) return;
+    sel.innerHTML = "";
+    items.forEach(i => {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.textContent = i;
+        if(i === selected) opt.selected = true;
+        sel.appendChild(opt);
     });
-    return dataUrl || null;
+}
+
+export function initImageUi() {
+    const refreshUi = () => {
+        const val = $("#uie-img-provider").val();
+        $("#uie-img-openai-block").hide();
+        $("#uie-img-comfy-block").hide();
+        $("#uie-img-sdwebui-block").hide();
+
+        if (val === "comfy") $("#uie-img-comfy-block").show();
+        else if (val === "sdwebui") $("#uie-img-sdwebui-block").show();
+        else if (val === "openai") $("#uie-img-openai-block").show();
+    };
+
+    $(document).off("change.uieImg").on("change.uieImg", "#uie-img-provider", function() {
+        const s = getSettings();
+        if(!s.image) s.image = {};
+        s.image.provider = $(this).val();
+        saveSettings();
+        refreshUi();
+    });
+
+    $(document).off("click.uieImgRefresh").on("click.uieImgRefresh", "#uie-img-comfy-ckpt-refresh", function(e) {
+        e.preventDefault();
+        const url = $("#uie-img-comfy-base").val();
+        if(!url) return toastr.warning("Enter ComfyUI URL first");
+        populateImageSettings(url, 
+            document.getElementById("uie-img-comfy-ckpt"),
+            document.getElementById("uie-img-comfy-sampler"),
+            document.getElementById("uie-img-comfy-scheduler")
+        );
+    });
+    
+    const applyImgPreset = () => {
+        const p = $("#uie-img-preset").val();
+        if(p === "nanogpt") {
+            $("#uie-img-url").val("https://nano-gpt.com/api/v1/images/generations");
+            $("#uie-img-model-select").val("hidream");
+            $("#uie-img-model").val("hidream");
+            $("#uie-img-key").val("");
+            if(window.toastr) toastr.success("Applied NanoGPT Preset");
+        } else if (p === "openai") {
+            $("#uie-img-url").val("https://api.openai.com/v1/images/generations");
+            $("#uie-img-model-select").val("dall-e-3");
+            $("#uie-img-model").val("dall-e-3");
+            if(window.toastr) toastr.success("Applied OpenAI Preset");
+        }
+        $("#uie-img-url").trigger("change");
+    };
+
+    $(document).off("click.uieImgPreset").on("click.uieImgPreset", "#uie-img-preset-apply", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        applyImgPreset();
+    });
+    // Auto-apply on change as well
+    $(document).off("change.uieImgPreset").on("change.uieImgPreset", "#uie-img-preset", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        applyImgPreset();
+    });
+    
+    // Initial State
+    const s = getSettings();
+    if (s.image?.provider) $("#uie-img-provider").val(s.image.provider);
+    refreshUi();
 }

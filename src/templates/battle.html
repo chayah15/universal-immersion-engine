@@ -14,7 +14,7 @@
     }
   }
 </style>
-<div id="uie-battle-window" class="uie-window" style="display:none; width:min(780px, 92vw); height:min(760px, 92vh); background:rgba(0,0,0,0.18); backdrop-filter: blur(8px); border:1px solid rgba(203,163,92,0.45);">
+<div id="uie-battle-window" class="uie-window" style="display:none; width:min(780px, 92vw); height:min(760px, 92vh); background:#0b0f15; border:1px solid rgba(203,163,92,0.45);">
   <div class="uie-header" style="border-bottom:1px solid rgba(203,163,92,0.35); background:linear-gradient(90deg,#1b202b,#0e121a);">
     <div class="uie-info">
       <h2 style="margin:0; font-family:serif; color:#cba35c; letter-spacing:1px;">War Room</h2>
@@ -54,3 +54,22 @@
     </div>
   </div>
 </div>
+
+<template id="uie-battle-enemy-row">
+    <div style="padding:10px 12px; border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); margin-bottom:8px;">
+        <div style="display:flex; gap:10px; align-items:center;">
+            <div style="font-weight:900; color:#fff; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                <span class="en-name"></span> <span class="en-boss" style="color:#f38ba8; display:none;">(BOSS)</span>
+            </div>
+            <div class="en-hp-text" style="opacity:0.75; font-size:12px; font-weight:900;"></div>
+        </div>
+        <div style="height:10px; border-radius:999px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); overflow:hidden; margin-top:8px;">
+            <div class="en-bar-fill" style="height:100%; width:0%; background:linear-gradient(90deg,#e74c3c,#f1c40f);"></div>
+        </div>
+        <div class="en-fx" style="margin-top:8px; opacity:0.85; font-size:12px;"></div>
+    </div>
+</template>
+
+<template id="uie-battle-turn-row">
+    <div class="turn-text" style="padding:8px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); font-weight:900; color:#fff;"></div>
+</template>

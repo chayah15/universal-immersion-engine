@@ -40,7 +40,13 @@ jQuery(async () => {
             if (typeof fn === "function") await fn();
             return true;
         } catch (e) {
-            console.error(`[UIE] Module failed: ${path}${initFn ? ` (${initFn})` : ""}`, e);
+            const errorMsg = e?.message || e?.toString() || String(e) || "Unknown error";
+            const errorStack = e?.stack || "";
+            console.error(`[UIE] Module failed: ${path}${initFn ? ` (${initFn})` : ""}`, {
+                message: errorMsg,
+                stack: errorStack,
+                error: e
+            });
             try { window.toastr?.error?.(`UIE module failed: ${path.split("/").pop()}`); } catch (_) {}
             if (required) throw e;
             return false;
@@ -59,7 +65,7 @@ jQuery(async () => {
         const sleep = (ms) => new Promise(r => setTimeout(r, Math.max(0, ms | 0)));
         const ensureSanitized = async () => {
             let lastErr = null;
-            for (let i = 0; i < 80; i++) {
+            for (let i = 0; i < 150; i++) {
                 try {
                     Core.sanitizeSettings();
                     return true;
@@ -71,10 +77,10 @@ jQuery(async () => {
                         msg.toLowerCase().includes("extension_settings") ||
                         msg.toLowerCase().includes("cannot read properties of undefined");
                     if (!looksLikeSettingsNotReady) throw e;
-                    await sleep(75);
+                    await sleep(100);
                 }
             }
-            throw lastErr || new Error("sanitizeSettings failed");
+            throw lastErr || new Error("sanitizeSettings failed (timeout waiting for extension_settings)");
         };
         await ensureSanitized();
         try { (await import("./src/modules/stateSubscriptions.js")).initStateSubscriptions?.(); } catch (_) {}
@@ -101,7 +107,9 @@ jQuery(async () => {
         // These modules should self-initialize their event listeners
         await safeImport("./src/modules/dragging.js", "initDragging", true);
         await safeImport("./src/modules/interaction.js", "initInteractions", true);
+        await safeImport("./src/modules/prompt_injection.js", "initPromptInjection", false);
         await safeImport("./src/modules/inventory.js", "initInventory", true);
+        await safeImport("./src/modules/features/activities.js", "initActivities", false);
         await safeImport("./src/modules/diary.js", "initDiary", false);
         await safeImport("./src/modules/diagnostics.js", "initDiagnostics", false);
         await safeImport("./src/modules/calendar.js", "initCalendar", false);
@@ -110,9 +118,11 @@ jQuery(async () => {
         await safeImport("./src/modules/map.js", "initMap", false);
         await safeImport("./src/modules/party.js", "initParty", false);
         await safeImport("./src/modules/social.js", "initSocial", false);
-        await safeImport("./src/modules/world.js", "initWorld", false);
+        // Force reload world.js to apply UI fixes
+        await safeImport(`./src/modules/world.js?v=${Date.now()}`, "initWorld", false);
         await safeImport("./src/modules/chatbox.js", "initChatbox", false);
         await safeImport("./src/modules/sprites.js", "initSprites", false);
+        await safeImport("./src/modules/features/stats.js", "initStats", false);
         
         // Phone placeholder
         await safeImport("./src/modules/phone.js", "initPhone", false);

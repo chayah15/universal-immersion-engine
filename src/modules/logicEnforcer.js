@@ -1,5 +1,5 @@
 import { getSettings, saveSettings } from "./core.js";
-import { getContext } from "../../../../../extensions.js";
+import { getContext } from "/scripts/extensions.js";
 
 const PENDING_KEY = "__uiePendingSystemEvents";
 

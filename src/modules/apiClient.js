@@ -1,6 +1,6 @@
-import { generateRaw } from "../../../../../../script.js";
-import { getSettings } from "./core.js";
-import { getContext } from "../../../../../extensions.js";
+import { generateRaw } from "/script.js";
+import { getSettings, saveSettings } from "./core.js";
+import { getContext } from "/scripts/extensions.js";
 import { buildSystemPrompt, consumePendingSystemEvents, validateResponse } from "./logicEnforcer.js";
 import { notify } from "./notifications.js";
 import { getChatTranscriptText } from "./chatLog.js";
@@ -352,7 +352,7 @@ function socialContextCheck() {
     }
 }
 
-async function rootProtocolBlock(seedText) {
+export async function rootProtocolBlock(seedText) {
     const chat = await chatLogCheck();
     const lore = loreCheck();
     const worldInfo = worldInfoDetailsCheck();
@@ -376,6 +376,7 @@ async function rootProtocolBlock(seedText) {
 /// EXECUTION MANDATE ///
 Before generating output, the AI MUST execute the following Reality Check sequence.
 Failure to connect these data points is a system failure.
+[SYSTEM: Do not hallucinate system hardware/interfaces (e.g., turnstiles, screens) unless explicitly part of the setting. Describe inventory naturally.]
 
 1) CHAT LOG SYNC (MANDATORY)
 Scan the last 20 messages.
@@ -755,7 +756,7 @@ async function fetchWithCorsProxyFallback(targetUrl, options) {
 async function generateTurbo(prompt, systemPrompt) {
     const s = getSettings();
     const t = s.turbo || {};
-    
+
     const rawUrl = String(t.url || "").trim();
     const rawKey = String(t.key || "").trim();
     if (!rawUrl) return null;
@@ -769,7 +770,7 @@ async function generateTurbo(prompt, systemPrompt) {
     }
 
     try {
-        const headers = { 
+        const headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
             "HTTP-Referer": "https://github.com/SillyTavern/SillyTavern",
@@ -861,9 +862,9 @@ async function generateTurbo(prompt, systemPrompt) {
         } catch (_) {}
         return null;
 
-    } catch (e) { 
+    } catch (e) {
         try { console.warn("[UIE] Turbo request failed:", e); } catch (_) {}
-        return null; 
+        return null;
     }
 }
 
@@ -921,6 +922,7 @@ export async function listTurboModels() {
     const isOpenRouter = host.includes("openrouter.ai") || /openrouter\.ai/i.test(origin);
     const isNanoGpt = host.includes("nano-gpt.com") || host.includes("nanogpt") || /nano-?gpt/i.test(origin);
     const isNvidia = host.includes("nvidia.com") || /nvidia\.com/i.test(origin);
+    const isPollinations = host.includes("pollinations.ai") || /pollinations\.ai/i.test(origin);
     if (isOpenRouter) {
         delete headers["x-api-key"];
         delete headers["api-key"];
@@ -934,6 +936,9 @@ export async function listTurboModels() {
         add(`https://openrouter.ai/api/v1/models`, urls);
         add(`/api/openrouter/v1/models`, urls);
         add(`/api/openrouter/models`, urls);
+    } else if (isPollinations) {
+        add(`${origin}/models`, urls);
+        add(`https://text.pollinations.ai/models`, urls);
     } else if (isNanoGpt) {
         add(`${origin}/api/v1/models`, urls);
         add(`${origin}/api/v1/models?detailed=true`, urls);
@@ -1060,7 +1065,7 @@ export async function generateContent(prompt, type) {
 
     let system = "";
     if(type === "Webpage") system = "You are a UI Engine. Output ONLY raw valid HTML for an immersive/interactive UI. No markdown, no code fences. Avoid <script> unless absolutely necessary. Prefer CSS-only interaction.";
-    if(type === "Phone Call") system = "You are speaking on a phone call. Output ONLY the words spoken (dialogue only). No narration, no actions, no stage directions, no quotes, no markdown, one short line.";
+    if(type === "Phone Call") system = "You are speaking on a phone call. Output ONLY the words spoken (dialogue only). No narration, no actions, no stage directions, no quotes, no markdown, no brackets. one short line.";
     system = [customSystem, logicSystem, system].filter(Boolean).join("\n\n");
     if (type === "System Check" || type === "Unified State Scan" || type === "Shop" || type === "Journal Quests") {
         const strict = [
@@ -1184,9 +1189,32 @@ export async function generateContent(prompt, type) {
         const allowCtx = !lockedPrompt && !wantsJson && type !== "Shop";
         const ctxBlock = allowCtx ? (() => {
             try {
+                // Try to get chat from SillyTavern context first
+                const stCtx = getContext?.() || {};
+                const chat = Array.isArray(stCtx.chat) ? stCtx.chat : [];
+
+                if (chat.length > 0) {
+                    // Get last 8 messages to be safe
+                    const recent = chat.slice(-8);
+                    let ctx = "";
+                    for (const m of recent) {
+                        const isUser = m.is_user || m.role === "user";
+                        const name = String(m.name || (isUser ? "You" : "Story"));
+                        const text = String(m.mes || m.message || "").trim();
+                        // Handle hidden messages if they have a specific flag, but usually they are just messages
+                        // The user said "hidden from user but not the ai".
+                        // In ST, hidden messages might be "system" role or just not rendered?
+                        // We include everything here.
+                        if (!text) continue;
+                        ctx += `${name}: ${text}\n`;
+                    }
+                    return ctx.trim() ? `[CHAT CONTEXT (Last Messages)]\n${ctx.trim()}` : "";
+                }
+
+                // Fallback to DOM
                 const chatEl = document.querySelector("#chat");
                 if (!chatEl) return "";
-                const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-18);
+                const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-8);
                 let ctx = "";
                 for (const m of msgs) {
                     const isUser =
@@ -1274,4 +1302,99 @@ function uieTurboEnabled() {
   } catch (_) {
     return false;
   }
+}
+
+export function initTurboUi() {
+    // Presets Logic
+    const applyPreset = function(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        const val = $("#uie-turbo-preset").val();
+        const s = getSettings();
+        if (!s.turbo) s.turbo = {};
+
+        if (val === "openrouter") {
+            $("#uie-turbo-url").val("https://openrouter.ai/api/v1");
+            s.turbo.url = "https://openrouter.ai/api/v1";
+            notify("success", "Applied OpenRouter preset. Please enter your API Key.", "Turbo API");
+        } else if (val === "nanogpt") {
+            $("#uie-turbo-url").val("https://nano-gpt.com/api/v1");
+            s.turbo.url = "https://nano-gpt.com/api/v1";
+            notify("success", "Applied NanoGPT preset. Please enter your API Key.", "Turbo API");
+        } else if (val === "pollinations") {
+            $("#uie-turbo-url").val("https://text.pollinations.ai/");
+            s.turbo.url = "https://text.pollinations.ai/";
+            // Pollinations doesn't strictly need a key but might for higher limits
+            notify("success", "Applied Pollinations preset.", "Turbo API");
+        } else if (val === "kobold") {
+            $("#uie-turbo-url").val("http://127.0.0.1:5001/api/v1");
+            s.turbo.url = "http://127.0.0.1:5001/api/v1";
+            notify("success", "Applied KoboldAI preset.", "Turbo API");
+        } else if (val === "llamacpp") {
+            $("#uie-turbo-url").val("http://127.0.0.1:8080/v1");
+            s.turbo.url = "http://127.0.0.1:8080/v1";
+            notify("success", "Applied Llama.cpp preset.", "Turbo API");
+        } else if (val === "lmstudio") {
+            $("#uie-turbo-url").val("http://127.0.0.1:1234/v1");
+            s.turbo.url = "http://127.0.0.1:1234/v1";
+            notify("success", "Applied LM Studio preset.", "Turbo API");
+        } else if (val === "ollama") {
+            $("#uie-turbo-url").val("http://127.0.0.1:11434/v1");
+            s.turbo.url = "http://127.0.0.1:11434/v1";
+            notify("success", "Applied Ollama preset.", "Turbo API");
+        } else if (val === "openai") {
+            $("#uie-turbo-url").val("https://api.openai.com/v1");
+            s.turbo.url = "https://api.openai.com/v1";
+            notify("success", "Applied OpenAI preset.", "Turbo API");
+        }
+
+        saveSettings();
+    };
+
+    $(document).off("click.uieTurbo change.uieTurbo")
+        .on("click.uieTurbo", "#uie-turbo-preset-apply", applyPreset)
+        .on("change.uieTurbo", "#uie-turbo-preset", applyPreset);
+
+    // Refresh Models Logic
+    $(document).off("click.uieTurboRef").on("click.uieTurboRef", "#uie-turbo-model-refresh", async function(e) {
+        e.preventDefault();
+        const btn = $(this);
+        btn.addClass("fa-spin");
+        
+        // Save current settings first to ensure listTurboModels uses them
+        const s = getSettings();
+        if (!s.turbo) s.turbo = {};
+        s.turbo.url = String($("#uie-turbo-url").val() || "").trim();
+        s.turbo.key = String($("#uie-turbo-key").val() || "").trim();
+        saveSettings();
+
+        try {
+            const res = await listTurboModels();
+            if (res.ok && res.models) {
+                const sel = $("#uie-turbo-model");
+                const current = sel.val() || s.turbo.model;
+                sel.empty();
+                
+                // Add current if not in list (preserve selection)
+                let found = false;
+                res.models.forEach(m => {
+                    sel.append(`<option value="${m.id}">${m.label}</option>`);
+                    if (m.id === current) found = true;
+                });
+
+                if (current && !found) {
+                    sel.prepend(`<option value="${current}">${current} (Saved)</option>`);
+                }
+                
+                if (current) sel.val(current);
+                notify("success", `Loaded ${res.models.length} models.`, "Turbo API");
+            } else {
+                notify("warning", `Failed to load models: ${res.error || "Unknown error"}`, "Turbo API");
+            }
+        } catch (err) {
+            console.error(err);
+            notify("error", "Error refreshing models.", "Turbo API");
+        } finally {
+            btn.removeClass("fa-spin");
+        }
+    });
 }

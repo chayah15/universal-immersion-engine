@@ -1,7 +1,11 @@
 import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
-import { getContext } from "../../../../../extensions.js";
+import { getContext } from "/scripts/extensions.js";
 import { generateImageAPI } from "./imageGen.js";
+import { MapRenderer } from "./maps/map_render.js";
+import { WorldBuilder } from "./maps/world_builder.js";
+import { MapEditor } from "./maps/map_editor.js";
+import { Atlas } from "./maps/atlas.js";
 
 let viewDraft = { tx: 0, ty: 0, scale: 1 };
 let isGenerating = false;
@@ -171,102 +175,175 @@ function getBiomeTheme(prompt, r) {
     return { bg1, bg2, land1, land2, accent };
 }
 
-function buildProceduralMapHTML({ scope, prompt, seed, names, grid }) {
-    const sz = pickSize(scope);
-    const r = mulberry32(hash32(`${seed}|${scope}|${prompt}`));
+function buildProceduralMapDOM({ scope, prompt, seed, names, grid }) {
+    const tmplRoot = document.getElementById("uie-template-map-procedural-root");
+    if (!tmplRoot) return document.createDocumentFragment();
 
+    const rootClone = tmplRoot.content.cloneNode(true);
+    const rootEl = rootClone.getElementById("uie-map-root");
+
+    const sz = pickSize(scope);
+    rootEl.style.width = `${sz.w}px`;
+    rootEl.style.height = `${sz.h}px`;
+
+    const r = mulberry32(hash32(`${seed}|${scope}|${prompt}`));
     const { bg1, bg2, land1, land2, accent } = getBiomeTheme(prompt, r);
+
+    rootEl.style.background = `radial-gradient(circle at 20% 20%, ${bg1}, ${bg2})`;
 
     const regions = (names?.regions && Array.isArray(names.regions) ? names.regions : []).slice(0, 4);
     const locs = (names?.locations && Array.isArray(names.locations) ? names.locations : []).slice(0, 6);
     while (regions.length < 3) regions.push(["Ashlands", "Glass Coast", "Ivory Ridge", "Old Ruins"][regions.length] || "Region");
     while (locs.length < 5) locs.push(["Outpost", "Haven", "Gate", "Sanctum", "Market"][locs.length] || "Location");
 
-    const blobs = [];
-    for (let i = 0; i < 10; i++) {
-        const x = Math.floor(r() * sz.w);
-        const y = Math.floor(r() * sz.h);
-        const w = Math.floor(sz.w * (0.18 + r() * 0.22));
-        const h = Math.floor(sz.h * (0.14 + r() * 0.20));
-        const rot = Math.floor(-25 + r() * 50);
-        const op = (0.12 + r() * 0.16).toFixed(3);
-        const c = i % 2 === 0 ? land1 : land2;
-        blobs.push(`<div style="position:absolute; left:${x - w / 2}px; top:${y - h / 2}px; width:${w}px; height:${h}px; background:radial-gradient(circle at 30% 30%, ${c}, transparent 70%); opacity:${op}; transform:rotate(${rot}deg); border-radius:${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}% / ${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}%;"></div>`);
-        
-        // Terrain Scatter (Tiny details)
-        if (i < 6) {
-            const scatterCount = Math.floor(3 + r() * 5);
-            for (let k = 0; k < scatterCount; k++) {
-                const sx = x + (r() - 0.5) * w * 0.6;
-                const sy = y + (r() - 0.5) * h * 0.6;
-                const type = r() > 0.5 ? "▴" : "•"; // Mountains or trees
-                const size = Math.floor(10 + r() * 8);
-                const color = type === "▴" ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
-                blobs.push(`<div style="position:absolute; left:${sx}px; top:${sy}px; font-size:${size}px; color:${color}; pointer-events:none; transform:rotate(${Math.floor(r() * 20 - 10)}deg);">${type}</div>`);
+    // Blobs & Scatter
+    const blobsContainer = rootClone.querySelector(".uie-map-blobs-container");
+    const tmplBlob = document.getElementById("uie-template-map-blob");
+    const tmplScatter = document.getElementById("uie-template-map-scatter");
+
+    if (blobsContainer) {
+        for (let i = 0; i < 10; i++) {
+            const x = Math.floor(r() * sz.w);
+            const y = Math.floor(r() * sz.h);
+            const w = Math.floor(sz.w * (0.18 + r() * 0.22));
+            const h = Math.floor(sz.h * (0.14 + r() * 0.20));
+            const rot = Math.floor(-25 + r() * 50);
+            const op = (0.12 + r() * 0.16).toFixed(3);
+            const c = i % 2 === 0 ? land1 : land2;
+
+            if (tmplBlob) {
+                const b = tmplBlob.content.cloneNode(true).querySelector("div");
+                b.style.left = `${x - w / 2}px`;
+                b.style.top = `${y - h / 2}px`;
+                b.style.width = `${w}px`;
+                b.style.height = `${h}px`;
+                b.style.opacity = op;
+                b.style.transform = `rotate(${rot}deg)`;
+                b.style.borderRadius = `${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}% / ${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}% ${Math.floor(40 + r() * 60)}%`;
+                b.style.setProperty("--blob-color", c);
+                blobsContainer.appendChild(b);
+            }
+
+            // Terrain Scatter (Tiny details)
+            if (i < 6 && tmplScatter) {
+                const scatterCount = Math.floor(3 + r() * 5);
+                for (let k = 0; k < scatterCount; k++) {
+                    const sx = x + (r() - 0.5) * w * 0.6;
+                    const sy = y + (r() - 0.5) * h * 0.6;
+                    const type = r() > 0.5 ? "▴" : "•"; // Mountains or trees
+                    const size = Math.floor(10 + r() * 8);
+                    const color = type === "▴" ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
+
+                    const s = tmplScatter.content.cloneNode(true).querySelector("div");
+                    s.textContent = type;
+                    s.style.left = `${sx}px`;
+                    s.style.top = `${sy}px`;
+                    s.style.fontSize = `${size}px`;
+                    s.style.color = color;
+                    s.style.transform = `rotate(${Math.floor(r() * 20 - 10)}deg)`;
+                    blobsContainer.appendChild(s);
+                }
             }
         }
     }
 
-    const locationEls = [];
     const placed = [];
-    for (let i = 0; i < 5; i++) {
-        let x = r();
-        let y = r();
-        x = clamp(x, 0.08, 0.92);
-        y = clamp(y, 0.10, 0.90);
-        for (let tries = 0; tries < 20; tries++) {
-            let ok = true;
-            for (const p of placed) {
-                const dx = x - p.x;
-                const dy = y - p.y;
-                if (Math.sqrt(dx * dx + dy * dy) < 0.15) { ok = false; break; }
-            }
-            if (ok) break;
-            x = clamp(r(), 0.08, 0.92);
-            y = clamp(r(), 0.10, 0.90);
-        }
-        placed.push({ x, y });
-        
-        const locData = locs[i] || {};
-        const name = String(locData.name || locData || `Location ${i + 1}`).slice(0, 40);
-        const desc = String(locData.desc || "A mysterious place.").slice(0, 300);
-        const type = String(locData.type || "Landmark").slice(0, 40);
-        
-        const iconType = type.toLowerCase().includes("fort") || type.toLowerCase().includes("castle") ? "fa-fort-awesome" :
-                         type.toLowerCase().includes("dungeon") || type.toLowerCase().includes("cave") ? "fa-dungeon" :
-                         type.toLowerCase().includes("forest") || type.toLowerCase().includes("grove") ? "fa-tree" :
-                         type.toLowerCase().includes("city") || type.toLowerCase().includes("town") ? "fa-city" :
-                         type.toLowerCase().includes("ruin") ? "fa-scroll" : "fa-location-dot";
+    const locContainer = rootClone.querySelector(".uie-map-locations-container");
+    const tmplPoi = document.getElementById("uie-template-map-poi");
 
-        locationEls.push(`
-            <div class="uie-map-poi" data-name="${esc(name)}" data-desc="${esc(desc)}" data-type="${esc(type)}" title="${esc(name)}" style="position:absolute; left:${Math.round(x * 100)}%; top:${Math.round(y * 100)}%; transform:translate(-50%,-50%); z-index:10; cursor:pointer;">
-                <div style="width:28px; height:28px; border-radius:50%; background:#2c3e50; border:2px solid ${accent}; box-shadow:0 4px 8px rgba(0,0,0,0.6); display:grid; place-items:center; color:${accent}; font-size:14px; pointer-events:none;">
-                    <i class="fa-solid ${iconType}"></i>
-                </div>
-                <div style="position:absolute; top:32px; left:50%; transform:translateX(-50%); white-space:nowrap; padding:4px 10px; border-radius:6px; background:rgba(10,10,15,0.85); border:1px solid rgba(225,193,122,0.3); color:#fff; font-size:12px; font-weight:900; text-shadow:0 2px 4px rgba(0,0,0,0.9); box-shadow:0 4px 12px rgba(0,0,0,0.5); pointer-events:none;">${esc(name)}</div>
-            </div>
-        `);
+    if (locContainer && tmplPoi) {
+        for (let i = 0; i < 5; i++) {
+            let x = r();
+            let y = r();
+            x = clamp(x, 0.08, 0.92);
+            y = clamp(y, 0.10, 0.90);
+            for (let tries = 0; tries < 20; tries++) {
+                let ok = true;
+                for (const p of placed) {
+                    const dx = x - p.x;
+                    const dy = y - p.y;
+                    if (Math.sqrt(dx * dx + dy * dy) < 0.15) { ok = false; break; }
+                }
+                if (ok) break;
+                x = clamp(r(), 0.08, 0.92);
+                y = clamp(r(), 0.10, 0.90);
+            }
+            placed.push({ x, y });
+
+            const locData = locs[i] || {};
+            const name = String(locData.name || locData || `Location ${i + 1}`).slice(0, 40);
+            const desc = String(locData.desc || "A mysterious place.").slice(0, 300);
+            const type = String(locData.type || "Landmark").slice(0, 40);
+
+            const iconType = type.toLowerCase().includes("fort") || type.toLowerCase().includes("castle") ? "fa-fort-awesome" :
+                             type.toLowerCase().includes("dungeon") || type.toLowerCase().includes("cave") ? "fa-dungeon" :
+                             type.toLowerCase().includes("forest") || type.toLowerCase().includes("grove") ? "fa-tree" :
+                             type.toLowerCase().includes("city") || type.toLowerCase().includes("town") ? "fa-city" :
+                             type.toLowerCase().includes("ruin") ? "fa-scroll" : "fa-location-dot";
+
+            const p = tmplPoi.content.cloneNode(true).querySelector("div");
+            p.dataset.name = name;
+            p.dataset.desc = desc;
+            p.dataset.type = type;
+            p.title = name;
+            p.style.left = `${Math.round(x * 100)}%`;
+            p.style.top = `${Math.round(y * 100)}%`;
+
+            const iconContainer = p.querySelector(".uie-poi-icon-container");
+            if (iconContainer) {
+                iconContainer.style.setProperty("--accent", accent);
+                iconContainer.style.borderColor = accent;
+                iconContainer.style.color = accent;
+            }
+
+            const icon = p.querySelector("i");
+            if (icon) icon.classList.add(iconType);
+
+            const label = p.querySelector(".uie-poi-label");
+            if (label) label.textContent = name;
+
+            locContainer.appendChild(p);
+        }
     }
 
-    const roads = (() => {
-        if (placed.length < 2) return "";
-        let svg = `<svg width="${sz.w}" height="${sz.h}" viewBox="0 0 ${sz.w} ${sz.h}" style="position:absolute; inset:0; pointer-events:none; opacity:0.4;">`;
-        for (let i = 0; i < placed.length - 1; i++) {
-            if (r() > 0.4) { // 60% chance to connect adjacent locations
-                const p1 = placed[i];
-                const p2 = placed[i+1];
-                const x1 = p1.x * sz.w;
-                const y1 = p1.y * sz.h;
-                const x2 = p2.x * sz.w;
-                const y2 = p2.y * sz.h;
-                svg += `<path d="M ${x1} ${y1} Q ${(x1+x2)/2 + (r()-0.5)*50} ${(y1+y2)/2 + (r()-0.5)*50} ${x2} ${y2}" stroke="#fff" stroke-width="2" stroke-dasharray="4,4" fill="none" />`;
-            }
-        }
-        svg += `</svg>`;
-        return svg;
-    })();
+    // Roads
+    const roadsContainer = rootClone.querySelector(".uie-map-roads-container");
+    const tmplRoads = document.getElementById("uie-template-map-roads-svg");
+    if (tmplRoads && roadsContainer && placed.length >= 2) {
+        const roadsClone = tmplRoads.content.cloneNode(true);
+        const svg = roadsClone.querySelector("svg");
+        if (svg) {
+            svg.setAttribute("width", sz.w);
+            svg.setAttribute("height", sz.h);
+            svg.setAttribute("viewBox", `0 0 ${sz.w} ${sz.h}`);
 
-    const river = (() => {
+            for (let i = 0; i < placed.length - 1; i++) {
+                if (r() > 0.4) {
+                    const p1 = placed[i];
+                    const p2 = placed[i+1];
+                    const x1 = p1.x * sz.w;
+                    const y1 = p1.y * sz.h;
+                    const x2 = p2.x * sz.w;
+                    const y2 = p2.y * sz.h;
+
+                    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    const d = `M ${x1} ${y1} Q ${(x1+x2)/2 + (r()-0.5)*50} ${(y1+y2)/2 + (r()-0.5)*50} ${x2} ${y2}`;
+                    path.setAttribute("d", d);
+                    path.setAttribute("stroke", "#fff");
+                    path.setAttribute("stroke-width", "2");
+                    path.setAttribute("stroke-dasharray", "4,4");
+                    path.setAttribute("fill", "none");
+                    svg.appendChild(path);
+                }
+            }
+            roadsContainer.appendChild(roadsClone);
+        }
+    }
+
+    // River
+    const riverContainer = rootClone.querySelector(".uie-map-river-container");
+    const tmplRiver = document.getElementById("uie-template-map-river-svg");
+    if (tmplRiver && riverContainer) {
         const pts = [];
         const x0 = sz.w * (0.12 + r() * 0.18);
         const y0 = sz.h * (0.15 + r() * 0.10);
@@ -275,57 +352,57 @@ function buildProceduralMapHTML({ scope, prompt, seed, names, grid }) {
             const y = y0 + sz.h * (0.10 + r() * 0.70);
             pts.push(`${Math.floor(x)},${Math.floor(y)}`);
         }
-        return `<svg width="${sz.w}" height="${sz.h}" viewBox="0 0 ${sz.w} ${sz.h}" style="position:absolute; inset:0; opacity:0.8; pointer-events:none;">
-            <defs>
-                <linearGradient id="r" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#4fc3f7" stop-opacity="0.0"/>
-                    <stop offset="0.25" stop-color="#4fc3f7" stop-opacity="0.8"/>
-                    <stop offset="0.75" stop-color="#4fc3f7" stop-opacity="0.6"/>
-                    <stop offset="1" stop-color="#4fc3f7" stop-opacity="0.0"/>
-                </linearGradient>
-                <filter id="g" x="-10%" y="-10%" width="120%" height="120%">
-                    <feGaussianBlur stdDeviation="3" />
-                    <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
-                </filter>
-            </defs>
-            <path d="M ${pts.map(p => p.split(',').join(' ')).join(' L ')}" fill="none" stroke="url(#r)" stroke-width="${Math.floor(28 + r() * 20)}" filter="url(#g)" stroke-linecap="round" stroke-linejoin="round"></path>
-            <path d="M ${pts.map(p => p.split(',').join(' ')).join(' L ')}" fill="none" stroke="#b3e5fc" stroke-opacity="0.6" stroke-width="${Math.floor(12 + r() * 10)}" stroke-linecap="round" stroke-linejoin="round"></path>
-        </svg>`;
-    })();
 
-    const regionEls = regions.map((nm, idx) => {
-        const x = Math.round((0.18 + r() * 0.64) * 100);
-        const y = Math.round((0.18 + r() * 0.64) * 100);
-        const name = String(nm || `Region ${idx + 1}`).slice(0, 40);
-        return `<div style="position:absolute; left:${x}%; top:${y}%; transform:translate(-50%,-50%); color:rgba(255,255,255,0.25); font-weight:900; letter-spacing:2px; font-size:24px; text-transform:uppercase; text-shadow:0 4px 12px rgba(0,0,0,0.8); pointer-events:none; font-family:serif; text-align:center;">${esc(name)}</div>`;
-    }).join("");
+        const riverClone = tmplRiver.content.cloneNode(true);
+        const svg = riverClone.querySelector("svg");
+        if (svg) {
+            svg.setAttribute("width", sz.w);
+            svg.setAttribute("height", sz.h);
+            svg.setAttribute("viewBox", `0 0 ${sz.w} ${sz.h}`);
+
+            const d = `M ${pts.map(p => p.split(',').join(' ')).join(' L ')}`;
+            const pathMain = riverClone.querySelector(".uie-river-path-main");
+            const pathHighlight = riverClone.querySelector(".uie-river-path-highlight");
+
+            if (pathMain) {
+                pathMain.setAttribute("d", d);
+                pathMain.setAttribute("stroke-width", Math.floor(28 + r() * 20));
+            }
+            if (pathHighlight) {
+                pathHighlight.setAttribute("d", d);
+                pathHighlight.setAttribute("stroke-width", Math.floor(12 + r() * 10));
+            }
+            riverContainer.appendChild(riverClone);
+        }
+    }
+
+    // Regions
+    const regionContainer = rootClone.querySelector(".uie-map-regions-container");
+    const tmplRegion = document.getElementById("uie-template-map-region");
+    if (regionContainer && tmplRegion) {
+        regions.forEach((nm, idx) => {
+            const x = Math.round((0.18 + r() * 0.64) * 100);
+            const y = Math.round((0.18 + r() * 0.64) * 100);
+            const name = String(nm || `Region ${idx + 1}`).slice(0, 40);
+
+            const reg = tmplRegion.content.cloneNode(true).querySelector("div");
+            reg.textContent = name;
+            reg.style.left = `${x}%`;
+            reg.style.top = `${y}%`;
+            regionContainer.appendChild(reg);
+        });
+    }
+
+    const gridEl = rootClone.querySelector(".uie-map-grid");
+    if (gridEl) gridEl.style.display = grid ? "block" : "none";
 
     const title = scope === "world" ? "WORLD MAP" : "LOCAL MAP";
+    const titleEl = rootClone.querySelector(".uie-map-title");
+    const subEl = rootClone.querySelector(".uie-map-subtitle");
+    if (titleEl) titleEl.textContent = title;
+    if (subEl) subEl.textContent = prompt || "";
 
-    return `
-      <div id="uie-map-root" style="width:${sz.w}px; height:${sz.h}px; position:relative; overflow:hidden; background:radial-gradient(circle at 20% 20%, ${bg1}, ${bg2}); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;">
-        <div style="position:absolute; inset:0; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.06), transparent 55%), radial-gradient(circle at 70% 60%, rgba(241,196,15,0.05), transparent 60%); opacity:1;"></div>
-        ${river}
-        ${blobs.join("")}
-        ${roads}
-        <div style="position:absolute; inset:0; pointer-events:none; background: linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.55));"></div>
-        <div style="position:absolute; inset:0; pointer-events:none; display:${grid ? "block" : "none"}; opacity:0.08; background-image: repeating-linear-gradient(0deg, rgba(255,255,255,0.25) 0, rgba(255,255,255,0.25) 1px, transparent 1px, transparent 36px), repeating-linear-gradient(90deg, rgba(255,255,255,0.2) 0, rgba(255,255,255,0.2) 1px, transparent 1px, transparent 36px);"></div>
-        <div style="position:absolute; left:18px; top:16px; padding:10px 12px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.35); color:#fff; font-weight:900; letter-spacing:1px;">
-            <div style="font-size:12px; opacity:0.85;">${esc(title)}</div>
-            <div style="font-size:11px; opacity:0.65; font-weight:700; margin-top:4px;">${esc(prompt || "")}</div>
-        </div>
-        ${regionEls}
-        ${locationEls.join("")}
-        <div id="uie-map-info-card" style="display:none; position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:90%; max-width:320px; background:rgba(10,8,6,0.95); border:1px solid rgba(225,193,122,0.4); border-radius:12px; padding:16px; color:#fff; box-shadow:0 10px 40px rgba(0,0,0,0.9); z-index:100; font-family:serif;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
-                <h3 id="uie-map-card-title" style="margin:0; font-size:18px; color:#f1c40f;">Location</h3>
-                <i class="fa-solid fa-xmark" id="uie-map-card-close" style="cursor:pointer; opacity:0.6; padding:4px;"></i>
-            </div>
-            <div id="uie-map-card-type" style="font-size:11px; text-transform:uppercase; color:rgba(255,255,255,0.6); font-weight:900; letter-spacing:1px; margin-bottom:8px;">TYPE</div>
-            <div id="uie-map-card-desc" style="font-size:13px; line-height:1.4; color:rgba(255,255,255,0.9);">Description goes here...</div>
-        </div>
-      </div>
-    `;
+    return rootClone;
 }
 
 async function generateNames(prompt, scope) {
@@ -358,27 +435,33 @@ function renderFromState() {
     $("#uie-map-location").text(s.map.location || "Unknown");
     $("#uie-map-location-input").val(s.map.location || "");
 
-    let html = s.map.html || "";
-    const render = $("#uie-map-render");
+    const render = document.getElementById("uie-map-render");
+    if (!render) return;
+
+    // Clear container
+    while (render.firstChild) {
+        render.removeChild(render.firstChild);
+    }
+
     if (s.map.mode === "image" && s.map.image) {
-        html = `
-            <div id="uie-map-root" style="width:100%; height:100%; position:relative; overflow:hidden; background:#000;">
-                <img src="${s.map.image}" style="width:100%; height:100%; object-fit:contain; pointer-events:none;">
-                <div style="position:absolute; left:18px; top:16px; padding:10px 12px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.35); color:#fff; font-weight:900; letter-spacing:1px;">
-                    <div style="font-size:12px; opacity:0.85;">AI GENERATED MAP</div>
-                    <div style="font-size:11px; opacity:0.65; font-weight:700; margin-top:4px;">${esc(s.map.prompt || "")}</div>
-                </div>
-            </div>
-        `;
-        render.html(html);
+        const tmpl = document.getElementById("uie-template-map-image-mode");
+        if (tmpl) {
+            const clone = tmpl.content.cloneNode(true);
+            const img = clone.querySelector(".uie-map-img");
+            const label = clone.querySelector(".uie-map-prompt-label");
+            if (img) img.src = s.map.image;
+            if (label) label.textContent = s.map.prompt || "";
+            render.appendChild(clone);
+        }
     } else if (s.map.mode === "procedural") {
         const data = s.map.data || null;
-        html = buildProceduralMapHTML({ scope: s.map.scope || "local", prompt: s.map.prompt || "", seed: s.map.seed || "", names: data || null, grid: s.map.grid === true });
-        render.html(html);
-    } else if (html) {
-        render.html(html);
+        const dom = buildProceduralMapDOM({ scope: s.map.scope || "local", prompt: s.map.prompt || "", seed: s.map.seed || "", names: data || null, grid: s.map.grid === true });
+        render.appendChild(dom);
     } else {
-        render.html(`<div style="padding:16px;color:#666;text-align:center;">No map cached. Use Generate.</div>`);
+        const tmpl = document.getElementById("uie-template-map-empty");
+        if (tmpl) {
+            render.appendChild(tmpl.content.cloneNode(true));
+        }
     }
 
     const root = document.querySelector("#uie-map-render #uie-map-root");
@@ -398,7 +481,7 @@ function renderFromState() {
 async function generateMap({ prompt, scope, forceProcedural = false }) {
     const s = getSettings();
     ensureMap(s);
-    
+
     const canImg = forceProcedural ? false : (s.image?.enabled === true && (s.image?.features?.map !== false));
     if (canImg) {
         const imgPrompt = `[UIE_LOCKED]
@@ -438,12 +521,18 @@ export function initMap() {
     if (!s) return;
     ensureMap(s);
 
-    $(document).off("click.map pointerup.map");
-    $(document).off("change.mapBg", "#uie-map-bg-file");
-    $(document).off("pointerup.mapBg", "#uie-map-bg-pick");
-    $(document).off("pointerup.mapSparkle", "#uie-map-sparkle");
-    $(document).off("pointerup.mapMenu", "#uie-map-menu .uie-dd-item");
-    $(document).off("pointerup.mapMenuClose");
+    // Initialize new Map Modules
+    const renderer = new MapRenderer("uie-map-render");
+    const builder = new WorldBuilder();
+    const atlas = new Atlas();
+    const editor = new MapEditor(renderer, atlas);
+
+    // Expose to window for debugging
+    window.UIE_MAP = { renderer, builder, atlas, editor };
+
+    const $win = $("#uie-map-window");
+    $win.off(".map .mapBg .mapSparkle .mapMenu .mapMenuClose .mapZoom .mapPan");
+    $(document).off(".map .mapBg .mapSparkle .mapMenu .mapMenuClose .mapZoom .mapPan");
 
     const readFileAsBase64 = (file) => new Promise((resolve) => {
         if (!file) return resolve("");
@@ -453,14 +542,14 @@ export function initMap() {
         r.readAsDataURL(file);
     });
 
-    $(document).on("pointerup.mapBg click.mapBg", "#uie-map-bg-pick", function(e){
+    $win.on("pointerup.mapBg click.mapBg", "#uie-map-bg-pick", function(e){
         e.preventDefault();
         e.stopPropagation();
         const inp = document.getElementById("uie-map-bg-file");
         if (inp) inp.click();
     });
 
-    $(document).on("pointerup.mapSparkle click.mapSparkle", "#uie-map-sparkle", function(e){
+    $win.on("pointerup.mapSparkle click.mapSparkle", "#uie-map-sparkle", function(e){
         e.preventDefault();
         e.stopPropagation();
         const m = document.getElementById("uie-map-menu");
@@ -469,7 +558,7 @@ export function initMap() {
         m.style.display = open ? "none" : "flex";
     });
 
-    $(document).on("pointerup.mapMenu click.mapMenu", "#uie-map-menu .uie-dd-item", async function(e){
+    $win.on("pointerup.mapMenu click.mapMenu", "#uie-map-menu .uie-dd-item", async function(e){
         e.preventDefault();
         e.stopPropagation();
         const id = String(this && this.id || "");
@@ -505,12 +594,24 @@ export function initMap() {
         }
     });
 
-    $(document).on("pointerup.mapMenuClose click.mapMenuClose", function(e){
+    // Close menu if clicked elsewhere in the window
+    $win.on("pointerup.mapMenuClose click.mapMenuClose", function(e){
         if ($(e.target).closest("#uie-map-sparkle, #uie-map-menu").length) return;
         const m = document.getElementById("uie-map-menu");
         if (m) m.style.display = "none";
     });
-    $(document).on("change.mapBg", "#uie-map-bg-file", async function(e){
+
+    // File input is usually outside the window or hidden, but triggered by button inside.
+    // The input itself needs a listener. Since it's in the template (line 61) but outside #uie-map-window div?
+    // Wait, let's check the template again.
+    // Line 61: <input type="file" ...> is AFTER the closing </div> of #uie-map-window.
+    // So $win.on("change") won't catch it if it bubbles up to document.
+    // I should move the input inside the window or keep it global.
+    // Or just attach to the input directly if I can find it.
+    // But since it's an input change event, it's not affected by the "Nuclear Blocker" (which blocks clicks).
+    // So I can leave it global or scope it to `body`.
+    // Let's stick to `$(document)` for the file input change as it's safe from click blockers.
+    $win.on("change.mapBg", "#uie-map-bg-file", async function(e){
         e.preventDefault();
         e.stopPropagation();
         const f = e.target && e.target.files ? e.target.files[0] : null;
@@ -524,12 +625,12 @@ export function initMap() {
         try { (await import("./core.js")).updateLayout?.(); } catch (_) {}
     });
 
-    $(document).on("pointerup.map click.map", "#uie-btn-open-map", (e) => {
+    $win.on("pointerup.map click.map", "#uie-btn-open-map", (e) => {
         e.preventDefault();
         e.stopPropagation();
     });
 
-    $(document).on("pointerup.map click.map", "#uie-map-generate", async (e) => {
+    $win.on("pointerup.map click.map", "#uie-map-generate", async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const scope = String($("#uie-map-scope").val() || "local");
@@ -538,7 +639,7 @@ export function initMap() {
         await generateMap({ prompt, scope });
     });
 
-    $(document).on("pointerup.map click.map", "#uie-map-refresh", async (e) => {
+    $win.on("pointerup.map click.map", "#uie-map-refresh", async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();
@@ -549,7 +650,7 @@ export function initMap() {
         await generateMap({ prompt, scope });
     });
 
-    $(document).on("pointerup.map click.map", "#uie-map-set-location", (e) => {
+    $win.on("pointerup.map click.map", "#uie-map-set-location", (e) => {
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();
@@ -606,7 +707,7 @@ export function initMap() {
         scheduleTransform();
     };
 
-    $(document).off("wheel.mapZoom").on("wheel.mapZoom", "#uie-map-canvas", function(e) {
+    $win.on("wheel.mapZoom", "#uie-map-canvas", function(e) {
         e.preventDefault();
         e.stopPropagation();
         const delta = e.originalEvent ? e.originalEvent.deltaY : e.deltaY;
@@ -614,7 +715,7 @@ export function initMap() {
         zoomAt(e.clientX, e.clientY, Number(viewDraft.scale || 1) * step);
     });
 
-    $(document).off("pointerdown.mapPan").on("pointerdown.mapPan", "#uie-map-canvas", function(e) {
+    $win.on("pointerdown.mapPan", "#uie-map-canvas", function(e) {
         this.setPointerCapture?.(e.pointerId);
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         dragActive = true;
@@ -629,7 +730,7 @@ export function initMap() {
         }
     });
 
-    $(document).off("pointermove.mapPan").on("pointermove.mapPan", "#uie-map-canvas", function(e) {
+    $win.on("pointermove.mapPan", "#uie-map-canvas", function(e) {
         if (!dragActive) return;
         if (!pointers.has(e.pointerId)) return;
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -655,7 +756,7 @@ export function initMap() {
         scheduleTransform();
     });
 
-    $(document).off("pointerup.mapPan pointercancel.mapPan").on("pointerup.mapPan pointercancel.mapPan", "#uie-map-canvas", function(e) {
+    $win.on("pointerup.mapPan pointercancel.mapPan", "#uie-map-canvas", function(e) {
         pointers.delete(e.pointerId);
         if (pointers.size < 2) pinchStart = null;
         if (pointers.size === 0) {
@@ -676,7 +777,7 @@ export function initMap() {
                     const name = poi.dataset.name || "Unknown";
                     const desc = poi.dataset.desc || "No information available.";
                     const type = poi.dataset.type || "Location";
-                    
+
                     $("#uie-map-card-title").text(name);
                     $("#uie-map-card-desc").text(desc);
                     $("#uie-map-card-type").text(type);
@@ -688,8 +789,8 @@ export function initMap() {
             }
         }
     });
-    
-    $(document).on("pointerup.map click.map", "#uie-map-card-close", function(e) {
+
+    $win.on("pointerup.map click.map", "#uie-map-card-close", function(e) {
         e.preventDefault();
         e.stopPropagation();
         $("#uie-map-info-card").fadeOut(200);

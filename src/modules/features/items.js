@@ -4,7 +4,7 @@ import { getContext } from "../../../../../../extensions.js";
 import { SLOT_TYPES_CORE } from "../slot_types_core.js";
 import { inferItemType } from "../slot_types_infer.js";
 import { injectRpEvent } from "./rp_log.js";
- 
+
 let mounted = false;
 let activeIdx = null;
 let viewMode = "items";
@@ -214,17 +214,24 @@ function renderCategoryUi(viewMode) {
   const cur = String($sel.val() || "all");
 
   $sel.empty();
-  $sel.append(`<option value="all">All</option>`);
-  keys.forEach((k) => $sel.append(`<option value="${esc(k.toLowerCase())}">${esc(titleCase(k))}</option>`));
+  $sel.append(new Option("All", "all"));
+  keys.forEach((k) => $sel.append(new Option(titleCase(k), k.toLowerCase())));
   $sel.val(cur);
 
   $chips.empty();
-  const mkChip = (cat, title, icon) =>
-    `<button class="uie-cat-chip" data-cat="${esc(cat)}" title="${esc(title)}"><i class="fa-solid ${esc(icon)}"></i></button>`;
-  $chips.append(mkChip("all", "All", "fa-layer-group"));
+  const chipTemplate = document.getElementById("uie-cat-chip-template");
+
+  const addChip = (cat, title, icon) => {
+    const clone = chipTemplate.content.cloneNode(true);
+    const $btn = $(clone).find("button");
+    $btn.attr("data-cat", cat).attr("title", title);
+    $btn.find("i").addClass(icon);
+    $chips.append($btn);
+  };
+
+  addChip("all", "All", "fa-layer-group");
   keys.forEach((k) => {
-    const c = k.toLowerCase();
-    $chips.append(mkChip(c, titleCase(k), SLOT_ICON[k] || "fa-tags"));
+    addChip(k.toLowerCase(), titleCase(k), SLOT_ICON[k] || "fa-tags");
   });
 }
 
@@ -274,6 +281,8 @@ export function render() {
   }
   if ($empty.length) $empty.hide();
 
+  const cardTemplate = document.getElementById("uie-item-card-template");
+
   filtered.forEach((it) => {
     const idx = list.indexOf(it);
     const rarity = String(it?.rarity || "common").toLowerCase();
@@ -290,25 +299,41 @@ export function render() {
 
     const slotCat = String(it?.slotCategory || "UNCATEGORIZED").toUpperCase();
     const icon = SLOT_ICON[slotCat] || "fa-box";
-    const img = it?.img ? `<img src="${esc(it.img)}" alt="">` : `<i class="fa-solid ${esc(icon)}" style="font-size:34px; opacity:0.92; color: rgba(241,196,15,0.95);"></i>`;
-    const fx = it?.statusEffects && Array.isArray(it.statusEffects) && it.statusEffects.length ? esc(it.statusEffects.join(", ")) : "";
-    const fxHtml = fx ? `<div class="uie-item-notes">${fx}</div>` : "";
-    const qty = Number.isFinite(Number(it?.qty)) ? Number(it.qty) : (String(it?.qty || "").trim() ? it.qty : "");
-    const qtyHtml = qty !== "" && qty !== null && qty !== undefined ? `<div class="uie-item-qty">${esc(qty)}</div>` : "";
 
-    $grid.append(`
-      <div class="uie-item ${cls}" data-idx="${idx}" data-view="${esc(viewMode)}">
-        <div class="uie-item-iconbadge"><i class="fa-solid ${esc(icon)}"></i></div>
-        ${qtyHtml}
-        <div class="uie-thumb">${img}</div>
-        <div class="uie-item-body">
-          <div class="uie-item-name">${esc(it?.name || "Unnamed")}</div>
-          <div class="uie-item-sub">
-          </div>
-          ${fxHtml}
-        </div>
-      </div>
-    `);
+    const clone = cardTemplate.content.cloneNode(true);
+    const $el = $(clone).find(".uie-item");
+
+    $el.addClass(cls).attr("data-idx", idx).attr("data-view", viewMode);
+    $el.find(".uie-item-iconbadge i").addClass(icon);
+
+    // Qty
+    const qty = Number.isFinite(Number(it?.qty)) ? Number(it.qty) : (String(it?.qty || "").trim() ? it.qty : "");
+    if (qty !== "" && qty !== null && qty !== undefined) {
+        $el.find(".uie-item-qty").text(qty);
+    } else {
+        $el.find(".uie-item-qty").remove();
+    }
+
+    // Thumb
+    const $thumb = $el.find(".uie-thumb");
+    if (it?.img) {
+        $("<img>").attr("src", it.img).attr("alt", "").appendTo($thumb);
+    } else {
+        $("<i>").addClass(`fa-solid ${icon}`).css({fontSize:"34px", opacity:"0.92", color:"rgba(241,196,15,0.95)"}).appendTo($thumb);
+    }
+
+    // Body
+    $el.find(".uie-item-name").text(it?.name || "Unnamed");
+
+    // Notes/FX
+    const fx = it?.statusEffects && Array.isArray(it.statusEffects) && it.statusEffects.length ? it.statusEffects.join(", ") : "";
+    if (fx) {
+        $el.find(".uie-item-notes").text(fx);
+    } else {
+        $el.find(".uie-item-notes").remove();
+    }
+
+    $grid.append($el);
   });
 }
 
@@ -337,6 +362,13 @@ function bind() {
     }
 
     openItemModal(idx, this);
+  });
+
+  doc.off("contextmenu.uieItemsCard", "#uie-items-grid-inner .uie-item").on("contextmenu.uieItemsCard", "#uie-items-grid-inner .uie-item", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const idx = Number($(this).data("idx"));
+    openItemContextMenu(idx, e.clientX, e.clientY);
   });
 
   doc.off("click.uieItemModalClose", "#uie-item-modal-close").on("click.uieItemModalClose", "#uie-item-modal-close", (e) => {
@@ -446,6 +478,65 @@ function openItemModal(idx, anchorEl) {
 
     $card.css({ left: `${left}px`, top: `${top}px`, visibility: "" });
   } catch (_) {}
+}
+
+function openItemContextMenu(idx, x, y) {
+  const s = getSettings();
+  ensureModel(s);
+  const list = s.inventory.items;
+  const it = list[idx];
+  if (!it) return;
+
+  // Remove existing
+  $(".uie-ctx-menu-overlay").remove();
+
+  const overlay = $(`<div class="uie-ctx-menu-overlay" style="position:fixed; inset:0; z-index:2147483660; cursor:default;"></div>`);
+  const menu = $(`<div class="uie-ctx-menu" style="position:absolute; background:rgba(15,10,8,0.98); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:6px; min-width:140px; box-shadow:0 4px 12px rgba(0,0,0,0.5); display:flex; flex-direction:column; gap:2px;"></div>`);
+
+  const mkBtn = (lbl, act, icon, color="#fff") => {
+      return $(`<div class="uie-ctx-item" data-action="${act}" data-idx="${idx}" style="padding:8px 12px; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:8px; color:${color}; font-weight:600; font-size:13px;">
+        <i class="fa-solid ${icon}" style="width:20px; text-align:center; opacity:0.8;"></i> ${lbl}
+      </div>`).hover(
+          function(){ $(this).css("background", "rgba(255,255,255,0.1)"); },
+          function(){ $(this).css("background", "transparent"); }
+      );
+  };
+
+  menu.append(mkBtn("Inspect", "inspect", "fa-circle-info"));
+  menu.append(mkBtn("Use", "use", "fa-hand-sparkles"));
+
+  if (isEquippable(it)) {
+      menu.append(mkBtn("Equip", "equip", "fa-shield-halved"));
+      menu.append(mkBtn("Custom Equip", "custom_equip", "fa-pen-ruler"));
+  }
+
+  menu.append(mkBtn("Send to Party", "send_party", "fa-users"));
+
+  // Separator
+  menu.append($(`<div style="height:1px; background:rgba(255,255,255,0.1); margin:4px 0;"></div>`));
+
+  menu.append(mkBtn("Discard", "discard", "fa-trash", "#e74c3c"));
+
+  // Positioning
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  // Temporary append to measure
+  menu.css({ visibility: "hidden" }).appendTo(document.body);
+  const mw = 160; // Approx
+  const mh = 240; // Approx
+  menu.detach();
+  menu.css({ visibility: "" });
+
+  let left = x;
+  let top = y;
+
+  if (left + mw > vw) left = x - mw;
+  if (top + mh > vh) top = y - mh;
+
+  menu.css({ left: left + "px", top: top + "px" });
+
+  overlay.append(menu);
+  $("body").append(overlay);
 }
 
 function logAction(s, entry) {
@@ -562,7 +653,7 @@ async function actOnItem(kind) {
     saveSettings();
     closeItemModal();
     render();
-    try { const mod = await import("./equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
+    try { const mod = await import("./equipment.js"); if (mod?.render) mod.render(); } catch (_) {}
     await injectRpEvent(`[System: User equipped ${name}. Stats updated.]`);
     return;
   }

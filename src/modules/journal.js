@@ -298,38 +298,48 @@ export function renderJournal() {
             return;
         }
 
-        data
-            .slice()
-            .sort((a, b) => Number(b?.updatedAt || b?.ts || 0) - Number(a?.updatedAt || a?.ts || 0))
-            .filter(m => {
-                if (!search) return true;
-                const t = String(m?.title || "").toLowerCase();
-                const body = String(m?.body || "").toLowerCase();
-                const kw = Array.isArray(m?.keywords) ? m.keywords.join(" ").toLowerCase() : "";
-                const cat = String(m?.category || "").toLowerCase();
-                return t.includes(search) || body.includes(search) || kw.includes(search) || cat.includes(search);
-            })
-            .forEach(m => {
-            const id = String(m.id || "");
-            const title = esc(m.title || "Codex Entry");
-            const category = esc(m.category || "Lore");
-            const when = m.updatedAt ? new Date(m.updatedAt).toLocaleDateString() : (m.ts ? new Date(m.ts).toLocaleDateString() : "");
-            const keywords = Array.isArray(m.keywords) ? esc(m.keywords.join(", ")) : "";
-            container.append(`
-                <div class="uie-codex-entry" data-id="${esc(id)}" style="border:1px solid rgba(255,255,255,0.10); border-left:4px solid #cba35c; background:rgba(0,0,0,0.20); border-radius:14px; padding:12px; margin-bottom:10px; cursor:pointer;">
-                    <div style="display:flex; gap:10px; align-items:center;">
-                        <div style="font-weight:900; color:#cba35c;">${title}</div>
-                        <div style="margin-left:auto; font-size:12px; opacity:0.7;">${esc(when)}</div>
-                    </div>
-                    <div style="margin-top:4px; color:rgba(255,255,255,0.70); font-weight:800; font-size:12px;">${category}${keywords ? ` • ${keywords}` : ""}</div>
-                    <div class="uie-codex-body" style="display:none; margin-top:10px; color:#ddd; line-height:1.55; white-space:pre-wrap;">${esc(m.body || "")}</div>
-                    <div style="display:none; margin-top:10px; gap:10px;" class="uie-codex-actions">
-                        <button class="uie-codex-edit" data-id="${esc(id)}" style="height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Edit</button>
-                        <button class="uie-codex-del" data-id="${esc(id)}" style="height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(243,139,168,0.35); background:rgba(0,0,0,0.25); color:#f38ba8; font-weight:900; cursor:pointer;">Delete</button>
-                    </div>
-                </div>
-            `);
-        });
+        const tmpl = document.getElementById("uie-template-codex-entry");
+        if (tmpl) {
+            const frag = document.createDocumentFragment();
+            data
+                .slice()
+                .sort((a, b) => Number(b?.updatedAt || b?.ts || 0) - Number(a?.updatedAt || a?.ts || 0))
+                .filter(m => {
+                    if (!search) return true;
+                    const t = String(m?.title || "").toLowerCase();
+                    const body = String(m?.body || "").toLowerCase();
+                    const kw = Array.isArray(m?.keywords) ? m.keywords.join(" ").toLowerCase() : "";
+                    const cat = String(m?.category || "").toLowerCase();
+                    return t.includes(search) || body.includes(search) || kw.includes(search) || cat.includes(search);
+                })
+                .forEach(m => {
+                    const id = String(m.id || "");
+                    const title = m.title || "Codex Entry";
+                    const category = m.category || "Lore";
+                    const when = m.updatedAt ? new Date(m.updatedAt).toLocaleDateString() : (m.ts ? new Date(m.ts).toLocaleDateString() : "");
+                    const keywords = Array.isArray(m.keywords) ? m.keywords.join(", ") : "";
+                    
+                    const clone = tmpl.content.cloneNode(true);
+                    const el = clone.querySelector(".uie-codex-entry");
+                    const tEl = clone.querySelector(".codex-title");
+                    const dEl = clone.querySelector(".codex-date");
+                    const mEl = clone.querySelector(".codex-meta");
+                    const bEl = clone.querySelector(".uie-codex-body");
+                    const editBtn = clone.querySelector(".uie-codex-edit");
+                    const delBtn = clone.querySelector(".uie-codex-del");
+                    
+                    el.dataset.id = id;
+                    tEl.textContent = title;
+                    dEl.textContent = when;
+                    mEl.textContent = `${category}${keywords ? ` • ${keywords}` : ""}`;
+                    bEl.textContent = m.body || "";
+                    editBtn.dataset.id = id;
+                    delBtn.dataset.id = id;
+                    
+                    frag.appendChild(clone);
+                });
+            container.append(frag);
+        }
         return;
     }
 
@@ -344,45 +354,72 @@ export function renderJournal() {
         return;
     }
     
-    filtered.forEach((q) => {
-        const idx = list.indexOf(q);
-        let actions = "";
-        if(currentTab === "pending") {
-            actions = `
-                <div style="margin-top:10px; display:flex; gap:10px;">
-                    <button class="uie-btn-accept" data-idx="${idx}" style="background:#2ecc71; border:none; color:white; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:900;">Accept</button>
-                    <button class="uie-btn-deny" data-idx="${idx}" style="background:#e74c3c; border:none; color:white; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:900;">Deny</button>
-                </div>
-            `;
-        }
-        if(currentTab === "active") {
-            actions = `
-                <div style="margin-top:10px; display:flex; gap:10px;">
-                    <button class="uie-btn-complete" data-idx="${idx}" style="background:#3498db; border:none; color:white; padding:5px 10px; border-radius:8px; cursor:pointer; font-weight:900; font-size:0.8em;">Complete</button>
-                    <button class="uie-btn-fail" data-idx="${idx}" style="background:#e74c3c; border:none; color:white; padding:5px 10px; border-radius:8px; cursor:pointer; font-weight:900; font-size:0.8em;">Fail</button>
-                </div>
-            `;
-        }
-
-        container.append(`
-            <div class="uie-quest-entry" style="border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); border-radius:14px; padding:12px; margin-bottom:10px;">
-                <div class="uie-quest-title" style="font-weight:900; color:#f1c40f;">${esc(q.title || "Unknown Quest")}</div>
-                <div class="uie-quest-desc" style="color:#bbb; margin-top:6px; line-height:1.45;">${esc(q.desc || "Details faded...")}</div>
-                ${actions}
-            </div>
-        `);
-    });
+    const tmplQuest = document.getElementById("uie-template-quest-entry");
+    if (tmplQuest) {
+        const frag = document.createDocumentFragment();
+        filtered.forEach((q) => {
+            const idx = list.indexOf(q);
+            const clone = tmplQuest.content.cloneNode(true);
+            const title = clone.querySelector(".uie-quest-title");
+            const desc = clone.querySelector(".uie-quest-desc");
+            const actionsDiv = clone.querySelector(".uie-quest-actions");
+            
+            title.textContent = q.title || "Unknown Quest";
+            desc.textContent = q.desc || "Details faded...";
+            
+            if(currentTab === "pending") {
+                actionsDiv.style.display = "flex";
+                
+                const btnAccept = document.createElement("button");
+                btnAccept.className = "uie-btn-accept";
+                btnAccept.dataset.idx = idx;
+                btnAccept.textContent = "Accept";
+                btnAccept.style.cssText = "background:#2ecc71; border:none; color:white; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:900;";
+                
+                const btnDeny = document.createElement("button");
+                btnDeny.className = "uie-btn-deny";
+                btnDeny.dataset.idx = idx;
+                btnDeny.textContent = "Deny";
+                btnDeny.style.cssText = "background:#e74c3c; border:none; color:white; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:900;";
+                
+                actionsDiv.appendChild(btnAccept);
+                actionsDiv.appendChild(btnDeny);
+            } else if(currentTab === "active") {
+                actionsDiv.style.display = "flex";
+                
+                const btnComplete = document.createElement("button");
+                btnComplete.className = "uie-btn-complete";
+                btnComplete.dataset.idx = idx;
+                btnComplete.textContent = "Complete";
+                btnComplete.style.cssText = "background:#3498db; border:none; color:white; padding:5px 10px; border-radius:8px; cursor:pointer; font-weight:900; font-size:0.8em;";
+                
+                const btnFail = document.createElement("button");
+                btnFail.className = "uie-btn-fail";
+                btnFail.dataset.idx = idx;
+                btnFail.textContent = "Fail";
+                btnFail.style.cssText = "background:#e74c3c; border:none; color:white; padding:5px 10px; border-radius:8px; cursor:pointer; font-weight:900; font-size:0.8em;";
+                
+                actionsDiv.appendChild(btnComplete);
+                actionsDiv.appendChild(btnFail);
+            }
+            
+            frag.appendChild(clone);
+        });
+        container.append(frag);
+    }
 }
 
 export function initJournal() {
     startChatIngest();
-    $(document).off("click.uieCodex pointerup.uieCodex");
-    $(document).off("click.uieJournal pointerup.uieJournal");
+    
+    const $win = $("#uie-journal-window");
+    $win.off(".uieCodex .uieJournal .uieJournalAdd .uieJournalSparkle .uieJournalGen .uieJournalNew .uieJournalExtract");
+    $(document).off(".uieCodex .uieJournal .uieJournalAdd .uieJournalSparkle .uieJournalGen .uieJournalNew .uieJournalExtract");
 
     const touchOk = (e) => !(e?.type === "pointerup" && e.pointerType !== "touch");
     let lastTouchSparkleAt = 0;
 
-    $(document).on("click.uieCodex pointerup.uieCodex", "#uie-codex-add", function(e) {
+    $win.on("click.uieCodex pointerup.uieCodex", "#uie-codex-add", function(e) {
         if (!touchOk(e)) return;
         e.preventDefault();
         e.stopPropagation();
@@ -398,7 +435,7 @@ export function initJournal() {
         saveSettings();
         renderJournal();
     });
-    $(document).on("click.uieCodex pointerup.uieCodex", "#uie-codex-extract-desc", async function(e) {
+    $win.on("click.uieCodex pointerup.uieCodex", "#uie-codex-extract-desc", async function(e) {
         if (!touchOk(e)) return;
         e.preventDefault();
         e.stopPropagation();
@@ -409,7 +446,7 @@ export function initJournal() {
         try { await generateCodexFromDescription(desc); } finally { btn.prop("disabled", false); }
         renderJournal();
     });
-    $(document).on("click.uieCodex pointerup.uieCodex", "#uie-codex-extract-chat", async function(e) {
+    $win.on("click.uieCodex pointerup.uieCodex", "#uie-codex-extract-chat", async function(e) {
         if (!touchOk(e)) return;
         e.preventDefault();
         e.stopPropagation();
@@ -418,7 +455,7 @@ export function initJournal() {
         try { await extractCodexFromChat(); } finally { btn.prop("disabled", false); }
         renderJournal();
     });
-    $(document).on("click.uieCodex pointerup.uieCodex", "#uie-codex-toggle-auto", function(e) {
+    $win.on("click.uieCodex pointerup.uieCodex", "#uie-codex-toggle-auto", function(e) {
         if (!touchOk(e)) return;
         e.preventDefault(); e.stopPropagation();
         const s = getSettings();
@@ -428,7 +465,7 @@ export function initJournal() {
         renderJournal();
         notify("info", `Codex Auto-Extract: ${s.features.codexAutoExtract ? "ON" : "OFF"}`, "Journal");
     });
-    $(document).on("click.uieCodex pointerup.uieCodex", ".uie-codex-entry", function(e) {
+    $win.on("click.uieCodex pointerup.uieCodex", ".uie-codex-entry", function(e) {
         if (!touchOk(e)) return;
         const t = $(e.target);
         if (t.closest("button").length) return;
@@ -438,7 +475,7 @@ export function initJournal() {
         $body.toggle(!open);
         $actions.toggle(!open);
     });
-    $(document).on("click.uieCodex pointerup.uieCodex", ".uie-codex-del", function(e) {
+    $win.on("click.uieCodex pointerup.uieCodex", ".uie-codex-del", function(e) {
         if (!touchOk(e)) return;
         e.preventDefault();
         e.stopPropagation();
@@ -451,7 +488,7 @@ export function initJournal() {
         saveSettings();
         renderJournal();
     });
-    $(document).on("click.uieCodex pointerup.uieCodex", ".uie-codex-edit", function(e) {
+    $win.on("click.uieCodex pointerup.uieCodex", ".uie-codex-edit", function(e) {
         if (!touchOk(e)) return;
         e.preventDefault();
         e.stopPropagation();
@@ -469,7 +506,7 @@ export function initJournal() {
         saveSettings();
         renderJournal();
     });
-    $(document).on("click.uieJournal pointerup.uieJournal", ".uie-journal-sidebar .uie-tab", function(e) {
+    $win.on("click.uieJournal pointerup.uieJournal", ".uie-journal-sidebar .uie-tab", function(e) {
         if (!touchOk(e)) return;
         e.preventDefault();
         e.stopPropagation();
@@ -479,11 +516,8 @@ export function initJournal() {
         renderJournal();
     });
 
-    $(document).off("click.uieJournalAdd pointerup.uieJournalAdd");
-
     // Journal sparkle dropdown
-    $(document).off("click.uieJournalSparkle pointerup.uieJournalSparkle");
-    $(document).on("click.uieJournalSparkle pointerup.uieJournalSparkle", "#uie-journal-sparkle", function(e) {
+    $win.on("click.uieJournalSparkle pointerup.uieJournalSparkle", "#uie-journal-sparkle", function(e) {
         if (e.type === "pointerup") {
             if (e.pointerType !== "touch") return;
             lastTouchSparkleAt = Date.now();
@@ -506,8 +540,7 @@ export function initJournal() {
     });
 
     // GENERATE QUESTS
-    $(document).off("click.uieJournalGen pointerup.uieJournalGen");
-    $(document).on("click.uieJournalGen pointerup.uieJournalGen", "#uie-journal-act-gen", async function(e) {
+    $win.on("click.uieJournalGen pointerup.uieJournalGen", "#uie-journal-act-gen", async function(e) {
         if (e.type === "pointerup" && e.pointerType !== "touch") return;
         e.preventDefault();
         e.stopPropagation();
@@ -597,8 +630,7 @@ export function initJournal() {
     });
 
     // MANUAL QUEST ADD
-    $(document).off("click.uieJournalNew pointerup.uieJournalNew");
-    $(document).on("click.uieJournalNew pointerup.uieJournalNew", "#uie-journal-act-new", function(e) {
+    $win.on("click.uieJournalNew pointerup.uieJournalNew", "#uie-journal-act-new", function(e) {
         if (e.type === "pointerup" && e.pointerType !== "touch") return;
         e.preventDefault();
         e.stopPropagation();
@@ -614,8 +646,7 @@ export function initJournal() {
         $(".uie-journal-sidebar .uie-tab[data-tab='pending']").click();
     });
 
-    $(document).off("click.uieJournalExtract pointerup.uieJournalExtract");
-    $(document).on("click.uieJournalExtract pointerup.uieJournalExtract", "#uie-journal-act-extract", function(e) {
+    $win.on("click.uieJournalExtract pointerup.uieJournalExtract", "#uie-journal-act-extract", function(e) {
         if (e.type === "pointerup" && e.pointerType !== "touch") return;
         e.preventDefault();
         e.stopPropagation();
@@ -628,7 +659,7 @@ export function initJournal() {
     });
 
     // ACCEPT QUEST
-    $(document).on("click.uieJournal pointerup.uieJournal", ".uie-btn-accept", function(e) {
+    $win.on("click.uieJournal pointerup.uieJournal", ".uie-btn-accept", function(e) {
         if (!touchOk(e)) return;
         e.preventDefault();
         e.stopPropagation();
@@ -645,7 +676,7 @@ export function initJournal() {
     });
 
     // DENY QUEST
-    $(document).on("click.uieJournal pointerup.uieJournal", ".uie-btn-deny", function(e) {
+    $win.on("click.uieJournal pointerup.uieJournal", ".uie-btn-deny", function(e) {
         if (!touchOk(e)) return;
         e.preventDefault();
         e.stopPropagation();
@@ -663,7 +694,7 @@ export function initJournal() {
     });
 
     // COMPLETE QUEST
-    $(document).on("click.uieJournal pointerup.uieJournal", ".uie-btn-complete", function(e) {
+    $win.on("click.uieJournal pointerup.uieJournal", ".uie-btn-complete", function(e) {
         if (!touchOk(e)) return;
         e.preventDefault();
         e.stopPropagation();
@@ -687,7 +718,7 @@ export function initJournal() {
     });
 
     // FAIL QUEST (XP + Hearts loss)
-    $(document).on("click.uieJournal pointerup.uieJournal", ".uie-btn-fail", function(e) {
+    $win.on("click.uieJournal pointerup.uieJournal", ".uie-btn-fail", function(e) {
         if (!touchOk(e)) return;
         e.preventDefault();
         e.stopPropagation();

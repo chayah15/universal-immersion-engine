@@ -1,12 +1,12 @@
-import { extension_settings, getContext } from "../../../../../extensions.js";
-import { saveSettingsDebounced } from "../../../../../../script.js";
+import { getContext } from "/scripts/extensions.js";
+import { saveSettingsDebounced } from "/script.js";
 
 export const EXT_ID = "universal-immersion-engine";
 
 let uieLauncherIconProbe = { src: "", ok: null, t: 0 };
 
-export const SETTINGS_DEFAULT = { 
-    enabled: true, 
+export const SETTINGS_DEFAULT = {
+    enabled: true,
     permadeath: false,
     rpg: { mode: "adventurer" },
     launcherX: 100, launcherY: 100,
@@ -14,7 +14,7 @@ export const SETTINGS_DEFAULT = {
     launcher: { name: "", src: "", hidden: false, savedIcons: [], lastUploadName: "" },
     menuX: null,
     menuY: null,
-    posX: 100, posY: 100, 
+    posX: 100, posY: 100,
     inventoryDesktopFullscreen: false,
     hearts: 5,
     maxHearts: 5,
@@ -22,7 +22,7 @@ export const SETTINGS_DEFAULT = {
     shop: { catalog: [], keywords: "" },
     activities: { active: [], loops: [] },
     menuHidden: { inventory:false, shop:false, journal:false, diary:false, social:false, party:false, battle:false, activities:false, stats:false, phone:false, map:false, calendar:false, databank:false, settings:false, debug:false, world:false, help:false },
-    features: { codexEnabled: false, phoneEnabled: true },
+    features: { codexEnabled: true, phoneEnabled: true },
     ai: {
         phoneBrowser: true,
         phoneMessages: true,
@@ -47,10 +47,10 @@ export const SETTINGS_DEFAULT = {
         relationships: {},
         partyTactics: { preset: "Balanced", conserveMana: false, focus: "auto", protectId: "" }
     },
-    hp: 100, maxHp: 100, mp: 50, maxMp: 50, ap: 10, maxAp: 10, 
-    xp: 0, maxXp: 1000, level: 1, 
+    hp: 100, maxHp: 100, mp: 50, maxMp: 50, ap: 10, maxAp: 10,
+    xp: 0, maxXp: 1000, level: 1,
     shield: 0,
-    currency: 150, 
+    currency: 150,
     currencySymbol: "G",   // Custom Symbol
     currencyRate: 0,       // 0 = Disabled, 10 = $10 per 1 Gold
     inventory: { items: [], skills: [], assets: [], statuses: [], equipped: [] },
@@ -82,8 +82,8 @@ export const SETTINGS_DEFAULT = {
     codex: { entries: [] },
     calendar: { events: {}, cursor: "" },
     battle: { auto: false, state: { active: false, enemies: [], turnOrder: [], log: [] } },
-    character: { name: "", className: "Sanguine Shinobi", level: 1, avatar: "", portrait: "", syncPersona: true, reborn: false, activeMedallion: null, classLibrary: ["Sanguine Shinobi"], stats: { str:10,dex:10,con:10,int:10,wis:10,cha:10,per:10,luk:10,agi:10,vit:10,end:10,spi:10 }, statusEffects: [] },
-    ui: { 
+    character: { name: "", className: "Sanguine Shinobi", level: 1, avatar: "", portrait: "", syncPersona: true, reborn: false, activeMedallion: null, statPoints: 5, classLibrary: ["Sanguine Shinobi"], stats: { str:10,dex:10,con:10,int:10,wis:10,cha:10,per:10,luk:10,agi:10,vit:10,end:10,spi:10 }, statusEffects: [] },
+    ui: {
         showPopups: true,
         notifications: {
             css: "",
@@ -106,7 +106,8 @@ export const SETTINGS_DEFAULT = {
             lowHp: { enabled: false, threshold: 0.25, lastWarnAt: 0 },
             postBattle: { enabled: false, lastSig: "" }
         },
-        backgrounds: { menu: "", inventory: "", shop: "", journal: "", social: "https://files.catbox.moe/072b9m.png", party: "", phone: "", map: "" },
+        backgrounds: { menu: "", inventory: "", shop: "", journal: "", social: "https://user.uploads.dev/file/1d289e00dd974cb59c66d76cb8bcc1f1.png", party: "", phone: "", map: "" },
+        icons: { heart: "" },
         css: { global: "" }
     },
     uiScale: 1.0,
@@ -236,22 +237,53 @@ function snapshotChatState(s) {
     return out;
 }
 
-function applyChatState(s, state) {
+function applyChatState(s, state, isNewChat = false) {
     const st = state && typeof state === "object" ? state : {};
     for (const k of CHAT_SCOPED_KEYS) {
         if (st[k] !== undefined) {
             s[k] = deepClone(st[k]);
             continue;
         }
-        if (SETTINGS_DEFAULT[k] !== undefined) {
-            s[k] = deepClone(SETTINGS_DEFAULT[k]);
-            continue;
+        // If it's a new chat, we must reset to default to avoid leaking data from previous chat.
+        // If it's an existing chat but the key is missing, we also reset to default (assuming it was never set or cleared).
+        // However, user reported data loss. If we are reloading an existing chat and a key is missing from the snapshot,
+        // it might be better to KEEP the current value? No, that leaks.
+        // The user said: "Only 'reset' on new chat".
+        // So if !isNewChat and st[k] is undefined, maybe we should Preserve?
+        // But if I delete an item in Chat A, then switch to Chat B, then back to Chat A...
+        // Chat A's state should reflect the deletion.
+        // The issue is likely that 'st' is NOT fully populated when it should be.
+
+        // Implemented User Request: "Never clear module data unless the user explicitly hits reset."
+        // This is risky for cross-talk, but let's try to be conservative.
+        if (isNewChat) {
+             if (SETTINGS_DEFAULT[k] !== undefined) {
+                s[k] = deepClone(SETTINGS_DEFAULT[k]);
+            } else if (k === "databank" || k === "quests") {
+                s[k] = [];
+            } else if (k === "life") {
+                s[k] = { trackers: [] };
+            } else if (k === "socialMeta") {
+                s[k] = { autoScan: false, deletedNames: [] };
+            } else {
+                s[k] = undefined;
+            }
         }
-        if (k === "databank") s[k] = [];
-        else if (k === "quests") s[k] = [];
-        else if (k === "life") s[k] = { trackers: [] };
-        else if (k === "socialMeta") s[k] = { autoScan: false, deletedNames: [] };
-        else s[k] = undefined;
+        // If not new chat, and key is missing, we do NOTHING (preserve current memory state).
+        // User requested: "Never clear module data unless the user explicitly hits reset."
+        // This prevents data loss if the snapshot was partial or corrupted.
+        // It implies that if Chat B has no saved inventory, it inherits Chat A's inventory (if we just switched).
+        // This is "leaking", but safer than "deleting".
+        else {
+            // Do NOT reset. Preserve s[k].
+            // If s[k] is undefined (fresh boot), load default.
+            if (s[k] === undefined) {
+                if (SETTINGS_DEFAULT[k] !== undefined) s[k] = deepClone(SETTINGS_DEFAULT[k]);
+                else if (k === "databank" || k === "quests") s[k] = [];
+                else if (k === "life") s[k] = { trackers: [] };
+                else if (k === "socialMeta") s[k] = { autoScan: false, deletedNames: [] };
+            }
+        }
     }
 }
 
@@ -271,20 +303,49 @@ export function ensureChatStateLoaded() {
     if (!candidates.length) return;
     const key = candidates.find((k) => s.chatState.states[k]) || candidates[0];
     const cur = String(s.chatState.activeKey || "").trim();
+
+    // Initial Load (No active key yet)
     if (!cur) {
         s.chatState.activeKey = key;
-        if (s.chatState.states[key]) applyChatState(s, s.chatState.states[key]);
-        else s.chatState.states[key] = snapshotChatState(s);
+        if (s.chatState.states[key]) {
+             // Found existing state -> Load it
+             applyChatState(s, s.chatState.states[key], false);
+        } else {
+             // No existing state -> New Chat -> Snapshot current defaults (or whatever is in 's')
+             // But 's' might be dirty from global defaults.
+             // We should probably ensure 's' is clean defaults?
+             // Actually, if we just loaded, 's' is SETTINGS_DEFAULT.
+             s.chatState.states[key] = snapshotChatState(s);
+        }
         return;
     }
+
+    // Same chat - do nothing (prevents reload/tab switch resets)
     if (cur === key) return;
 
+    // Switching Chats
+    // 1. Snapshot current state to 'cur'
     try { s.chatState.states[cur] = snapshotChatState(s); } catch (_) {}
+
+    // 2. Load 'key'
     const next = s.chatState.states[key];
-    applyChatState(s, next);
-    if (!s.chatState.states[key]) try { s.chatState.states[key] = snapshotChatState(s); } catch (_) {}
+    if (next) {
+        applyChatState(s, next, false);
+    } else {
+        // New Chat detected (or key not found)
+        // User requested: "Never clear module data unless the user explicitly hits reset."
+        // We pass isNewChat=false to PRESERVE the current state (carry-over from previous chat)
+        // instead of resetting to defaults. This prevents data loss if the key changes or is temporary.
+        applyChatState(s, {}, false);
+        try { s.chatState.states[key] = snapshotChatState(s); } catch (_) {}
+    }
+
     s.chatState.activeKey = key;
+    // Save immediately after switch to persist the new active key and state
     saveSettings();
+    // Force layout update and emit event so UI refreshes
+    updateLayout();
+    emitStateUpdated();
 }
 
 let uieChatStateWatch = null;
@@ -311,7 +372,7 @@ export function sanitizeSettings() {
     if (!store[EXT_ID]) store[EXT_ID] = deepClone(SETTINGS_DEFAULT);
     const s = store[EXT_ID];
     for(const k in SETTINGS_DEFAULT) if(s[k] === undefined) s[k] = deepClone(SETTINGS_DEFAULT[k]);
-    
+
     if (isNaN(parseFloat(s.uiScale))) s.uiScale = 1.0;
     if (!s.phone) s.phone = SETTINGS_DEFAULT.phone;
     if (!s.phone.browser) s.phone.browser = { pages: {}, history: [], index: -1 };
@@ -342,6 +403,7 @@ export function sanitizeSettings() {
     if (!Array.isArray(s.battle.state.log)) s.battle.state.log = [];
     if (!s.character) s.character = SETTINGS_DEFAULT.character;
     if (s.character.syncPersona === undefined) s.character.syncPersona = true;
+    if (typeof s.character.statPoints !== "number") s.character.statPoints = SETTINGS_DEFAULT.character.statPoints || 0;
     if (!Array.isArray(s.character.classLibrary)) s.character.classLibrary = ["Sanguine Shinobi"];
     if (!s.character.stats || typeof s.character.stats !== "object") s.character.stats = { ...SETTINGS_DEFAULT.character.stats };
     const d = SETTINGS_DEFAULT.character.stats;
@@ -380,7 +442,13 @@ export function sanitizeSettings() {
     if (s.ui.notifications.postBattle.enabled === undefined) s.ui.notifications.postBattle.enabled = SETTINGS_DEFAULT.ui.notifications.postBattle.enabled;
     if (s.ui.notifications.postBattle.lastSig === undefined) s.ui.notifications.postBattle.lastSig = "";
     if (s.ui.notifications.css === undefined) s.ui.notifications.css = "";
-    if (!s.ui.backgrounds) s.ui.backgrounds = SETTINGS_DEFAULT.ui.backgrounds;
+    if (!s.ui.backgrounds) s.ui.backgrounds = { ...SETTINGS_DEFAULT.ui.backgrounds };
+    else {
+        // Polyfill missing background keys
+        for (const k in SETTINGS_DEFAULT.ui.backgrounds) {
+            if (s.ui.backgrounds[k] === undefined) s.ui.backgrounds[k] = SETTINGS_DEFAULT.ui.backgrounds[k];
+        }
+    }
     if (!s.ui.css) s.ui.css = SETTINGS_DEFAULT.ui.css;
     if (!s.ai) s.ai = SETTINGS_DEFAULT.ai;
     for (const k of Object.keys(SETTINGS_DEFAULT.ai || {})) {
@@ -508,7 +576,7 @@ export function sanitizeSettings() {
 
     try { startChatStateWatcher(); } catch (_) {}
     try { ensureChatStateLoaded(); } catch (_) {}
-    saveSettings();
+    // saveSettings(); // Removed to prevent overwriting data on load race condition
     return s;
 }
 
@@ -518,14 +586,37 @@ export function updateLayout() {
     const isFs = String(inv.attr("data-fullscreen") || "").toLowerCase() === "true" || inv.data("fullscreen") === true;
     const isMobile = isMobileUI();
     const scale = Number(s.uiScale) || 1;
+    try {
+        $("#uie-scale-display").text(scale.toFixed(1));
+        $("#uie-scale-slider").val(scale.toFixed(1));
+        $("#uie-setting-enable").prop("checked", s.enabled === false);
+    } catch (_) {}
 
-    // INVENTORY: Mobile layout without forcing fullscreen
+    // INVENTORY: Mobile layout - always fullscreen, position next to launcher
     if (isMobile) {
-        if (isFs) {
-            inv.css({ top: 0, left: 0, width: "100vw", height: "100vh", transform: "none", maxWidth: "none", maxHeight: "none" });
-        } else {
-            inv.css({ position: "fixed", inset: "auto", top: "12vh", left: "3vw", width: "94vw", height: "80vh", transform: "none", maxWidth: "94vw", maxHeight: "80vh" });
-        }
+        // Always fullscreen on mobile
+        inv.attr("data-fullscreen", "true");
+        inv.css({ 
+            top: 0, 
+            left: 0, 
+            width: "100vw", 
+            height: "100vh", 
+            transform: "none", 
+            maxWidth: "none", 
+            maxHeight: "none",
+            position: "fixed",
+            zIndex: "2147483600"
+        });
+        
+        // Position menu next to launcher when opening
+        try {
+            const launcherEl = document.getElementById("uie-launcher");
+            if (launcherEl && inv.is(":visible")) {
+                const lRect = launcherEl.getBoundingClientRect();
+                // Menu opens centered, but we ensure it's not stuck at top
+                inv.css({ top: 0, left: 0 });
+            }
+        } catch (_) {}
     } else if (isFs) {
         inv.css({ top: 0, left: 0, width: "100vw", height: "100vh", transform: "none", maxWidth: "none", maxHeight: "none" });
     } else {
@@ -535,7 +626,7 @@ export function updateLayout() {
         let y = Number(s.posY);
         const vw = window.innerWidth;
         const vh = window.innerHeight;
-        
+
         // If default (100,100) or invalid, center it
         if (isNaN(x) || isNaN(y) || (x === 100 && y === 100)) {
              const w = inv.outerWidth() || Math.min(1150, vw * 0.92);
@@ -543,22 +634,12 @@ export function updateLayout() {
              x = (vw - w) / 2;
              y = (vh - h) / 2;
         }
-        
-        // Safety Clamp
-        x = Math.max(0, Math.min(x, vw - 40));
-        y = Math.max(0, Math.min(y, vh - 40));
-        
-        // CORNER FIX: If stuck near 0,0 (legacy fullscreen artifact), Force Center
-        if (x < 50 && y < 50) {
-             const w = inv.outerWidth() || Math.min(1150, vw * 0.92);
-             const h = inv.outerHeight() || Math.min(950, vh * 0.92);
-             x = (vw - w) / 2;
-             y = (vh - h) / 2;
-             x = Math.max(0, Math.min(x, vw - 40));
-             y = Math.max(0, Math.min(y, vh - 40));
-        }
 
-        inv.css({ top: y, left: x, transform: "none" });
+        // Safety Clamp
+        x = Math.max(-100, Math.min(x, vw - 20)); // Allow partial offscreen
+        y = Math.max(0, Math.min(y, vh - 20));
+
+        inv.css({ left: x, top: y, transform: "none" });
     }
 
     // LAUNCHER: Position
@@ -577,9 +658,9 @@ export function updateLayout() {
             s.launcherX = lx;
             s.launcherY = ly;
         }
-        $("#uie-launcher").css({ top: ly, left: lx });
+        $("#uie-launcher").css({ top: ly, left: lx, right: "auto", bottom: "auto" });
     } catch (_) {
-        $("#uie-launcher").css({ top: s.launcherY, left: s.launcherX });
+        $("#uie-launcher").css({ top: s.launcherY, left: s.launcherX, right: "auto", bottom: "auto" });
     }
     try {
         if (s.launcher?.hidden === true) $("#uie-launcher").hide();
@@ -651,10 +732,10 @@ export function updateLayout() {
         boxShadow: "none",
         filter: icon ? "drop-shadow(0 0 8px rgba(0,0,0,0.55))" : ""
     });
-    
+
     // Add subtle shadow only if it's the default round one? No, usually icons need drop-shadow filter
     // We can add filter: drop-shadow(...) via CSS, but let's leave it clean for now.
-    
+
     // LAUNCHER NAME (Menu Title)
     if (s.launcher?.name) {
         $("#uie-menu-title").text(s.launcher.name);
@@ -664,49 +745,75 @@ export function updateLayout() {
         $("#uie-launcher").attr("title", "Open Menu");
     }
 
-    // MAIN MENU: Mobile clamp (do not wipe position)
-    if (isMobile) {
-        const menuEl = document.getElementById("uie-main-menu");
-        const launcherEl = document.getElementById("uie-launcher");
-        if (menuEl && getComputedStyle(menuEl).display !== "none") {
-            const vw = window.innerWidth || document.documentElement.clientWidth || 0;
-            const vh = window.innerHeight || document.documentElement.clientHeight || 0;
-            const pad = 8;
+    // MAIN MENU: Position next to launcher (not stuck at top)
+    const menuEl = document.getElementById("uie-main-menu");
+    if (menuEl && launcherEl && getComputedStyle(menuEl).display !== "none") {
+        const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+        const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+        const mrect = menuEl.getBoundingClientRect();
+        const lrect = launcherEl.getBoundingClientRect();
+        let left = Number.parseFloat(menuEl.style.left || "");
+        let top = Number.parseFloat(menuEl.style.top || "");
 
-            const mrect = menuEl.getBoundingClientRect();
-            let left = Number.parseFloat(menuEl.style.left || "");
-            let top = Number.parseFloat(menuEl.style.top || "");
+        // If not set on element, try settings
+        if (!Number.isFinite(left)) left = Number(s.menuX);
+        if (!Number.isFinite(top)) top = Number(s.menuY);
 
-            if (!Number.isFinite(left) || !Number.isFinite(top)) {
-                if (launcherEl) {
-                    const l = launcherEl.getBoundingClientRect();
-                    left = l.left;
-                    top = l.bottom + 10;
-                } else {
-                    left = pad;
-                    top = pad;
-                }
-            }
-
+        // Mobile: position next to launcher by default
+        if (isMobile && (!Number.isFinite(left) || !Number.isFinite(top))) {
             const w = mrect.width || 320;
             const h = mrect.height || 420;
-            left = Math.max(pad, Math.min(left, vw - w - pad));
-            top = Math.max(pad, Math.min(top, vh - h - pad));
+            if (lrect.left > vw / 2) left = lrect.right - w;
+            else left = lrect.left;
+            if (lrect.top > vh / 2) top = lrect.top - h - 10;
+            else top = lrect.bottom + 10;
+        } else if (!Number.isFinite(left) || !Number.isFinite(top) || (left === 0 && top === 0)) {
+            // Smart Positioning relative to Launcher - always position next to launcher
+            const w = mrect.width || 320;
+            const h = mrect.height || 420;
 
-            $("#uie-main-menu").css({ left, top, transform: "none" });
+            // Vertical: Position above or below launcher
+            if (lrect.top > vh / 2) {
+                // Launcher is in bottom half -> Menu goes ABOVE
+                top = lrect.top - h - 10;
+            } else {
+                // Launcher is in top half -> Menu goes BELOW
+                top = lrect.bottom + 10;
+            }
+
+            // Horizontal: Align with launcher
+            if (lrect.left > vw / 2) {
+                // Launcher is right side -> Menu aligns Right
+                left = lrect.right - w;
+            } else {
+                // Launcher is left side -> Menu aligns Left
+                left = lrect.left;
+            }
         }
+
+        const w = mrect.width || 320;
+        const h = mrect.height || 420;
+        left = Math.max(-w + 20, Math.min(left, vw - 20));
+        top = Math.max(0, Math.min(top, vh - 20));
+        $("#uie-main-menu").css({ left, top, transform: "none" });
     } else if (s.menuX !== null && s.menuY !== null) {
         const menu = document.getElementById("uie-main-menu");
         const vw = window.innerWidth || document.documentElement.clientWidth || 0;
         const vh = window.innerHeight || document.documentElement.clientHeight || 0;
-        const topPad = 60;
-        const pad = 8;
+        const topPad = 0; // Relaxed from 60
+        const pad = 0; // Relaxed from 8
         const w = menu?.getBoundingClientRect?.().width || 320;
         const h = menu?.getBoundingClientRect?.().height || 420;
-        const maxLeft = Math.max(pad, vw - w - pad);
-        const maxTop = Math.max(topPad, vh - h - pad);
-        const clampedLeft = Math.min(maxLeft, Math.max(pad, Number(s.menuX) || pad));
-        const clampedTop = Math.min(maxTop, Math.max(topPad, Number(s.menuY) || topPad));
+
+        // Free Drag: Allow menu to go anywhere, just keep a bit on screen
+        const maxLeft = vw - 40; // Keep at least 40px visible on left
+        const maxTop = vh - 40; // Keep at least 40px visible on top
+
+        // We still want to ensure it's not completely lost, but "Free Drag" implies minimal clamping
+        // Let's just clamp so it doesn't disappear entirely.
+        const clampedLeft = Math.min(vw - 20, Math.max(-w + 20, Number(s.menuX) || 0));
+        const clampedTop = Math.min(vh - 20, Math.max(0, Number(s.menuY) || 0));
+
         $("#uie-main-menu").css({ left: clampedLeft, top: clampedTop, transform: "none" });
     }
     {
@@ -723,8 +830,10 @@ export function updateLayout() {
                 return;
             }
             if (isMobile && $el.hasClass("uie-window")) {
-                $el.css("transform", "none");
-                $el.css("transform-origin", "");
+                if (id === "uie-inventory-window") {
+                    $el.css("transform", "none");
+                    $el.css("transform-origin", "");
+                }
                 return;
             }
             const top = $el.css("top");
@@ -741,6 +850,17 @@ export function updateLayout() {
     else $("#uie-launcher").css({ opacity: "", filter: "" });
 
     $("#uie-gen-prompt-wrap").toggle(s.generation?.promptUI !== false);
+
+    // Feature Toggles (Kill Switches)
+    if (s.features?.phoneEnabled === false) $("#uie-btn-open-phone").hide(); else $("#uie-btn-open-phone").show();
+    if (s.features?.codexEnabled === false) $("#uie-btn-databank").hide(); else $("#uie-btn-databank").show();
+
+    // Global Kill Switch
+    if (s.enabled === false) {
+        $("#uie-launcher").hide();
+        $(".uie-window").hide();
+        $("#uie-main-menu").hide();
+    }
 
     const css = String(s.ui?.css?.global || "");
     let styleEl = document.getElementById("uie-user-css");
@@ -838,7 +958,9 @@ export function updateLayout() {
         social: "#uie-social-window",
         party: "#uie-party-window",
         phone: "#uie-phone-window",
-        map: "#uie-map-window"
+        map: "#uie-map-window",
+        stats: "#uie-stats-window",
+        activities: "#uie-activities-window"
     };
     let scopedTargets = "";
     for (const k of Object.keys(scopeMap)) {
@@ -906,3 +1028,59 @@ export function updateLayout() {
     if (bg.phone !== undefined) { clearBg("#uie-phone-window", bg.phone); setBg("#uie-phone-window", bg.phone); }
     if (bg.map !== undefined) { clearBg("#uie-map-window", bg.map); setBg("#uie-map-window", bg.map); }
 }
+
+// --- GLOBAL EVENT LISTENERS (Settings Window & More) ---
+// We bind to body to ensure we catch events even if elements are re-injected
+// We use a specific selector for the settings block to avoid conflicts
+$("body").on("click", "#uie-settings-block .uie-set-tab", function(e) {
+    e.preventDefault();
+    e.stopPropagation(); // Stop propagation to prevent closing drawers if they are listening
+    const tab = $(this).attr("data-tab");
+    if(!tab) return;
+
+    // Switch Active Class
+    const container = $(this).closest("#uie-settings-block");
+    container.find(".uie-set-tab").removeClass("active").css("border-bottom-color", "transparent").css("color", "#888");
+    $(this).addClass("active").css("border-bottom-color", "#cba35c").css("color", "#cba35c");
+
+    // Show Content
+    // The content IDs are #uie-sw-{tab} inside #uie-settings-block
+    // Note: The HTML structure in settings.html uses id="uie-set-{tab}" (e.g. uie-set-general)
+    // Let's match the HTML structure we read: <div id="uie-set-general">
+    container.find("[id^='uie-set-']").hide();
+    container.find(`#uie-set-${tab}`).show();
+});
+
+// Close button if it exists (usually settings is in a drawer, but if standalone)
+$("body").on("click", "#uie-settings-close", function(e) {
+    e.preventDefault();
+    $("#uie-settings-window").hide();
+});
+
+$("body").on("click", "#uie-open-settings", function(e) {
+    e.preventDefault();
+    $("#uie-settings-window").css("display", "flex");
+});
+
+// Settings: UI Scale + Kill Switch
+$("body").on("input change", "#uie-settings-block #uie-scale-slider", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    const raw = Number($(this).val());
+    const next = Number.isFinite(raw) ? Math.max(0.5, Math.min(2, raw)) : 1.0;
+    s.uiScale = next;
+    try { $("#uie-scale-display").text(next.toFixed(1)); } catch (_) {}
+    saveSettings();
+    try { updateLayout(); } catch (_) {}
+});
+
+$("body").on("change", "#uie-settings-block #uie-setting-enable", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    const killOn = $(this).prop("checked") === true;
+    s.enabled = !killOn;
+    saveSettings();
+    try { updateLayout(); } catch (_) {}
+});

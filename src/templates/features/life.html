@@ -124,6 +124,31 @@
     </div>
   </div>
 </div>
+<template id="life-card-template">
+    <div class="life-card">
+        <div class="life-row">
+          <div class="life-name">
+            <div class="life-dot"></div>
+            <div class="name-text"></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div class="life-meta"></div>
+            <div class="life-pick-container"></div>
+          </div>
+        </div>
+
+        <div class="life-bar">
+          <div class="life-fill"></div>
+        </div>
+
+        <div class="life-notes" style="display:none; margin-top:8px; padding:10px 12px; border-radius:14px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.06); color:rgba(255,255,255,.82); font-size:12px; font-weight:900;"></div>
+
+        <div class="life-ctrls">
+            <button class="life-mini" data-act="minus">-</button>
+            <button class="life-mini" data-act="plus">+</button>
+        </div>
+    </div>
+</template>
 
 <!-- Edit modal -->
 <div class="life-modal" id="life-modal-edit">

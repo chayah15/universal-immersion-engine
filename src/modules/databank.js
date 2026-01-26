@@ -1,7 +1,7 @@
 import { getSettings, saveSettings, ensureChatStateLoaded } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getWorldState, scanEverything } from "./stateTracker.js";
-import { getContext } from "../../../../../extensions.js";
+import { getContext } from "/scripts/extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { parseJsonLoose, normalizeDatabankArrayInPlace, toDatabankDisplayEntries } from "./databankModel.js";
 
@@ -85,7 +85,7 @@ export function initDatabank() {
     doc.off("click", ".uie-db-tab").on("click", ".uie-db-tab", function() {
         $(".uie-db-tab").removeClass("active").css({ background: "transparent", color: "rgba(0,240,255,0.5)" });
         $(this).addClass("active").css({ background: "rgba(0,240,255,0.1)", color: "#00f0ff" });
-        
+
         const tab = $(this).data("tab");
         $("#uie-db-view-memories").hide();
         $("#uie-db-view-state").hide();
@@ -111,12 +111,20 @@ export function initDatabank() {
         if (!allow) return;
         const btn = $(this);
         btn.addClass("fa-spin");
-        
+
         const rawLog = getChatSnippet(60);
-        
+
         if(rawLog.length < 50) { alert("Not enough chat data to archive."); btn.removeClass("fa-spin"); return; }
 
-        const prompt = `Task: Summarize this RP segment into a concise "Memory File" for long-term storage.\nInput:\n${rawLog.substring(0, 4000)}\n\nOutput JSON: { "title": "Short Title", "summary": "3-4 sentence summary of key events, names, and locations." }`;
+        const prompt = `Task: Generate a detailed "Memory File" for the Databank based on this RP segment.
+Input:
+${rawLog.substring(0, 4000)}
+
+Instructions:
+1. Create a concise but descriptive title.
+2. Write a detailed summary (4-6 sentences) capturing key events, important decisions, new information about characters/locations, and any changes in relationships or quest status. Avoid vague phrasing. Be specific.
+
+Output JSON: { "title": "Specific Title", "summary": "Detailed summary..." }`;
 
         try {
             const res = await generateContent(prompt, "System Check");
@@ -124,7 +132,7 @@ export function initDatabank() {
             if (!data || typeof data !== "object") throw new Error("Bad JSON response");
             const s = getSettings();
             ensureDatabank(s);
-            
+
             const now = Date.now();
             s.databank.push({ id: newId("db"), created: now, date: new Date(now).toLocaleDateString(), title: String(data.title || "Memory").trim().slice(0, 80), summary: String(data.summary || "").trim() });
             saveSettings();
@@ -255,7 +263,10 @@ function renderSocialProfiles() {
     const s = getSettings();
     ensureSocial(s);
     const q = String($("#uie-db-social-search").val() || "").trim().toLowerCase();
-    const list = $("#uie-db-social-list").empty();
+    const list = document.getElementById("uie-db-social-list");
+    if (!list) return;
+    list.innerHTML = "";
+
     const rows = [];
     for (const k of ["friends", "romance", "family", "rivals"]) {
         for (const p of (s.social[k] || [])) {
@@ -267,21 +278,30 @@ function renderSocialProfiles() {
     }
     rows.sort((a, b) => a.name.localeCompare(b.name));
     if (!rows.length) {
-        list.html('<div style="text-align:center; color:rgba(0,240,255,0.55); margin-top:30px;">NO PROFILES FOUND</div>');
+        list.innerHTML = '<div style="text-align:center; color:rgba(0,240,255,0.55); margin-top:30px;">NO PROFILES FOUND</div>';
         return;
     }
+
+    const tmpl = document.getElementById("uie-template-db-social-row");
+    if (!tmpl) return;
+
+    const frag = document.createDocumentFragment();
     for (const row of rows) {
         const memCount = Array.isArray(row.p?.memories) ? row.p.memories.length : 0;
-        list.append(`
-            <div class="uie-db-social-row" data-pid="${esc(String(row.p.id || ""))}" style="background:rgba(0, 240, 255, 0.05); border:1px solid rgba(0,240,255,0.25); border-radius:4px; padding:10px; margin-bottom:8px; cursor:pointer;">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <div style="font-weight:900; color:#00f0ff; letter-spacing:1px;">${esc(row.name)}</div>
-                    <div style="margin-left:auto; font-size:11px; color:rgba(0,240,255,0.6);">${esc(row.k.toUpperCase())}</div>
-                    <div style="font-size:11px; color:rgba(255,255,255,0.65);">${memCount} mem</div>
-                </div>
-            </div>
-        `);
+        const clone = tmpl.content.cloneNode(true);
+        const el = clone.querySelector(".uie-db-social-row");
+        const nameEl = clone.querySelector(".social-name");
+        const relEl = clone.querySelector(".social-rel");
+        const countEl = clone.querySelector(".social-count");
+
+        el.dataset.pid = esc(String(row.p.id || ""));
+        nameEl.textContent = esc(row.name);
+        relEl.textContent = esc(row.k.toUpperCase());
+        countEl.textContent = `${memCount} mem`;
+
+        frag.appendChild(clone);
     }
+    list.appendChild(frag);
 }
 
 function isTrivialMemory(s) {
@@ -466,44 +486,58 @@ function render() {
 }
 
 function renderState() {
-    const container = $("#uie-db-state-content").empty();
+    const container = document.getElementById("uie-db-state-content");
+    if (!container) return;
+    container.innerHTML = "";
+    
     const state = getWorldState();
 
     if (!state || Object.keys(state).length === 0) {
-        container.html(`<div style="text-align:center; margin-top:50px; color:rgba(0,240,255,0.5); font-style:italic;">NO WORLD STATE DATA<br><small>Start chatting to generate state.</small></div>`);
+        container.innerHTML = `<div style="text-align:center; margin-top:50px; color:rgba(0,240,255,0.5); font-style:italic;">NO WORLD STATE DATA<br><small>Start chatting to generate state.</small></div>`;
         return;
     }
 
-    container.append(`
-        <div style="padding:15px; border:1px solid rgba(0,240,255,0.2); background:rgba(0,240,255,0.05); border-radius:6px; margin-bottom:20px;">
-            <div style="font-size:12px; color:rgba(0,240,255,0.7); margin-bottom:15px; text-transform:uppercase; letter-spacing:2px; font-weight:700; border-bottom:1px solid rgba(0,240,255,0.2); padding-bottom:5px;">CURRENT STATUS</div>
-            <div style="display:grid; grid-template-columns: 1fr; gap:12px;">
-                ${Object.entries(state).map(([k, v]) => {
-                    if (k === "custom") return ""; 
-                    return `
-                    <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:10px; border-left:3px solid #00f0ff;">
-                        <div style="font-size:11px; color:rgba(0,240,255,0.8); text-transform:uppercase; font-weight:700;">${esc(k)}</div>
-                        <div style="font-size:14px; color:#fff; font-weight:600; text-shadow:0 0 5px rgba(0,240,255,0.5);">${esc(String(v))}</div>
-                    </div>`;
-                }).join("")}
-            </div>
-        </div>
-    `);
+    // Status Block
+    const tmplStatus = document.getElementById("uie-template-db-state-status");
+    const tmplRow = document.getElementById("uie-template-db-state-row");
+    
+    if (tmplStatus && tmplRow) {
+        const cloneStatus = tmplStatus.content.cloneNode(true);
+        const grid = cloneStatus.querySelector(".db-state-grid");
+        
+        Object.entries(state).forEach(([k, v]) => {
+            if (k === "custom") return;
+            const cloneRow = tmplRow.content.cloneNode(true);
+            const keyEl = cloneRow.querySelector(".db-state-key");
+            const valEl = cloneRow.querySelector(".db-state-val");
+            keyEl.textContent = esc(k);
+            valEl.textContent = esc(String(v));
+            grid.appendChild(cloneRow);
+        });
+        
+        container.appendChild(cloneStatus);
+    }
 
+    // Custom Block
     if (state.custom && Object.keys(state.custom).length > 0) {
-        container.append(`
-            <div style="padding:15px; border:1px solid rgba(0,240,255,0.2); background:rgba(0,240,255,0.05); border-radius:6px;">
-                <div style="font-size:12px; color:rgba(0,240,255,0.7); margin-bottom:15px; text-transform:uppercase; letter-spacing:2px; font-weight:700; border-bottom:1px solid rgba(0,240,255,0.2); padding-bottom:5px;">ADDITIONAL TRACKERS</div>
-                <div style="display:grid; grid-template-columns: 1fr; gap:8px;">
-                    ${Object.entries(state.custom).map(([k, v]) => `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:rgba(0,0,0,0.3); border-radius:4px;">
-                            <span style="color:rgba(0,240,255,0.6); font-size:12px;">${esc(k)}</span>
-                            <span style="color:#fff; font-weight:600; font-size:13px;">${esc(String(v))}</span>
-                        </div>
-                    `).join("")}
-                </div>
-            </div>
-        `);
+        const tmplCustom = document.getElementById("uie-template-db-state-custom");
+        const tmplCustomRow = document.getElementById("uie-template-db-state-custom-row");
+        
+        if (tmplCustom && tmplCustomRow) {
+            const cloneCustom = tmplCustom.content.cloneNode(true);
+            const grid = cloneCustom.querySelector(".db-custom-grid");
+            
+            Object.entries(state.custom).forEach(([k, v]) => {
+                const cloneRow = tmplCustomRow.content.cloneNode(true);
+                const keyEl = cloneRow.querySelector(".db-custom-key");
+                const valEl = cloneRow.querySelector(".db-custom-val");
+                keyEl.textContent = esc(k);
+                valEl.textContent = esc(String(v));
+                grid.appendChild(cloneRow);
+            });
+            
+            container.appendChild(cloneCustom);
+        }
     }
 }
 

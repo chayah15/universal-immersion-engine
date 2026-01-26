@@ -6,16 +6,8 @@ export function init() {
   }
 
   const ensureOverlay = () => {
-    if ($("#uie-create-overlay").length) return;
-    $("body").append(`
-      <div id="uie-create-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:2147483647; background:rgba(0,0,0,0.94); isolation:isolate; transform:none; pointer-events:auto; flex-direction:column;">
-        <div style="height:52px; flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.65);">
-          <button id="uie-create-overlay-exit" style="height:34px; padding:0 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Exit</button>
-          <div id="uie-create-overlay-title" style="font-weight:900; color:#f1c40f; letter-spacing:0.8px;">CREATE</div>
-        </div>
-        <div id="uie-create-overlay-body" style="flex:1 1 auto; min-height:0; overflow:hidden; position:relative;"></div>
-      </div>
-    `);
+    // Overlay is now part of create.html
+    return;
   };
 
   const closeOverlay = () => {

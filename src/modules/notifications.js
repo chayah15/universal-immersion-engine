@@ -30,6 +30,18 @@ export function shouldNotify(category) {
 export function notify(level, message, title, category, options) {
   const s = getSettings();
   ensureNotificationsModel(s);
+  
+  // Ensure toast container is on top of Projection window (Z-Index fix)
+  if (!document.getElementById("uie-toast-fix")) {
+      const style = document.createElement("style");
+      style.id = "uie-toast-fix";
+      style.innerHTML = `
+          #toast-container { z-index: 2147483647 !important; pointer-events: auto !important; }
+          #toast-container > div { opacity: 1 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+      `;
+      document.head.appendChild(style);
+  }
+
   if (s?.ui?.showPopups === false) return;
   if (!shouldNotify(category)) return;
   if (!window.toastr) return;

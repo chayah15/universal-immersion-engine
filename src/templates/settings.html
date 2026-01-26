@@ -144,6 +144,7 @@
                 <div id="uie-img-comfy-block" style="display:none; margin-top:8px;">
                     <div style="font-size:0.75em; color:#888; margin-bottom:6px;">ComfyUI Easy Setup: set your local URL, pick a checkpoint, click Apply.</div>
                     <div class="uie-control-group"><label style="font-size:0.8em;">ComfyUI URL</label><input type="text" id="uie-img-comfy-base" placeholder="http://127.0.0.1:8188" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
+                    <div class="uie-control-group"><label style="font-size:0.8em;">ComfyUI API Key (RunPod/Cloud)</label><input type="password" id="uie-img-comfy-key" data-key="api_key_comfy_runpod" placeholder="Optional" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
                     <div class="uie-control-group" style="margin-top:8px;">
                         <label style="font-size:0.8em;">Checkpoint</label>
                         <div style="display:flex; gap:6px;">
@@ -330,7 +331,14 @@
                 <div style="font-size:0.85em; color:#ccc; margin-bottom:10px;">
                     Global Custom CSS (Applied to UIE overlay)
                 </div>
-                <textarea id="uie-custom-css" placeholder=".uie-window { background: black !important; }" style="width:100%; min-height:300px; background:#222; border:1px solid #444; color:#fff; padding:8px; border-radius:8px; resize:vertical; font-family:monospace;"></textarea>
+                <textarea id="uie-custom-css" placeholder=".uie-window { background: black !important; }" style="width:100%; min-height:150px; background:#222; border:1px solid #444; color:#fff; padding:8px; border-radius:8px; resize:vertical; font-family:monospace;"></textarea>
+                
+                <div style="font-size:0.85em; color:#ccc; margin:10px 0 5px;">Stats Window CSS (Scoped to #uie-stats-window)</div>
+                <textarea id="uie-custom-css-stats" placeholder=".uie-stat-card { background: red; }" style="width:100%; min-height:100px; background:#222; border:1px solid #444; color:#fff; padding:8px; border-radius:8px; resize:vertical; font-family:monospace;"></textarea>
+
+                <div style="font-size:0.85em; color:#ccc; margin:10px 0 5px;">Activities Window CSS (Scoped to #uie-activities-window)</div>
+                <textarea id="uie-custom-css-activities" placeholder=".uie-sim-card { border: 1px solid blue; }" style="width:100%; min-height:100px; background:#222; border:1px solid #444; color:#fff; padding:8px; border-radius:8px; resize:vertical; font-family:monospace;"></textarea>
+
                 <button id="uie-custom-css-apply" style="margin-top:8px; width:100%; background:#333; border:1px solid #555; color:#fff; cursor:pointer;">Apply CSS</button>
             </div>
 

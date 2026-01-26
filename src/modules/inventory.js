@@ -1,7 +1,11 @@
 
-import { getSettings, saveSettings, updateLayout } from "./core.js";
+import { 
+    getSettings, 
+    saveSettings, 
+    updateLayout 
+} from "./core.js";
 import { loadFeatureTemplate } from "./featureLoader.js";
-import { getContext } from "../../../../../extensions.js";
+import { getContext } from "/scripts/extensions.js";
 import { generateContent, cleanOutput } from "./apiClient.js";
 import { notify, notifyLowHpIfNeeded } from "./notifications.js";
 import { normalizeStatusList, statusName, statusKey, formatRemaining, summarizeMods, computeStatusTotals, applyStatusTickToVitals, parseDurationToMs } from "./statusFx.js";
@@ -9,6 +13,7 @@ import { generateImageAPI } from "./imageGen.js";
 import { SCAN_TEMPLATES } from "./scanTemplates.js";
 import { scanEverything } from "./stateTracker.js";
 import { getChatTranscriptText } from "./chatLog.js";
+import { injectRpEvent } from "./features/rp_log.js";
 
 export const MEDALLIONS = {
     "medallion_water": {
@@ -68,44 +73,11 @@ let fxManagerHandlersBound = false;
 
 function ensureStatusManager() {
   if (document.getElementById("uie-fx-modal")) return;
-  const el = document.createElement("div");
-  el.id = "uie-fx-modal";
-  el.style.cssText = "display:none;position:fixed;inset:0;z-index:2147483656;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;padding:12px;box-sizing:border-box;";
-  el.innerHTML = `
-    <div style="width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:18px;border:1px solid rgba(255,255,255,0.12);background:rgba(15,10,8,0.96);color:#fff;padding:12px;box-sizing:border-box;">
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
-        <div style="font-weight:900;color:#f1c40f;">Status Effects</div>
-        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-          <button id="uie-fx-new" style="height:34px;padding:0 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.25);color:#fff;font-weight:900;cursor:pointer;">New</button>
-          <button id="uie-fx-close" style="height:34px;padding:0 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.25);color:#fff;font-weight:900;cursor:pointer;">Close</button>
-        </div>
-      </div>
-      <div id="uie-fx-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
-      <div style="border-top:1px solid rgba(255,255,255,0.10);padding-top:12px;">
-        <div style="font-weight:900;margin-bottom:8px;">Edit / Add</div>
-        <input id="uie-fx-id" type="hidden" value="">
-        <div style="display:grid;grid-template-columns:1fr 160px;gap:10px;">
-          <input id="uie-fx-name" type="text" placeholder="Name (e.g., Poisoned)" style="height:38px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.28);color:#fff;padding:0 12px;outline:none;">
-          <input id="uie-fx-duration" type="text" placeholder="Duration (e.g., 30m, 2h)" style="height:38px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.28);color:#fff;padding:0 12px;outline:none;">
-        </div>
-        <textarea id="uie-fx-desc" placeholder="Description / rules (optional)" style="margin-top:10px;width:100%;min-height:84px;border-radius:16px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.28);color:#fff;padding:10px 12px;outline:none;resize:vertical;"></textarea>
-        <div style="margin-top:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
-          <input id="uie-fx-maxhp" type="number" placeholder="Max HP Δ" style="height:38px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.28);color:#fff;padding:0 12px;outline:none;">
-          <input id="uie-fx-maxmp" type="number" placeholder="Max MP Δ" style="height:38px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.28);color:#fff;padding:0 12px;outline:none;">
-          <input id="uie-fx-maxap" type="number" placeholder="Max AP Δ" style="height:38px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.28);color:#fff;padding:0 12px;outline:none;">
-          <input id="uie-fx-hpmin" type="number" placeholder="HP/min" style="height:38px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.28);color:#fff;padding:0 12px;outline:none;">
-          <input id="uie-fx-mpmin" type="number" placeholder="MP/min" style="height:38px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.28);color:#fff;padding:0 12px;outline:none;">
-          <input id="uie-fx-apmin" type="number" placeholder="AP/min" style="height:38px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.28);color:#fff;padding:0 12px;outline:none;">
-        </div>
-        <input id="uie-fx-stats" type="text" placeholder="Stat mods (e.g., str:+2,dex:-1,end:-1)" style="margin-top:10px;height:38px;width:100%;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.28);color:#fff;padding:0 12px;outline:none;">
-        <div style="display:flex;gap:8px;margin-top:10px;">
-          <button id="uie-fx-save" style="flex:1;height:38px;border-radius:14px;border:1px solid rgba(241,196,15,0.55);background:rgba(241,196,15,0.18);color:#f1c40f;font-weight:900;cursor:pointer;">Save</button>
-          <button id="uie-fx-delete" style="flex:0 0 auto;width:120px;height:38px;border-radius:14px;border:1px solid rgba(243,139,168,0.35);background:rgba(0,0,0,0.25);color:#f38ba8;font-weight:900;cursor:pointer;">Delete</button>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(el);
+  const tmpl = document.getElementById("uie-template-status-manager");
+  if (!tmpl) return;
+  const clone = tmpl.content.cloneNode(true);
+  document.body.appendChild(clone);
+  const el = document.getElementById("uie-fx-modal");
   el.addEventListener("click", (e) => {
     if (!e || e.target !== el) return;
     try { closeStatusManager(); } catch (_) {}
@@ -176,19 +148,19 @@ function renderStatusList() {
     list.append(`<div style="opacity:0.72;font-weight:900;">No active effects.</div>`);
     return;
   }
+  const tmpl = document.getElementById("uie-template-status-item");
   for (const it of fx.slice(0, 40)) {
     const rem = formatRemaining(it.expiresAt, now);
     const chips = summarizeMods(it.mods).slice(0, 4).map(x => `<span style="padding:4px 8px;border-radius:999px;border:1px solid rgba(255,255,255,0.10);background:rgba(0,0,0,0.22);font-size:11px;font-weight:900;opacity:0.9;">${String(x).replace(/</g, "&lt;")}</span>`).join("");
-    list.append(`
-      <div style="display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:14px;border:1px solid rgba(255,255,255,0.10);background:rgba(0,0,0,0.22);">
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${String(it.name || "").replace(/</g, "&lt;")}</div>
-          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;">${chips}${rem ? `<span style="padding:4px 8px;border-radius:999px;border:1px solid rgba(241,196,15,0.22);background:rgba(241,196,15,0.10);font-size:11px;font-weight:900;color:#f1c40f;">${rem}</span>` : ""}</div>
-        </div>
-        <button class="uie-fx-edit" data-id="${String(it.id)}" style="height:32px;padding:0 10px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.25);color:#fff;font-weight:900;cursor:pointer;">Edit</button>
-        <button class="uie-fx-del" data-id="${String(it.id)}" style="height:32px;padding:0 10px;border-radius:12px;border:1px solid rgba(243,139,168,0.35);background:rgba(0,0,0,0.25);color:#f38ba8;font-weight:900;cursor:pointer;">✖</button>
-      </div>
-    `);
+    if (tmpl) {
+      const clone = tmpl.content.cloneNode(true);
+      clone.querySelector(".uie-fx-name").textContent = String(it.name || "");
+      const finalChips = chips + (rem ? `<span style="padding:4px 8px;border-radius:999px;border:1px solid rgba(241,196,15,0.22);background:rgba(241,196,15,0.10);font-size:11px;font-weight:900;color:#f1c40f;">${rem}</span>` : "");
+      clone.querySelector(".uie-fx-chips").innerHTML = finalChips;
+      clone.querySelector(".uie-fx-edit").setAttribute("data-id", String(it.id));
+      clone.querySelector(".uie-fx-del").setAttribute("data-id", String(it.id));
+      list.append(clone);
+    }
   }
 }
 
@@ -225,8 +197,8 @@ function openStatusManager(focusId = "") {
 function bindStatusManagerHandlers() {
   if (fxManagerHandlersBound) return;
   fxManagerHandlersBound = true;
-  $(document)
-    .off("click.uieFxModal", "#uie-fx-close, #uie-fx-new, #uie-fx-save, #uie-fx-delete")
+  const $m = $("#uie-fx-modal");
+  $m.off("click.uieFxModal", "#uie-fx-close, #uie-fx-new, #uie-fx-save, #uie-fx-delete")
     .on("click.uieFxModal", "#uie-fx-close, #uie-fx-new, #uie-fx-save, #uie-fx-delete", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -274,8 +246,7 @@ function bindStatusManagerHandlers() {
       }
     });
 
-  $(document)
-    .off("click.uieFxRow", ".uie-fx-edit, .uie-fx-del")
+  $m.off("click.uieFxRow", ".uie-fx-edit, .uie-fx-del")
     .on("click.uieFxRow", ".uie-fx-edit, .uie-fx-del", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -290,37 +261,27 @@ function bindStatusManagerHandlers() {
 }
 
 const renderRebirthModal = () => {
-    const el = document.createElement("div");
-    el.id = "uie-rebirth-modal";
-    el.style.cssText = "position:fixed;inset:0;z-index:2147483660;background:rgba(0,0,0,0.85);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:20px;";
-    
-    let grid = "";
+    if (document.getElementById("uie-rebirth-modal")) return;
+    const tmpl = document.getElementById("uie-template-rebirth-modal");
+    const cardTmpl = document.getElementById("uie-template-rebirth-card");
+    if (!tmpl || !cardTmpl) return;
+
+    const clone = tmpl.content.cloneNode(true);
+    const gridEl = clone.querySelector(".uie-rebirth-grid");
+
     for(const [key, m] of Object.entries(MEDALLIONS)) {
-        grid += `
-          <div class="uie-medal-card" data-id="${key}" style="border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);border-radius:12px;padding:10px;cursor:pointer;transition:0.2s;">
-              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                  <img src="${m.img}" style="width:40px;height:40px;border-radius:50%;border:2px solid #f1c40f;">
-                  <div style="font-weight:900;color:#f1c40f;font-size:1.1em;">${m.name}</div>
-              </div>
-              <div style="font-size:0.85em;opacity:0.8;white-space:pre-wrap;line-height:1.4;">${m.desc}</div>
-          </div>
-        `;
+        const card = cardTmpl.content.cloneNode(true);
+        const cardDiv = card.querySelector(".uie-medal-card");
+        cardDiv.setAttribute("data-id", key);
+        cardDiv.querySelector(".uie-medal-name").textContent = m.name;
+        cardDiv.querySelector(".uie-medal-desc").textContent = m.desc;
+        cardDiv.querySelector(".uie-medal-img").src = m.img;
+        gridEl.appendChild(card);
     }
 
-    el.innerHTML = `
-      <div style="width:min(800px, 95vw);max-height:90vh;overflow:auto;background:radial-gradient(circle at center, #1a1a1a, #000);border:2px solid #f1c40f;border-radius:20px;padding:20px;color:#fff;box-shadow:0 0 50px rgba(241,196,15,0.2);">
-          <h1 style="text-align:center;color:#f1c40f;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;">Ascension Available</h1>
-          <p style="text-align:center;opacity:0.8;margin-bottom:20px;">You have reached the pinnacle of mortal power. Choose a path to be reborn as a legend.<br>Your Level will reset to 1, but you will gain a permanent God Medallion.</p>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:15px;margin-bottom:20px;">
-              ${grid}
-          </div>
-          <div style="display:flex;justify-content:center;gap:20px;">
-              <button id="uie-rebirth-cancel" style="padding:10px 20px;border-radius:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;cursor:pointer;">Cancel</button>
-          </div>
-      </div>
-    `;
-    document.body.appendChild(el);
-    
+    document.body.appendChild(clone);
+    const el = document.getElementById("uie-rebirth-modal");
+
     $(el).on("click", ".uie-medal-card", function() {
         const id = $(this).data("id");
         if(confirm("Are you sure you want to choose this path? This cannot be undone.")) {
@@ -328,7 +289,7 @@ const renderRebirthModal = () => {
             el.remove();
         }
     });
-    
+
     $(el).on("click", "#uie-rebirth-cancel", function() {
         el.remove();
     });
@@ -337,14 +298,14 @@ const renderRebirthModal = () => {
 const performRebirth = (medalId) => {
     const s = getSettings();
     ensureModel(s);
-    
+
     // Reset Level
     s.character.level = 1;
     s.xp = 0;
     s.maxXp = 1000;
     s.character.reborn = true;
     s.character.activeMedallion = medalId;
-    
+
     // Add Medallion Item
     const def = MEDALLIONS[medalId];
     if (def) {
@@ -360,11 +321,12 @@ const performRebirth = (medalId) => {
             mods: {}
         });
     }
-    
+
     saveSettings();
     updateVitals();
     applyInventoryUi(); // Update Rebirth button visibility
     notify("success", "REBIRTH COMPLETE! You are now a Legend.", "System", "levelUp");
+    injectRpEvent(`[System: REBIRTH COMPLETE! Character has been reborn. Path chosen: ${def.name}. Level reset to 1.]`);
 };
 
 // --- AUTOMATED LOOT & STATUS SCANNER ---
@@ -500,12 +462,11 @@ function applyLevelingProgress(s) {
       s.maxAp = Math.round((Number(s.maxAp) || 10) + 1);
 
       const keys = ["str","dex","con","int","wis","cha","per","luk","agi","vit","end","spi"];
-      // const pick = keys[Math.floor(Math.random() * keys.length)];
-      // s.character.stats[pick] = Math.max(0, Number(s.character.stats[pick] || 10) + 1);
       const ptsGain = 5 + Math.floor(Number(s.character.level) / 5);
       s.character.statPoints = (Number(s.character.statPoints) || 0) + ptsGain;
       leveled = true;
       notify("success", `Level Up → Lv ${s.character.level} (+${ptsGain} Stat Points)`, "Progress", "levelUp");
+      injectRpEvent(`[System: Level Up! Character reached Level ${s.character.level}. Gained ${ptsGain} Stat Points.]`);
     }
     if (leveled) {
       s.hp = Math.min(Number(s.hp || s.maxHp), Number(s.maxHp));
@@ -599,7 +560,7 @@ function applyInventoryUi() {
   if (cbSlot) cbSlot.checked = ui.slotTypesEnabled !== false;
   if (cbLvl) cbLvl.checked = ui.levelingEnabled !== false;
   if (cbBars) cbBars.checked = ui.showBars !== false;
-  
+
   // Rebirth Option Visibility
   const s2 = getSettings();
   const canRebirth = (s2?.character?.level >= 150 && !s2?.character?.reborn);
@@ -768,27 +729,48 @@ function renderFallbackItemsGrid() {
   ensureModel(s);
 
   const items = Array.isArray(s.inventory?.items) ? s.inventory.items : [];
-  const html = items
+  const tmpl = document.getElementById("uie-template-item-card");
+  if (!tmpl) {
+      pane.innerHTML = "<div class='uie-inv-grid'></div>";
+      return;
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "uie-inv-grid";
+
+  items
     .filter((it) => it && typeof it === "object")
-    .map((it, idx) => {
+    .forEach((it, idx) => {
       const name = String(it.name || it.type || "Item");
       const qty = Math.max(0, Number(it.qty || 0));
       const img = String(it.img || "");
-      const safeName = name.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      const safeImg = img.replace(/"/g, "&quot;");
-      return `
-        <div class="uie-item" data-idx="${idx}">
-          <div class="uie-thumb">
-            ${img ? `<img src="${safeImg}" alt="">` : ``}
-            ${qty > 1 ? `<div class="qty">x${qty}</div>` : ``}
-          </div>
-          <div class="uie-item-name">${safeName}</div>
-        </div>
-      `;
-    })
-    .join("");
+      const safeName = name;
+      const safeImg = img;
 
-  pane.innerHTML = `<div class="uie-inv-grid">${html}</div>`;
+      const clone = tmpl.content.cloneNode(true);
+      const itemEl = clone.querySelector(".uie-item");
+      itemEl.setAttribute("data-idx", idx);
+
+      const thumb = clone.querySelector(".uie-thumb");
+      if (img) {
+          const imgEl = document.createElement("img");
+          imgEl.src = safeImg;
+          imgEl.alt = "";
+          thumb.appendChild(imgEl);
+      }
+      if (qty > 1) {
+          const qtyEl = document.createElement("div");
+          qtyEl.className = "qty";
+          qtyEl.textContent = `x${qty}`;
+          thumb.appendChild(qtyEl);
+      }
+
+      clone.querySelector(".uie-item-name").textContent = safeName;
+      grid.appendChild(clone);
+    });
+
+  pane.innerHTML = "";
+  pane.appendChild(grid);
 }
 
 function portalInventoryOverlaysToBody() {
@@ -801,51 +783,6 @@ function portalInventoryOverlaysToBody() {
     el.dataset.uiePortaled = "1";
   }
 }
-
-export function initInventory() {
-  const root = getRoot();
-  if (!root) return;
-
-  const s = getSettings();
-  ensureModel(s);
-  ensureInventoryUi(s);
-  portalInventoryOverlaysToBody();
-
-  setFullscreen(true);
-
-  const routes = {
-    items: { view: "#uie-view-items", template: "items", module: "./features/items.js", init: "init", initArg: "#uie-view-items" },
-    skills: { view: "#uie-view-skills", template: "skills", module: "./features/skills.js", init: "init" },
-    assets: { view: "#uie-view-assets", template: "assets", module: "./features/assets.js", init: "init" },
-    equipment: { view: "#uie-view-equip", template: "equipment", module: "./features/equipment_rpg.js", init: "init" },
-    life: { view: "#uie-view-life", template: "life", module: "./features/life.js", init: "init" },
-    create: { view: "#uie-view-create", template: "create", module: "./features/create.js", init: "init" },
-  };
-
-  window.UIE_openItemEditor = (idx) => openEditor(Number(idx));
-  window.UIE_isInventoryEditMode = () => isEditMode();
-
-  $(document)
-    .off("click.uieInvTab", "#uie-inventory-window #tabs [data-tab]")
-    .on("click.uieInvTab", "#uie-inventory-window #tabs [data-tab]", async function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const tab = String($(this).data("tab") || "");
-      const s2 = getSettings();
-      ensureInventoryUi(s2);
-      if (tab && s2?.inventory?.ui?.tabs?.[tab] === false) return;
-      if (!tab || !routes[tab]) return;
-
-      $("#uie-inventory-window #tabs [data-tab]").removeClass("active");
-      $(this).addClass("active");
-
-      getRoot().setAttribute("data-active-tab", tab);
-
-      showView(routes[tab].view);
-
-      await ensureRouteLoaded(routes[tab]);
-    });
 
   const toggleFloatingMenu = (menuId, anchorId) => {
     const menu = document.getElementById(menuId);
@@ -863,7 +800,8 @@ export function initInventory() {
     }
     if (!nextOpen) { menu.style.display = "none"; return; }
     menu.style.position = "fixed";
-    menu.style.zIndex = "2147483646";
+    menu.style.zIndex = "2147483647";
+    menu.style.pointerEvents = "auto";
     menu.style.display = "block";
     const place = () => {
       const r = anchor.getBoundingClientRect();
@@ -890,85 +828,155 @@ export function initInventory() {
     try { requestAnimationFrame(place); } catch (_) { setTimeout(place, 0); }
   };
 
-  const createStation = { open: false, parent: null, next: null };
+const createStation = { open: false, parent: null, next: null };
 
-  const ensureCreateStationOverlay = () => {
-    if (document.getElementById("uie-create-station-overlay")) return;
-    const el = document.createElement("div");
-    el.id = "uie-create-station-overlay";
-    el.style.cssText = "position:fixed;inset:0;z-index:2147483646;display:none;background:rgba(0,0,0,0.58);backdrop-filter:blur(10px);";
-    el.innerHTML = `<div id="uie-create-station-shell" style="position:absolute; inset:0; background:rgba(0,0,0,0.35);"></div>`;
-    document.body.appendChild(el);
+function ensureCreateStationOverlay() {
+  if (document.getElementById("uie-create-station-overlay")) return;
+  const tmpl = document.getElementById("uie-template-create-station-overlay");
+  if (tmpl) {
+    const clone = tmpl.content.cloneNode(true);
+    document.body.appendChild(clone);
+  } else {
+    // Fallback if template missing
+    const div = document.createElement("div");
+    div.id = "uie-create-station-overlay";
+    div.className = "uie-overlay";
+    div.style.cssText = "display:none; position:fixed; inset:0; z-index:2147483650; background:rgba(0,0,0,0.65); backdrop-filter:blur(4px); align-items:center; justify-content:center;";
+    div.innerHTML = '<div id="uie-create-station-shell" style="width:min(380px, 92vw); height:min(600px, 90vh); position:relative;"></div>';
+    document.body.appendChild(div);
+  }
+  
+  // Attach close listener
+  $("#uie-create-station-overlay").on("click", function (e) {
+      if ($(e.target).closest("#uie-inv-sparkle-menu").length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeCreateStation();
+  });
+}
+
+function openCreateStation() {
+  const menu = document.getElementById("uie-inv-sparkle-menu");
+  if (!menu) {
+      console.warn("[UIE] Creation Station menu not found.");
+      return;
+  }
+  ensureCreateStationOverlay();
+  const ov = document.getElementById("uie-create-station-overlay");
+  const shell = document.getElementById("uie-create-station-shell");
+  if (!ov || !shell) return;
+  
+  if (!createStation.open) {
+    createStation.parent = menu.parentElement;
+    createStation.next = menu.nextSibling;
+  }
+  createStation.open = true;
+  
+  // Ensure we move it to the shell
+  if (menu.parentElement !== shell) {
+      shell.appendChild(menu);
+  }
+
+  menu.dataset.uiePortaled = "1";
+  menu.style.display = "block";
+  menu.style.position = "absolute";
+  menu.style.inset = "0";
+  menu.style.width = "100%";
+  menu.style.height = "100%";
+  menu.style.maxHeight = "100%";
+  menu.style.borderRadius = "0";
+  menu.style.overflow = "auto";
+  menu.style.zIndex = "2147483655";
+  
+  ov.style.display = "flex"; // Flex to center
+  ov.style.zIndex = "2147483654";
+}
+
+function closeCreateStation() {
+  const menu = document.getElementById("uie-inv-sparkle-menu");
+  const ov = document.getElementById("uie-create-station-overlay");
+  if (ov) ov.style.display = "none";
+  if (!menu) { createStation.open = false; return; }
+  menu.style.display = "none";
+  menu.style.inset = "";
+  menu.style.width = "";
+  menu.style.height = "";
+  menu.style.maxHeight = "";
+  menu.style.borderRadius = "";
+  menu.style.overflow = "";
+  menu.style.zIndex = "";
+  menu.style.position = "";
+  menu.style.top = "";
+  menu.style.left = "";
+  menu.style.right = "";
+  menu.style.bottom = "";
+  const parent = createStation.parent;
+  const next = createStation.next;
+  if (parent && parent.isConnected) {
+    if (next && next.parentNode === parent) parent.insertBefore(menu, next);
+    else parent.appendChild(menu);
+  }
+  createStation.open = false;
+}
+
+export function initInventory() {
+  const root = getRoot();
+  if (!root) return;
+
+  const s = getSettings();
+  ensureModel(s);
+  ensureInventoryUi(s);
+  portalInventoryOverlaysToBody();
+
+  const $win = $(root);
+  const $editor = $("#uie-inv-editor");
+  const $gear = $("#uie-inv-gear-menu");
+  const $sparkle = $("#uie-inv-sparkle-menu");
+
+  setFullscreen(true);
+
+  const routes = {
+    items: { view: "#uie-view-items", template: "items", module: "./features/items.js", init: "init", initArg: "#uie-view-items" },
+    skills: { view: "#uie-view-skills", template: "skills", module: "./features/skills.js", init: "init" },
+    assets: { view: "#uie-view-assets", template: "assets", module: "./features/assets.js", init: "init" },
+    equipment: { view: "#uie-view-equip", template: "equipment", module: "./features/equipment.js", init: "init" },
+    life: { view: "#uie-view-life", template: "life", module: "./features/life.js", init: "init" },
+    create: { view: "#uie-view-create", template: "create", module: "./features/create.js", init: "init" },
   };
 
-  const openCreateStation = () => {
-    const menu = document.getElementById("uie-inv-sparkle-menu");
-    if (!menu) return;
-    ensureCreateStationOverlay();
-    const ov = document.getElementById("uie-create-station-overlay");
-    const shell = document.getElementById("uie-create-station-shell");
-    if (!ov || !shell) return;
-    if (!createStation.open) {
-      createStation.parent = menu.parentElement;
-      createStation.next = menu.nextSibling;
-    }
-    createStation.open = true;
-    shell.appendChild(menu);
-    menu.dataset.uiePortaled = "1";
-    menu.style.display = "block";
-    menu.style.position = "absolute";
-    menu.style.inset = "0";
-    menu.style.top = "";
-    menu.style.left = "";
-    menu.style.right = "";
-    menu.style.bottom = "";
-    menu.style.width = "100%";
-    menu.style.height = "100%";
-    menu.style.maxHeight = "100%";
-    menu.style.borderRadius = "0";
-    menu.style.overflow = "auto";
-    menu.style.zIndex = "2147483647";
-    ov.style.display = "block";
-  };
+  window.UIE_openItemEditor = (idx) => openEditor(Number(idx));
+  window.UIE_isInventoryEditMode = () => isEditMode();
+  window.UIE_openCreateStation = openCreateStation;
 
-  const closeCreateStation = () => {
-    const menu = document.getElementById("uie-inv-sparkle-menu");
-    const ov = document.getElementById("uie-create-station-overlay");
-    if (ov) ov.style.display = "none";
-    if (!menu) { createStation.open = false; return; }
-    menu.style.display = "none";
-    menu.style.inset = "";
-    menu.style.width = "";
-    menu.style.height = "";
-    menu.style.maxHeight = "";
-    menu.style.borderRadius = "";
-    menu.style.overflow = "";
-    menu.style.zIndex = "";
-    menu.style.position = "";
-    menu.style.top = "";
-    menu.style.left = "";
-    menu.style.right = "";
-    menu.style.bottom = "";
-    const parent = createStation.parent;
-    const next = createStation.next;
-    if (parent && parent.isConnected) {
-      if (next && next.parentNode === parent) parent.insertBefore(menu, next);
-      else parent.appendChild(menu);
-    }
-    createStation.open = false;
-  };
+  $win.off("click.uieInvTab", "#tabs [data-tab]")
+    .on("click.uieInvTab", "#tabs [data-tab]", async function (e) {
+      e.preventDefault();
+      e.stopPropagation();
 
-  $(document)
-    .off("click.uieLootScan", "#uie-create-scan-loot")
-    .on("click.uieLootScan", "#uie-create-scan-loot", async function (e) {
+      const tab = String($(this).data("tab") || "");
+      const s2 = getSettings();
+      ensureInventoryUi(s2);
+      if (tab && s2?.inventory?.ui?.tabs?.[tab] === false) return;
+      if (!tab || !routes[tab]) return;
+
+      $win.find("#tabs [data-tab]").removeClass("active");
+      $(this).addClass("active");
+
+      getRoot().setAttribute("data-active-tab", tab);
+
+      showView(routes[tab].view);
+
+      await ensureRouteLoaded(routes[tab]);
+    });
+
+  $sparkle.on("click.uieLootScan", "#uie-create-scan-loot", async function (e) {
       e.preventDefault();
       e.stopPropagation();
       closeCreateStation();
       await scanLootAndStatus(true);
     });
 
-  $(document)
-    .off("click.uieWarRoomScan", "#uie-create-scan-warroom")
+  $sparkle.off("click.uieWarRoomScan", "#uie-create-scan-warroom")
     .on("click.uieWarRoomScan", "#uie-create-scan-warroom", async function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -1017,8 +1025,7 @@ export function initInventory() {
       } catch (_) {}
     });
 
-  $(document)
-    .off("click.uieInvPencil", "#uie-inv-pencil")
+  $win.off("click.uieInvPencil", "#uie-inv-pencil")
     .on("click.uieInvPencil", "#uie-inv-pencil", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -1050,6 +1057,7 @@ export function initInventory() {
     if (nextLvl !== null) s2.character.level = Math.max(1, Number(nextLvl) || 1);
     saveSettings();
     updateVitals();
+    injectRpEvent(`[System: Manual Edit - Class: ${s2.character.className}, Level: ${s2.character.level}]`);
   };
 
   const editStatBlock = () => {
@@ -1089,29 +1097,27 @@ export function initInventory() {
     s2[maxKey] = m || m === 0 ? m : s2[maxKey];
     saveSettings();
     updateVitals();
+    injectRpEvent(`[System: Manual Edit - ${k.toUpperCase()} set to ${c}/${s2[maxKey]}]`);
   };
 
-  $(document)
-    .off("click.uieInvEditName", "#uie-inventory-window .uie-inv-title .name, #uie-inv-mobile-name")
-    .on("click.uieInvEditName", "#uie-inventory-window .uie-inv-title .name, #uie-inv-mobile-name", function (e) {
+  $win.off("click.uieInvEditName", ".uie-inv-title .name, #uie-inv-mobile-name")
+    .on("click.uieInvEditName", ".uie-inv-title .name, #uie-inv-mobile-name", function (e) {
       if (!isEditMode()) return;
       e.preventDefault();
       e.stopPropagation();
       editName();
     });
 
-  $(document)
-    .off("click.uieInvEditClass", "#uie-inventory-window .uie-inv-title .meta, #uie-inv-classline, #uie-inv-mobile-meta")
-    .on("click.uieInvEditClass", "#uie-inventory-window .uie-inv-title .meta, #uie-inv-classline, #uie-inv-mobile-meta", function (e) {
+  $win.off("click.uieInvEditClass", ".uie-inv-title .meta, #uie-inv-classline, #uie-inv-mobile-meta")
+    .on("click.uieInvEditClass", ".uie-inv-title .meta, #uie-inv-classline, #uie-inv-mobile-meta", function (e) {
       if (!isEditMode()) return;
       e.preventDefault();
       e.stopPropagation();
       editClassAndLevel();
     });
 
-  $(document)
-    .off("click.uieInvEditStats", "#uie-inventory-window #bottom-stats .stat")
-    .on("click.uieInvEditStats", "#uie-inventory-window #bottom-stats .stat", function (e) {
+  $win.off("click.uieInvEditStats", "#bottom-stats .stat")
+    .on("click.uieInvEditStats", "#bottom-stats .stat", function (e) {
       if (!isEditMode()) return;
       e.preventDefault();
       e.stopPropagation();
@@ -1123,8 +1129,7 @@ export function initInventory() {
       editStatBlock();
     });
 
-  $(document)
-    .off("click.uieInvEditFx", "#uie-inv-status-strip")
+  $win.off("click.uieInvEditFx", "#uie-inv-status-strip")
     .on("click.uieInvEditFx", "#uie-inv-status-strip", function (e) {
       if (!isEditMode()) return;
       if ($(e.target).closest(".inv-fx").length) return;
@@ -1133,9 +1138,8 @@ export function initInventory() {
       editStatusEffects();
     });
 
-  $(document)
-    .off("click.uieInvEditAvatar", "#uie-inventory-window .uie-inv-avatar")
-    .on("click.uieInvEditAvatar", "#uie-inventory-window .uie-inv-avatar", async function (e) {
+  $win.off("click.uieInvEditAvatar", ".uie-inv-avatar")
+    .on("click.uieInvEditAvatar", ".uie-inv-avatar", async function (e) {
       if (!isEditMode()) return;
       e.preventDefault();
       e.stopPropagation();
@@ -1148,8 +1152,7 @@ export function initInventory() {
       updateVitals();
     });
 
-  $(document)
-    .off("click.uieInvEditPortrait", "#uie-inv-portrait")
+  $win.off("click.uieInvEditPortrait", "#uie-inv-portrait")
     .on("click.uieInvEditPortrait", "#uie-inv-portrait", async function (e) {
       if (!isEditMode()) return;
       e.preventDefault();
@@ -1163,11 +1166,10 @@ export function initInventory() {
       updateVitals();
     });
 
-  $(document)
-    .off("click.uieInvEditTabsBg", "#uie-inventory-window #tabs")
-    .on("click.uieInvEditTabsBg", "#uie-inventory-window #tabs", function (e) {
+  $win.off("click.uieInvEditTabsBg", "#tabs")
+    .on("click.uieInvEditTabsBg", "#tabs", function (e) {
       if (!isEditMode()) return;
-      if ($(e.target).closest("#uie-inventory-window #tabs [data-tab]").length) return;
+      if ($(e.target).closest("#tabs [data-tab]").length) return;
       e.preventDefault();
       e.stopPropagation();
       const s2 = getSettings();
@@ -1181,8 +1183,7 @@ export function initInventory() {
       applyInventoryUi();
     });
 
-  $(document)
-    .off("click.uieInvCloseMenus")
+  $win.off("click.uieInvCloseMenus")
     .on("click.uieInvCloseMenus", function (e) {
       if ($(e.target).closest("#uie-create-station-overlay, #uie-inv-sparkle-menu").length) return;
       if ($(e.target).closest("#uie-inv-pencil, #uie-inv-sparkle, #uie-inv-sparkle-menu, #uie-inv-gear, #uie-inv-gear-menu").length) return;
@@ -1192,8 +1193,7 @@ export function initInventory() {
       if (gm) gm.style.display = "none";
     });
 
-  $(document)
-    .off("click.uieInvGear", "#uie-inv-gear")
+  $win.off("click.uieInvGear", "#uie-inv-gear")
     .on("click.uieInvGear", "#uie-inv-gear", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -1201,8 +1201,7 @@ export function initInventory() {
       applyInventoryUi();
     });
 
-  $(document)
-    .off("click.uieInvRebirth", "#uie-inv-trigger-rebirth")
+  $gear.off("click.uieInvRebirth", "#uie-inv-trigger-rebirth")
     .on("click.uieInvRebirth", "#uie-inv-trigger-rebirth", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -1214,9 +1213,8 @@ export function initInventory() {
       renderRebirthModal();
     });
 
-  $(document)
-    .off("change.uieInvGearMenu", "#uie-inv-gear-menu input[type='checkbox']")
-    .on("change.uieInvGearMenu", "#uie-inv-gear-menu input[type='checkbox']", async function (e) {
+  $gear.off("change.uieInvGearMenu", "input[type='checkbox']")
+    .on("change.uieInvGearMenu", "input[type='checkbox']", async function (e) {
       e.preventDefault();
       e.stopPropagation();
       const s2 = getSettings();
@@ -1242,8 +1240,7 @@ export function initInventory() {
       try { (await import("./features/items.js")).render?.(); } catch (_) {}
     });
 
-  $(document)
-    .off("click.uieInvSparkle", "#uie-inv-sparkle")
+  $win.off("click.uieInvSparkle", "#uie-inv-sparkle")
     .on("click.uieInvSparkle", "#uie-inv-sparkle", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -1252,25 +1249,14 @@ export function initInventory() {
       if (st) st.textContent = "";
     });
 
-  $(document)
-    .off("click.uieInvSparkleClose", "#uie-create-close")
+  $sparkle.off("click.uieInvSparkleClose", "#uie-create-close")
     .on("click.uieInvSparkleClose", "#uie-create-close", function (e) {
       e.preventDefault();
       e.stopPropagation();
       closeCreateStation();
     });
 
-  $(document)
-    .off("click.uieCreateStationOverlay", "#uie-create-station-overlay")
-    .on("click.uieCreateStationOverlay", "#uie-create-station-overlay", function (e) {
-      if ($(e.target).closest("#uie-inv-sparkle-menu").length) return;
-      e.preventDefault();
-      e.stopPropagation();
-      closeCreateStation();
-    });
-
-  $(document)
-    .off("click.uieCreationStation", "#uie-create-run")
+  $sparkle.off("click.uieCreationStation", "#uie-create-run")
     .on("click.uieCreationStation", "#uie-create-run", async function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -1283,7 +1269,7 @@ export function initInventory() {
       const desc = String($("#uie-create-desc").val() || "").trim().slice(0, 600);
       const qty = Math.max(1, Math.min(5, Number($("#uie-create-qty").val() || 1)));
       const genImg = $("#uie-create-gen-img").is(":checked");
-      
+
       const st = document.getElementById("uie-create-status");
       if (kind === "currency" || kind === "xp") {
         if (st) st.textContent = "Use +Money / +XP below";
@@ -1295,7 +1281,7 @@ export function initInventory() {
 
       const persona = (() => { try { const ctx = getContext?.(); return String(ctx?.name1 || "You").trim() || "You"; } catch (_) { return "You"; } })();
       const base = desc ? `User request: ${desc}\n\n` : "";
-      
+
       // Determine if we use Staging Area
       const useStaging = ["item", "skill", "asset"].includes(kind);
       const isArrayReq = useStaging && qty > 1;
@@ -1306,13 +1292,15 @@ export function initInventory() {
       } else if (kind === "status") {
           prompt = `${base}Return ONLY JSON: {"statusEffects":[""]}\nRules:\n- 0-6 short strings\nPersona:${persona}\nContext:\n${chat}`;
       } else {
-          // Item / Skill / Asset
-          const schema = kind === "skill" 
+          // Item / Skill / Asset / Activity
+          const schema = kind === "skill"
             ? `{"name":"","description":"","skillType":"active|passive","statusEffects":[""],"mods":{"str":0,"dex":0,"int":0}}`
             : kind === "asset"
               ? `{"name":"","description":"","category":"","location":"","statusEffects":[""]}`
-              : `{"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}`;
-          
+              : kind === "activity"
+                ? `{"name":"","description":"","duration":60,"stats":{"str":0,"xp":10}}`
+                : `{"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}`;
+
           if (isArrayReq) {
               prompt = `${base}Return ONLY JSON Array of ${qty} items: [${schema}, ...]\nPersona:${persona}\nContext:\n${chat}`;
           } else {
@@ -1327,7 +1315,23 @@ export function initInventory() {
         try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
         if (!obj || typeof obj !== "object") return;
 
-        if (kind === "class" || kind === "status") {
+        if (kind === "class" || kind === "status" || kind === "activity") {
+             if (kind === "activity") {
+                 const newAct = {
+                     id: "custom_" + Date.now(),
+                     name: String(obj.name || "New Activity").slice(0, 60),
+                     duration: Math.max(10, Number(obj.duration) || 60),
+                     stats: obj.stats || { xp: 5 }
+                 };
+                 if (!s2.activities) s2.activities = {};
+                 if (!Array.isArray(s2.activities.custom)) s2.activities.custom = [];
+                 s2.activities.custom.push(newAct);
+                 saveSettings();
+                 notify("success", `Created activity: ${newAct.name}`, "Activities");
+                 try { (await import("./features/activities.js")).render?.(); } catch (_) {}
+                 if (st) st.textContent = "Done!";
+                 return;
+             }
              if (kind === "class") {
                   if (!s2.character) s2.character = {};
                   if (!s2.character.stats || typeof s2.character.stats !== "object") s2.character.stats = {};
@@ -1358,7 +1362,7 @@ export function initInventory() {
                     if (!mergedFx.includes(v)) mergedFx.push(v);
                   }
                   s2.character.statusEffects = mergedFx.slice(0, 25);
-                  
+
                   // Helper
                   const dedupeByName = (arr) => {
                     const seen = new Set();
@@ -1429,12 +1433,12 @@ export function initInventory() {
             const results = Array.isArray(obj) ? obj : [obj];
             const $stage = $("#uie-create-staging");
             $stage.show().empty();
-            
+
             for (let i = 0; i < results.length; i++) {
                 const item = results[i];
                 item.kind = kind;
                 const uid = Date.now() + Math.random().toString(36).substr(2, 9);
-                
+
                 // Render Card
                 const card = $(`
                     <div class="uie-stage-card" id="stage-${uid}" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px; display:flex; gap:10px;">
@@ -1454,11 +1458,11 @@ export function initInventory() {
                         </div>
                     </div>
                 `);
-                
+
                 // Store data on element
                 card.data("item", item);
                 $stage.append(card);
-                
+
                 // Trigger Image Gen if requested
                 if (genImg) {
                     const imgBox = card.find(".uie-stage-img-box");
@@ -1482,65 +1486,71 @@ export function initInventory() {
     });
 
   // --- STAGING HANDLERS ---
-  $(document).off("click.stageSave", ".uie-stage-save").on("click.stageSave", ".uie-stage-save", function(e) {
+  $sparkle.off("click.stageSave", ".uie-stage-save").on("click.stageSave", ".uie-stage-save", function(e) {
       e.preventDefault();
       const uid = $(this).data("uid");
       const card = $(`#stage-${uid}`);
       const item = card.data("item");
       if (!item) return;
-      
+
       // Update from inputs
       item.name = card.find(".uie-stage-name").val();
       item.description = card.find(".uie-stage-desc").val();
-      
+
       const s = getSettings();
       ensureModel(s);
-      
+
       if (item.kind === "skill") {
           if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
           s.inventory.skills.push(item);
       } else if (item.kind === "asset") {
           if (!Array.isArray(s.inventory.assets)) s.inventory.assets = [];
           s.inventory.assets.push(item);
+      } else if (item.kind === "activity") {
+          if (!s.activities) s.activities = {};
+          if (!Array.isArray(s.activities.custom)) s.activities.custom = [];
+          if (!item.id) item.id = "custom_" + Date.now() + "_" + Math.floor(Math.random()*1000);
+          s.activities.custom.push(item);
       } else {
           if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
           s.inventory.items.push(item);
       }
-      
+
       saveSettings();
       notify("success", `Added: ${item.name}`, "Creation");
-      
-      card.fadeOut(200, function() { 
-          $(this).remove(); 
+
+      card.fadeOut(200, function() {
+          $(this).remove();
           if ($("#uie-create-staging").children().length === 0) $("#uie-create-staging").hide();
       });
-      
+
       try { (async () => {
          if (item.kind === "item") (await import("./features/items.js")).render?.();
+         if (item.kind === "activity") (await import("./features/activities.js")).render?.();
          if (item.kind === "skill") (await import("./features/skills.js")).init?.();
          if (item.kind === "asset") (await import("./features/assets.js")).init?.();
       })(); } catch(_) {}
   });
 
-  $(document).off("click.stageDiscard", ".uie-stage-discard").on("click.stageDiscard", ".uie-stage-discard", function(e) {
+  $sparkle.off("click.stageDiscard", ".uie-stage-discard").on("click.stageDiscard", ".uie-stage-discard", function(e) {
       e.preventDefault();
       const uid = $(this).data("uid");
-      $(`#stage-${uid}`).fadeOut(200, function() { 
+      $(`#stage-${uid}`).fadeOut(200, function() {
           $(this).remove();
           if ($("#uie-create-staging").children().length === 0) $("#uie-create-staging").hide();
       });
   });
 
-  $(document).off("click.stageRegen", ".uie-stage-regen").on("click.stageRegen", ".uie-stage-regen", function(e) {
+  $sparkle.off("click.stageRegen", ".uie-stage-regen").on("click.stageRegen", ".uie-stage-regen", function(e) {
       e.preventDefault();
       const uid = $(this).data("uid");
       const card = $(`#stage-${uid}`);
       const item = card.data("item");
       const imgBox = card.find(".uie-stage-img-box");
-      
+
       item.name = card.find(".uie-stage-name").val();
       item.description = card.find(".uie-stage-desc").val();
-      
+
       imgBox.html('<i class="fa-solid fa-spinner fa-spin" style="color:#f1c40f;"></i>');
       generateImageAPI(`[UIE_LOCKED] Fantasy RPG icon/illustration for ${item.kind}: ${item.name}. ${item.description}`).then(url => {
             if (url) {
@@ -1552,8 +1562,7 @@ export function initInventory() {
       });
   });
 
-  $(document)
-    .off("click.uieCreateQuickAdd", "#uie-create-add-currency, #uie-create-add-xp")
+  $sparkle.off("click.uieCreateQuickAdd", "#uie-create-add-currency, #uie-create-add-xp")
     .on("click.uieCreateQuickAdd", "#uie-create-add-currency, #uie-create-add-xp", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -1590,62 +1599,32 @@ export function initInventory() {
       try { import("./features/items.js").then(mod => { if (mod?.render) mod.render(); }); } catch (_) {}
     });
 
-  $(document)
-    .off("click.uieInvFullscreen", "#uie-inv-fullscreen-toggle")
+  $win.off("click.uieInvFullscreen", "#uie-inv-fullscreen-toggle")
     .on("click.uieInvFullscreen", "#uie-inv-fullscreen-toggle", function (e) {
       e.preventDefault();
       e.stopPropagation();
       const next = !(root.dataset.fullscreen === "true");
+      const s = getSettings();
       s.inventoryDesktopFullscreen = next;
       saveSettings();
       setFullscreen(next);
     });
 
-  $(document)
-    .off("click.uieInvGear", "#uie-inv-gear")
-    .on("click.uieInvGear", "#uie-inv-gear", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      toggleFloatingMenu("uie-inv-gear-menu", "uie-inv-gear");
-      applyInventoryUi();
-    });
-
-  $(document)
-    .off("click.uieInvAvatarPick", "#uie-inventory-window .uie-inv-avatar")
-    .on("click.uieInvAvatarPick", "#uie-inventory-window .uie-inv-avatar", async function (e) {
-      if (!isEditMode()) return;
-      e.preventDefault();
-      e.stopPropagation();
-      await handlePickFor("avatar");
-    });
-
-  $(document)
-    .off("click.uieInvPortraitPick", "#uie-inv-portrait")
-    .on("click.uieInvPortraitPick", "#uie-inv-portrait", async function (e) {
-      if (!isEditMode()) return;
-      e.preventDefault();
-      e.stopPropagation();
-      await handlePickFor("portrait");
-    });
-
-  $(document)
-    .off("click.uieInvEditorClose", "#uie-inv-editor-close")
+  $win.off("click.uieInvEditorClose", "#uie-inv-editor-close")
     .on("click.uieInvEditorClose", "#uie-inv-editor-close", (e) => {
       e.preventDefault();
       e.stopPropagation();
       closeEditor();
     });
 
-  $(document)
-    .off("click.uieInvEditorPick", "#uie-inv-edit-pickimg")
+  $editor.off("click.uieInvEditorPick", "#uie-inv-edit-pickimg")
     .on("click.uieInvEditorPick", "#uie-inv-edit-pickimg", async (e) => {
       e.preventDefault();
       e.stopPropagation();
       await handlePickFor("item");
     });
 
-  $(document)
-    .off("click.uieInvEditorSave", "#uie-inv-edit-save")
+  $editor.off("click.uieInvEditorSave", "#uie-inv-edit-save")
     .on("click.uieInvEditorSave", "#uie-inv-edit-save", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1767,90 +1746,211 @@ function fxFindRelatedTracker(s, raw) {
 
 function fxRenderPopover(anchorRect, fx, tracker, editable = false) {
   let box = document.getElementById("uie-inv-fx-pop");
+
   if (!box) {
-    box = document.createElement("div");
-    box.id = "uie-inv-fx-pop";
-    box.style.cssText = "position:fixed;z-index:2147483656;max-width:min(360px,92vw);padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(15,10,8,0.96);color:#fff;font-weight:900;box-sizing:border-box;";
-    document.body.appendChild(box);
-    box.addEventListener("click", () => { try { box.remove(); } catch (_) {} });
-  }
-  box.innerHTML = "";
-  const name = statusName(fx);
-  const head = document.createElement("div");
-  head.style.cssText = "display:flex;gap:10px;align-items:center;margin-bottom:10px;";
-  const ico = document.createElement("i");
-  ico.className = `fa-solid ${fxIconClass(name)}`;
-  ico.style.cssText = "width:18px;text-align:center;opacity:0.95;";
-  const ttl = document.createElement("div");
-  ttl.textContent = String(name || "");
-  ttl.style.cssText = "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
-  head.appendChild(ico);
-  head.appendChild(ttl);
-  if (editable) {
-    const del = document.createElement("button");
-    del.textContent = "Remove";
-    del.style.cssText = "flex:0 0 auto;height:30px;padding:0 10px;border-radius:10px;border:1px solid rgba(243,139,168,0.35);background:rgba(0,0,0,0.25);color:#f38ba8;font-weight:900;cursor:pointer;";
-    del.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      try { deleteStatusById(String(fx?.id || "")); } catch (_) {}
-      try { box.remove(); } catch (_) {}
-    });
-    head.appendChild(del);
-  }
-  box.appendChild(head);
-
-  const rem = formatRemaining(fx?.expiresAt);
-  if (rem) {
-    const meta = document.createElement("div");
-    meta.textContent = rem === "expired" ? "Expired" : `Time left: ${rem}`;
-    meta.style.cssText = "opacity:0.75;font-size:12px;letter-spacing:0.2px;margin-bottom:8px;";
-    box.appendChild(meta);
-  }
-
-  const desc = String(fx?.desc || "").trim();
-  if (desc) {
-    const d = document.createElement("div");
-    d.textContent = desc;
-    d.style.cssText = "opacity:0.88;font-size:12px;line-height:1.4;margin-bottom:10px;white-space:pre-wrap;font-weight:800;";
-    box.appendChild(d);
-  }
-
-  const mods = summarizeMods(fx?.mods);
-  if (mods.length) {
-    const m = document.createElement("div");
-    m.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;";
-    for (const it of mods.slice(0, 12)) {
-      const chip = document.createElement("div");
-      chip.textContent = it;
-      chip.style.cssText = "padding:5px 8px;border-radius:999px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.22);font-size:11px;font-weight:900;opacity:0.92;";
-      m.appendChild(chip);
+    const tmpl = document.getElementById("uie-template-fx-popover");
+    if (tmpl) {
+        const clone = tmpl.content.cloneNode(true);
+        document.body.appendChild(clone);
+        box = document.getElementById("uie-inv-fx-pop");
+        box.addEventListener("click", () => { try { box.remove(); } catch (_) {} });
     }
-    box.appendChild(m);
   }
 
-  if (tracker && typeof tracker === "object") {
-    const tname = String(tracker?.name || "Tracker");
-    const cur = Number(tracker?.current ?? 0);
-    const max = Math.max(1, Number(tracker?.max ?? 100));
-    const color = String(tracker?.color || "#89b4fa");
-    const pct = Math.max(0, Math.min(100, (cur / max) * 100));
+  if (!box) {
+      // Fallback if template missing (should not happen if html correct)
+      box = document.createElement("div");
+      box.id = "uie-inv-fx-pop";
+      box.style.cssText = "position:fixed;z-index:2147483656;max-width:min(360px,92vw);padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(15,10,8,0.96);color:#fff;font-weight:900;box-sizing:border-box;";
+      document.body.appendChild(box);
+      box.addEventListener("click", () => { try { box.remove(); } catch (_) {} });
+  }
 
-    const meta = document.createElement("div");
-    meta.textContent = `${tname}: ${cur}/${max}`;
-    meta.style.cssText = "opacity:0.78;font-size:12px;letter-spacing:0.2px;margin-bottom:8px;";
-    box.appendChild(meta);
+  // Clear existing content if not using template structure directly or to reset
+  // But since we are reusing the box, we should clear specific fields or rebuild.
+  // The original code cleared innerHTML. With template, we might want to keep structure.
+  // For simplicity and matching original logic of "rebuild content":
 
-    const bar = document.createElement("div");
-    bar.style.cssText = "position:relative;height:14px;border-radius:7px;border:1px solid rgba(255,255,255,0.10);background:rgba(0,0,0,0.30);overflow:hidden;";
-    const fill = document.createElement("div");
-    fill.style.cssText = `height:100%;width:${pct}%;background:${color};`;
-    const txt = document.createElement("div");
-    txt.textContent = `${cur}/${max}`;
-    txt.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:rgba(255,255,255,0.92);text-shadow:0 1px 2px rgba(0,0,0,0.7);";
-    bar.appendChild(fill);
-    bar.appendChild(txt);
-    box.appendChild(bar);
+  const name = statusName(fx);
+
+  // If we just appended the template clone, box has the structure.
+  // But if we are reusing 'box', it might have old content.
+  // Let's use the template structure if available, otherwise manual build.
+
+  const head = box.querySelector(".uie-pop-head");
+  if (head) {
+      // Use existing template structure in DOM
+      box.querySelector(".uie-pop-icon").className = `uie-pop-icon fa-solid ${fxIconClass(name)}`;
+      box.querySelector(".uie-pop-title").textContent = String(name || "");
+
+      const metaDiv = box.querySelector(".uie-pop-meta");
+      const rem = formatRemaining(fx?.expiresAt);
+      if (rem) {
+          metaDiv.textContent = rem === "expired" ? "Expired" : `Time left: ${rem}`;
+          metaDiv.style.display = "block";
+      } else {
+          metaDiv.style.display = "none";
+      }
+
+      const descDiv = box.querySelector(".uie-pop-desc");
+      const desc = String(fx?.desc || "").trim();
+      if (desc) {
+          descDiv.textContent = desc;
+          descDiv.style.display = "block";
+      } else {
+          descDiv.style.display = "none";
+      }
+
+      const modsDiv = box.querySelector(".uie-pop-mods");
+      modsDiv.innerHTML = "";
+      const mods = summarizeMods(fx?.mods);
+      if (mods.length) {
+          modsDiv.style.display = "flex";
+          for (const it of mods.slice(0, 12)) {
+              const chip = document.createElement("div");
+              chip.textContent = it;
+              chip.style.cssText = "padding:5px 8px;border-radius:999px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.22);font-size:11px;font-weight:900;opacity:0.92;";
+              modsDiv.appendChild(chip);
+          }
+      } else {
+          modsDiv.style.display = "none";
+      }
+
+      // Handle tracker bar if present (inject or update)
+      let bar = box.querySelector(".uie-pop-tracker");
+      if (tracker && typeof tracker === "object") {
+          if (!bar) {
+              bar = document.createElement("div");
+              bar.className = "uie-pop-tracker";
+              box.appendChild(bar);
+          }
+          const tname = String(tracker?.name || "Tracker");
+          const cur = Number(tracker?.current ?? 0);
+          const max = Math.max(1, Number(tracker?.max ?? 100));
+          const color = String(tracker?.color || "#89b4fa");
+          const pct = Math.max(0, Math.min(100, (cur / max) * 100));
+
+          bar.innerHTML = ""; // Reset bar content
+
+          const meta = document.createElement("div");
+          meta.textContent = `${tname}: ${cur}/${max}`;
+          meta.style.cssText = "opacity:0.78;font-size:12px;letter-spacing:0.2px;margin-bottom:8px;";
+          bar.appendChild(meta);
+
+          const barLine = document.createElement("div");
+          barLine.style.cssText = "position:relative;height:14px;border-radius:7px;border:1px solid rgba(255,255,255,0.10);background:rgba(0,0,0,0.30);overflow:hidden;";
+          const fill = document.createElement("div");
+          fill.style.cssText = `height:100%;width:${pct}%;background:${color};`;
+          const txt = document.createElement("div");
+          txt.textContent = `${cur}/${max}`;
+          txt.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:rgba(255,255,255,0.92);text-shadow:0 1px 2px rgba(0,0,0,0.7);";
+          barLine.appendChild(fill);
+          barLine.appendChild(txt);
+          bar.appendChild(barLine);
+          bar.style.display = "block";
+      } else if (bar) {
+          bar.style.display = "none";
+      }
+
+      if (editable) {
+          // Add remove button if not exists
+          if (!head.querySelector(".uie-pop-remove")) {
+             const del = document.createElement("button");
+             del.className = "uie-pop-remove";
+             del.textContent = "Remove";
+             del.style.cssText = "flex:0 0 auto;height:30px;padding:0 10px;border-radius:10px;border:1px solid rgba(243,139,168,0.35);background:rgba(0,0,0,0.25);color:#f38ba8;font-weight:900;cursor:pointer;";
+             del.addEventListener("click", (e) => {
+               e.preventDefault();
+               e.stopPropagation();
+               try { deleteStatusById(String(fx?.id || "")); } catch (_) {}
+               try { box.remove(); } catch (_) {}
+             });
+             head.appendChild(del);
+          }
+      } else {
+          const existingDel = head.querySelector(".uie-pop-remove");
+          if (existingDel) existingDel.remove();
+      }
+
+  } else {
+      // Fallback to manual construction if template structure not found in box
+      box.innerHTML = "";
+      const head = document.createElement("div");
+      head.style.cssText = "display:flex;gap:10px;align-items:center;margin-bottom:10px;";
+      const ico = document.createElement("i");
+      ico.className = `fa-solid ${fxIconClass(name)}`;
+      ico.style.cssText = "width:18px;text-align:center;opacity:0.95;";
+      const ttl = document.createElement("div");
+      ttl.textContent = String(name || "");
+      ttl.style.cssText = "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+      head.appendChild(ico);
+      head.appendChild(ttl);
+      if (editable) {
+        const del = document.createElement("button");
+        del.textContent = "Remove";
+        del.style.cssText = "flex:0 0 auto;height:30px;padding:0 10px;border-radius:10px;border:1px solid rgba(243,139,168,0.35);background:rgba(0,0,0,0.25);color:#f38ba8;font-weight:900;cursor:pointer;";
+        del.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          try { deleteStatusById(String(fx?.id || "")); } catch (_) {}
+          try { box.remove(); } catch (_) {}
+        });
+        head.appendChild(del);
+      }
+      box.appendChild(head);
+
+      const rem = formatRemaining(fx?.expiresAt);
+      if (rem) {
+        const meta = document.createElement("div");
+        meta.textContent = rem === "expired" ? "Expired" : `Time left: ${rem}`;
+        meta.style.cssText = "opacity:0.75;font-size:12px;letter-spacing:0.2px;margin-bottom:8px;";
+        box.appendChild(meta);
+      }
+
+      const desc = String(fx?.desc || "").trim();
+      if (desc) {
+        const d = document.createElement("div");
+        d.textContent = desc;
+        d.style.cssText = "opacity:0.88;font-size:12px;line-height:1.4;margin-bottom:10px;white-space:pre-wrap;font-weight:800;";
+        box.appendChild(d);
+      }
+
+      const mods = summarizeMods(fx?.mods);
+      if (mods.length) {
+        const m = document.createElement("div");
+        m.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;";
+        for (const it of mods.slice(0, 12)) {
+          const chip = document.createElement("div");
+          chip.textContent = it;
+          chip.style.cssText = "padding:5px 8px;border-radius:999px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.22);font-size:11px;font-weight:900;opacity:0.92;";
+          m.appendChild(chip);
+        }
+        box.appendChild(m);
+      }
+
+      if (tracker && typeof tracker === "object") {
+        const tname = String(tracker?.name || "Tracker");
+        const cur = Number(tracker?.current ?? 0);
+        const max = Math.max(1, Number(tracker?.max ?? 100));
+        const color = String(tracker?.color || "#89b4fa");
+        const pct = Math.max(0, Math.min(100, (cur / max) * 100));
+
+        const meta = document.createElement("div");
+        meta.textContent = `${tname}: ${cur}/${max}`;
+        meta.style.cssText = "opacity:0.78;font-size:12px;letter-spacing:0.2px;margin-bottom:8px;";
+        box.appendChild(meta);
+
+        const bar = document.createElement("div");
+        bar.style.cssText = "position:relative;height:14px;border-radius:7px;border:1px solid rgba(255,255,255,0.10);background:rgba(0,0,0,0.30);overflow:hidden;";
+        const fill = document.createElement("div");
+        fill.style.cssText = `height:100%;width:${pct}%;background:${color};`;
+        const txt = document.createElement("div");
+        txt.textContent = `${cur}/${max}`;
+        txt.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:rgba(255,255,255,0.92);text-shadow:0 1px 2px rgba(0,0,0,0.7);";
+        bar.appendChild(fill);
+        bar.appendChild(txt);
+        box.appendChild(bar);
+      }
   }
 
   box.style.left = "0px";

@@ -14,6 +14,7 @@
       overflow: hidden;
       display:none;
       flex-direction:column;
+      z-index: 2147483650 !important;
     }
     #uie-main-menu::before{
       content:"";
@@ -32,10 +33,12 @@
     @media (max-width: 600px), (pointer: coarse) {
       #uie-main-menu{
         width: 94vw;
-        left: 3vw;
-        top: 12vh;
-        transform: none;
         max-height: 88vh;
+      }
+    }
+    @media (min-width: 601px) {
+      #uie-main-menu{
+        max-height: 90vh;
       }
     }
   </style>
@@ -57,9 +60,11 @@
               <button id="uie-btn-inventory" class="uie-menu-btn"><i class="fa-solid fa-box-open"></i><span>Inventory</span></button>
               <button id="uie-btn-shop" class="uie-menu-btn"><i class="fa-solid fa-shop"></i><span>Shop</span></button>
               <button id="uie-btn-journal" class="uie-menu-btn"><i class="fa-solid fa-book-journal-whills"></i><span>Journal</span></button>
-              <button id="uie-btn-diary" class="uie-menu-btn"><i class="fa-solid fa-book"></i><span>Diary</span></button>
               <button id="uie-btn-party" class="uie-menu-btn"><i class="fa-solid fa-users"></i><span>Party</span></button>
+              <button id="uie-btn-diary" class="uie-menu-btn"><i class="fa-solid fa-book"></i><span>Diary</span></button>
               <button id="uie-btn-social" class="uie-menu-btn"><i class="fa-solid fa-heart" style="color:#e74c3c;"></i><span>Social</span></button>
+              <button id="uie-btn-stats" class="uie-menu-btn"><i class="fa-solid fa-chart-bar"></i><span>Stats</span></button>
+              <button id="uie-btn-activities" class="uie-menu-btn"><i class="fa-solid fa-person-running"></i><span>Activities</span></button>
           </div>
       </div>
 
@@ -71,8 +76,6 @@
               <button id="uie-btn-open-calendar" class="uie-menu-btn"><i class="fa-solid fa-calendar-days"></i><span>Calendar</span></button>
               <button id="uie-btn-databank" class="uie-menu-btn"><i class="fa-solid fa-server"></i><span>Databank</span></button>
               <button id="uie-btn-battle" class="uie-menu-btn"><i class="fa-solid fa-skull-crossbones"></i><span>War Room</span></button>
-              <button id="uie-btn-activities" class="uie-menu-btn"><i class="fa-solid fa-person-running"></i><span>Activities</span></button>
-              <button id="uie-btn-stats" class="uie-menu-btn"><i class="fa-solid fa-chart-bar"></i><span>Stats</span></button>
           </div>
       </div>
 

@@ -56,24 +56,35 @@ function renderReagents() {
   if (!$wrap.length) return;
   $wrap.empty();
   if (!list.length) {
-    $wrap.html(`<div style="opacity:0.7; font-weight:900;">No reagents.</div>`);
+    // ideally use a template for empty state too, or toggle a hidden element
+    $wrap.append($("<div>").css({opacity:0.7, fontWeight:900}).text("No reagents."));
     return;
   }
+  
+  const template = document.getElementById("uie-alchemy-row-template");
+  
   for (const it of list.slice(0, 220)) {
+    const clone = template.content.cloneNode(true);
+    const $row = $(clone).find(".uie-alchemy-row");
+    
     const id = String(it.id);
     const active = selectedIds.has(id);
-    const img = it.img ? `<img src="${esc(it.img)}" alt="">` : `<i class="fa-solid fa-flask" style="opacity:0.85;"></i>`;
-    const qty = Number(it.qty || 1);
-    $wrap.append(`
-      <div class="uie-alchemy-row ${active ? "active" : ""}" data-id="${esc(id)}">
-        <div class="icon">${img}</div>
-        <div class="mid">
-          <div class="name">${esc(it.name || "Reagent")}</div>
-          <div class="sub">${esc(it.type || "alchemy")} • x${esc(qty)}</div>
-        </div>
-        <div class="uie-alchemy-pill">${active ? "Selected" : "Pick"}</div>
-      </div>
-    `);
+    
+    $row.attr("data-id", id);
+    if (active) $row.addClass("active");
+    
+    const $icon = $row.find(".icon");
+    if (it.img) {
+      $("<img>").attr("src", it.img).appendTo($icon);
+    } else {
+      $("<i>").addClass("fa-solid fa-flask").css("opacity", "0.85").appendTo($icon);
+    }
+    
+    $row.find(".name").text(it.name || "Reagent");
+    $row.find(".sub").text(`${it.type || "alchemy"} • x${it.qty || 1}`);
+    $row.find(".uie-alchemy-pill").text(active ? "Selected" : "Pick");
+    
+    $wrap.append($row);
   }
 }
 
@@ -85,11 +96,16 @@ function renderSelected() {
   $sel.empty();
   const picked = (s.inventory.items || []).filter(it => selectedIds.has(String(it?.id || "")));
   if (!picked.length) {
-    $sel.html(`<div style="opacity:0.7; font-weight:900;">None</div>`);
+    $sel.append($("<div>").css({opacity:0.7, fontWeight:900}).text("None"));
     return;
   }
+  
+  const template = document.getElementById("uie-alchemy-pill-template");
+  
   picked.slice(0, 16).forEach(it => {
-    $sel.append(`<span class="uie-alchemy-pill">${esc(it.name || "Reagent")}</span>`);
+    const clone = template.content.cloneNode(true);
+    $(clone).find(".uie-alchemy-pill").text(it.name || "Reagent");
+    $sel.append(clone);
   });
 }
 

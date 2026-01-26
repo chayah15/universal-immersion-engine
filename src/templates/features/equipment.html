@@ -13,6 +13,11 @@
   }
   @media (max-width: 700px), (pointer: coarse) {
     #equip-status-wrap{ display:none !important; }
+    .equip-grid{ grid-template-columns: 1fr; }
+    .equip-doll{ display:none; }
+    .equip-mid .slot-name{ display:block; font-size:12px; }
+    .equip-mid .item-name{ font-size:13px; }
+    .equip-slot{ min-height: 64px; }
   }
 
   .equip-top{
@@ -151,19 +156,26 @@
   }
 
   .equip-slot{
+    flex: 1; /* Fill available vertical space */
+    min-height: 80px; /* Ensure a decent minimum size */
     border-radius:8px;
     border:1px solid rgba(225,193,122,0.18);
     background: rgba(0,0,0,0.22);
-    padding:6px;
+    padding:10px;
     display:flex;
-    flex-direction:column;
-    gap:4px;
+    flex-direction:row;
+    gap:12px;
     align-items:center;
-    text-align:center;
+    text-align:left;
+    transition: all 0.2s;
+  }
+  .equip-slot:hover{
+    background: rgba(225,193,122,0.08);
+    border-color: rgba(225,193,122,0.4);
   }
 
   .equip-icon{
-    width:36px;height:36px;border-radius:10px;
+    width:48px;height:48px;border-radius:10px;
     display:grid;place-items:center;
     border:1px solid rgba(255,255,255,0.12);
     background: rgba(0,0,0,0.25);
@@ -172,13 +184,13 @@
   }
   .equip-icon img{width:100%;height:100%;object-fit:cover;border-radius:10px;}
 
-  .equip-mid{flex:1; min-width:0; width:100%; display:flex; flex-direction:column; align-items:center;}
-  .equip-mid .slot-name{font-weight:900; font-size:10px; letter-spacing:0.3px; color:#f1c40f; text-transform:uppercase; opacity:0.8;}
-  .equip-mid .item-name{margin-top:2px; font-size:11px; font-weight:900; color:rgba(255,255,255,0.95); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;}
-  .equip-mid .meta{margin-top:2px; display:flex; gap:4px; flex-wrap:wrap; justify-content:center;}
-  .equip-badge{padding:2px 6px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); font-size:9px; font-weight:900; color:rgba(255,255,255,0.75);}
+  .equip-mid{flex:1; min-width:0; width:100%; display:flex; flex-direction:column; align-items:flex-start;}
+  .equip-mid .slot-name{font-weight:900; font-size:11px; letter-spacing:0.5px; color:#f1c40f; text-transform:uppercase; opacity:0.9;}
+  .equip-mid .item-name{margin-top:2px; font-size:13px; font-weight:900; color:rgba(255,255,255,0.95); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;}
+  .equip-mid .meta{margin-top:4px; display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-start;}
+  .equip-badge{padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); font-size:10px; font-weight:900; color:rgba(255,255,255,0.75);}
 
-  .equip-actions{display:flex; gap:6px; flex:0 0 auto; margin-top:4px;}
+  .equip-actions{display:flex; gap:6px; flex:0 0 auto; margin-left:auto;}
   .equip-btn{
     height:24px;
     padding:0 8px;
@@ -223,11 +235,7 @@
         <img id="equip-doll-img" alt="" style="display:none;">
         <div id="equip-doll-empty" style="opacity:0.8; font-weight:900; color:rgba(255,255,255,0.75);">PAPER DOLL</div>
       </div>
-      <div class="equip-page">
-        <div class="nav" id="equip-page-prev" title="Previous"><i class="fa-solid fa-chevron-left"></i></div>
-        <div class="ind" id="equip-page-ind">1/1</div>
-        <div class="nav" id="equip-page-next" title="Next"><i class="fa-solid fa-chevron-right"></i></div>
-      </div>
+      <!-- Removed Page Controls -->
     </div>
     <div class="equip-side" id="equip-slot-right"></div>
   </div>

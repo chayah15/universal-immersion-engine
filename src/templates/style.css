@@ -1,3 +1,4 @@
+
 /* --- UNIVERSAL THEME: DARK FANTASY (Dragon Age Style) --- */
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@400;700&display=swap');
 
@@ -17,11 +18,15 @@
 
 /* --- MAIN WINDOW --- */
 .uie-window {
-    background: var(--uie-bg-gradient);
+    background-image: var(--uie-bg-gradient);
+    background-color: #0e1218;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
     border: 1px solid var(--uie-border-out);
-    box-shadow: 
-        0 0 0 1px #000, 
-        0 0 0 3px var(--uie-border-out), 
+    box-shadow:
+        0 0 0 1px #000,
+        0 0 0 3px var(--uie-border-out),
         var(--uie-shadow);
     color: var(--uie-text-main);
     border-radius: 2px;
@@ -30,6 +35,7 @@
     max-width: 95vw;
     display: flex;
     flex-direction: column;
+    z-index: 20000;
 }
 
 /* --- HEADER AREA --- */
@@ -263,7 +269,7 @@
 #uie-item-editor {
     position: absolute; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(11, 16, 28, 0.98);
-    z-index: 100; padding: 15px; display: flex; flex-direction: column; gap: 10px;
+    z-index: 2147483647; padding: 15px; display: flex; flex-direction: column; gap: 10px;
 }
 .uie-modal-header { display: flex; justify-content: space-between; border-bottom: 1px solid var(--uie-gold); padding-bottom: 5px; margin-bottom: 5px; font-weight: bold; color: var(--uie-gold); }
 .uie-edit-field { background: #000; border: 1px solid var(--uie-border-in); color: #fff; padding: 5px; width: 100%; }
@@ -429,4 +435,246 @@ textarea.uie-edit-field { resize: vertical; min-height: 60px; }
     gap: 5px;
     padding: 10px;
     overflow-y: auto;
+}
+
+/* --- Z-INDEX FIXES --- */
+.swal2-container { z-index: 2147483647 !important; }
+#uie-journal-menu { z-index: 20060 !important; }
+.uie-dropdown { z-index: 20060 !important; }
+
+/* --- SOCIAL WINDOW --- */
+/* Styles moved to social.html to prevent conflicts */
+
+
+/* --- VISUAL NOVEL INTERFACE --- */
+#re-vn-box.vn-dialogue-box,
+.vn-dialogue-box {
+    pointer-events: auto;
+    width: min(900px, 96vw);
+    position: absolute;
+    left: 50%;
+    bottom: 220px;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, rgba(12, 8, 8, 0.98) 0%, rgba(20, 14, 12, 0.99) 100%);
+    border: 1px solid var(--uie-border-out);
+    border-top: 2px solid var(--uie-gold);
+    border-radius: 24px;
+    padding: 24px 32px 40px 32px; /* Extra bottom padding for nav */
+    color: var(--uie-text-main);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.9), inset 0 0 30px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 100;
+    overflow: visible !important; /* Allow nameplate overlap */
+    transition: opacity 0.3s;
+    opacity: 1 !important; /* Ensure it stays visible */
+    display: flex !important; /* Ensure flex layout */
+}
+
+/* Speaker Nameplate - Floating Style */
+#re-speaker {
+    position: absolute;
+    top: -38px; /* Move above box */
+    left: 32px;
+    background: linear-gradient(180deg, rgba(20, 14, 12, 0.98) 0%, rgba(12, 8, 8, 0.95) 100%);
+    border: 1px solid var(--uie-gold);
+    border-bottom: 1px solid transparent; /* Merge visual */
+    padding: 8px 24px;
+    border-radius: 12px 12px 0 0;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: var(--uie-gold);
+    font-size: 1.3em;
+    text-transform: uppercase;
+    font-family: var(--uie-font-header);
+    text-shadow: 0 2px 4px rgba(0,0,0,1);
+    box-shadow: 0 -5px 15px rgba(0,0,0,0.5);
+    z-index: 101;
+}
+
+#re-text {
+    font-size: 1.25rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 4em;
+    font-family: var(--uie-font-body);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    color: #e0e0e0;
+}
+
+/* VN Controls */
+#re-vn-controls {
+    position: absolute;
+    top: -24px;
+    right: 10px;
+    display: flex;
+    gap: 8px;
+    z-index: 102;
+}
+
+/* VN Navigation (Pagination) */
+#re-vn-nav {
+    position: absolute;
+    bottom: 12px;
+    right: 24px;
+    display: flex;
+    gap: 8px;
+    z-index: 102;
+}
+
+/* VN Buttons */
+.re-vn-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ccc;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    backdrop-filter: blur(4px);
+}
+.re-vn-btn:hover {
+    background: rgba(203, 163, 92, 0.3);
+    border-color: #cba35c;
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+#re-composer-wrap {
+    position: absolute;
+    left: 50%;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(820px, 96vw);
+    pointer-events: auto;
+    z-index: 100;
+}
+
+.re-sprite {
+    position: absolute;
+    left: 50%;
+    bottom: 22dvh;
+    transform: translateX(-50%);
+    height: 62dvh;
+    width: auto;
+    max-width: 96vw;
+    object-fit: contain;
+    filter: drop-shadow(0 12px 28px rgba(0,0,0,0.65));
+    animation: reBreathe 4.8s ease-in-out infinite;
+    transition: all 0.5s ease-in-out;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+/* --- MOBILE EXPANSION --- */
+
+/* Glass Pills */
+#re-glass-pills {
+    display: flex;
+    gap: 8px;
+    padding: 8px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 6px;
+}
+#re-glass-pills::-webkit-scrollbar { display: none; }
+
+.re-pill {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 6px 14px;
+    color: #eee;
+    font-size: 0.9em;
+    white-space: nowrap;
+    backdrop-filter: blur(4px);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.re-pill:active { background: rgba(255,255,255,0.3); transform: scale(0.95); }
+
+/* Bottom Sheet Context Menu */
+.re-bottom-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: #1a1a1a;
+    border-top: 1px solid #333;
+    border-radius: 16px 16px 0 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    z-index: 2147483650;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+}
+.re-bottom-sheet.active { transform: translateY(0); }
+
+.re-sheet-handle {
+    width: 40px;
+    height: 4px;
+    background: #444;
+    border-radius: 2px;
+    margin: 0 auto 10px;
+}
+
+.re-sheet-btn {
+    background: #2a2a2a;
+    border: none;
+    padding: 16px;
+    border-radius: 12px;
+    color: #eee;
+    font-size: 1.1em;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+.re-sheet-btn i { width: 24px; text-align: center; color: #cba35c; }
+.re-sheet-btn:active { background: #333; }
+
+/* Focus Mode */
+.re-focus-mode #re-sprites-layer,
+.re-focus-mode #re-objects,
+.re-focus-mode #re-action-grid,
+.re-focus-mode #re-hud,
+.re-focus-mode #re-trophies {
+    display: none !important;
+}
+.re-focus-mode #re-bg { opacity: 0.3; filter: blur(4px); }
+
+/* Visual Trophies */
+#re-trophies {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+}
+.re-trophy-item {
+    position: absolute;
+    bottom: 30%;
+    width: 60px;
+    height: auto;
+    filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5));
+}
+
+/* Diegetic Slide Up */
+@media (max-width: 700px) {
+    .uie-window[style*="display: flex"] {
+        animation: slideUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+}
+@keyframes slideUp {
+    from { transform: translate(-50%, 100%); opacity: 0; }
+    to { transform: translate(-50%, -50%); opacity: 1; }
 }

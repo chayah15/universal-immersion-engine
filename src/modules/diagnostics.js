@@ -1,5 +1,5 @@
 import { getSettings } from "./core.js";
-import { getContext } from "../../../../../extensions.js";
+import { getContext } from "/scripts/extensions.js";
 
 const MAX_ENTRIES = 250;
 const buffer = [];
@@ -32,22 +32,28 @@ function renderLog() {
     const el = $("#uie-debug-log");
     if (!el.length) return;
     el.empty();
+    const frag = document.createDocumentFragment();
     buffer.slice(-MAX_ENTRIES).forEach((e) => {
         const cls = e.type === "fail" ? "log-fail" : e.type === "warn" ? "log-warn" : e.type === "pass" ? "log-pass" : "log-info";
         const line = `[${String(e.ts).replace("T", " ").replace("Z", "")}] ${e.msg}`;
-        el.append(`<div class="${cls}">${escapeHtml(line)}</div>`);
-        if (e.stack) el.append(`<div class="${cls}" style="opacity:0.85; margin-left:12px; white-space:pre-wrap;">${escapeHtml(e.stack)}</div>`);
-    });
-    el.scrollTop(el[0].scrollHeight);
-}
 
-function escapeHtml(s) {
-    return String(s ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+        const div = document.createElement("div");
+        div.className = cls;
+        div.textContent = line;
+        frag.appendChild(div);
+
+        if (e.stack) {
+            const stackDiv = document.createElement("div");
+            stackDiv.className = cls;
+            stackDiv.style.opacity = "0.85";
+            stackDiv.style.marginLeft = "12px";
+            stackDiv.style.whiteSpace = "pre-wrap";
+            stackDiv.textContent = e.stack;
+            frag.appendChild(stackDiv);
+        }
+    });
+    el.append(frag);
+    el.scrollTop(el[0].scrollHeight);
 }
 
 export function getDebugReport() {

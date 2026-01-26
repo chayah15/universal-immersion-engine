@@ -56,4 +56,28 @@
             </div>
         </div>
     </div>
+
+    <!-- TEMPLATES -->
+    <template id="uie-template-codex-entry">
+        <div class="uie-codex-entry" style="border:1px solid rgba(255,255,255,0.10); border-left:4px solid #cba35c; background:rgba(0,0,0,0.20); border-radius:14px; padding:12px; margin-bottom:10px; cursor:pointer;">
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div class="codex-title" style="font-weight:900; color:#cba35c;"></div>
+                <div class="codex-date" style="margin-left:auto; font-size:12px; opacity:0.7;"></div>
+            </div>
+            <div class="codex-meta" style="margin-top:4px; color:rgba(255,255,255,0.70); font-weight:800; font-size:12px;"></div>
+            <div class="uie-codex-body" style="display:none; margin-top:10px; color:#ddd; line-height:1.55; white-space:pre-wrap;"></div>
+            <div class="uie-codex-actions" style="display:none; margin-top:10px; gap:10px;">
+                <button class="uie-codex-edit" style="height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Edit</button>
+                <button class="uie-codex-del" style="height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(243,139,168,0.35); background:rgba(0,0,0,0.25); color:#f38ba8; font-weight:900; cursor:pointer;">Delete</button>
+            </div>
+        </div>
+    </template>
+
+    <template id="uie-template-quest-entry">
+        <div class="uie-quest-entry" style="border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); border-radius:14px; padding:12px; margin-bottom:10px;">
+            <div class="uie-quest-title" style="font-weight:900; color:#f1c40f;"></div>
+            <div class="uie-quest-desc" style="color:#bbb; margin-top:6px; line-height:1.45;"></div>
+            <div class="uie-quest-actions" style="margin-top:10px; display:none; gap:10px;"></div>
+        </div>
+    </template>
 </div>

@@ -1,30 +1,38 @@
-export function extractJsonText(input) {
-    const raw = String(input || "").replace(/```json|```/g, "").trim();
-    if (!raw) return "";
-    const a = raw.indexOf("{");
-    const b = raw.lastIndexOf("}");
-    if (a >= 0 && b > a) return raw.slice(a, b + 1);
-    const c = raw.indexOf("[");
-    const d = raw.lastIndexOf("]");
-    if (c >= 0 && d > c) return raw.slice(c, d + 1);
-    return raw;
+
+/**
+ * Safely parses a JSON string, handling markdown code blocks.
+ * @param {string} text 
+ * @returns {any|null}
+ */
+function parse(text) {
+    try {
+        let str = String(text || "").trim();
+        // Remove markdown code blocks if present
+        if (str.startsWith("```")) {
+            str = str.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+        }
+        return JSON.parse(str);
+    } catch (e) {
+        return null;
+    }
 }
 
-export function safeJsonParse(input) {
-    const txt = extractJsonText(input);
-    if (!txt) return null;
-    try { return JSON.parse(txt); } catch (_) { return null; }
+/**
+ * Parses JSON and ensures it is a non-null object (not array).
+ * @param {string} text 
+ * @returns {object|null}
+ */
+export function safeJsonParseObject(text) {
+    const res = parse(text);
+    return (res && typeof res === "object" && !Array.isArray(res)) ? res : null;
 }
 
-export function safeJsonParseObject(input) {
-    const obj = safeJsonParse(input);
-    if (obj && typeof obj === "object" && !Array.isArray(obj)) return obj;
-    return null;
+/**
+ * Parses JSON and ensures it is an array.
+ * @param {string} text 
+ * @returns {Array|null}
+ */
+export function safeJsonParseArray(text) {
+    const res = parse(text);
+    return Array.isArray(res) ? res : null;
 }
-
-export function safeJsonParseArray(input) {
-    const arr = safeJsonParse(input);
-    if (Array.isArray(arr)) return arr;
-    return null;
-}
-

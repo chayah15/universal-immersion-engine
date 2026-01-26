@@ -1,4 +1,4 @@
-import { getContext } from "../../../../../extensions.js";
+import { getContext } from "/scripts/extensions.js";
 
 function stripCssBlocks(text) {
     const src = String(text || "").replace(/\r/g, "");
@@ -48,7 +48,6 @@ function normIsUser(v) {
 
 async function tryImportChatArray() {
     const candidates = [
-        "../../../../../../script.js",
         "/script.js",
     ];
     for (const p of candidates) {
