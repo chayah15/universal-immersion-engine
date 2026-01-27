@@ -1130,7 +1130,7 @@ export function initSocial() {
     });
 
     $win.off("click.uieSocialMenu");
-    $win.on("click.uieSocialMenu", "#uie-social-sparkle", (e)=>{ e.preventDefault(); e.stopPropagation(); $("#uie-social-menu").toggle(); });
+    $win.on("click.uieSocialMenu", "#uie-social-sparkle", (e)=>{ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); $("#uie-social-menu").toggle(); });
     // Close menu if clicking elsewhere in the window
     $win.on("click.uieSocialMenu", function(e) {
         const $t = $(e.target);

@@ -1024,6 +1024,9 @@ export async function generateContent(prompt, type) {
     const useTurbo = turboReady && !turboBlockTypes.has(String(type || "").trim());
 
     if (type === "Logic" || type === "JSON") type = "System Check";
+    if ((type === "System Check" || type === "Unified State Scan") && s?.generation?.allowSystemChecks === false) {
+        return null;
+    }
 
     const sysGate = await (async () => {
         if (type !== "System Check") return { release: () => {} };

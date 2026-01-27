@@ -450,6 +450,8 @@ export function playFootstep(biome = "default") {
 }
 
 export function initSensory() {
+    if (initSensory._inited) return;
+    initSensory._inited = true;
     initAudio(); // Initialize Audio Context
 
     const stage = document.getElementById("reality-stage");
@@ -476,6 +478,8 @@ let longPressTimer = null;
 let isLongPress = false;
 
 function handleSwipe(diffX, diffY) {
+    // Swipes disabled: navigation uses buttons only
+    return;
     const absX = Math.abs(diffX);
     const absY = Math.abs(diffY);
     if (Math.max(absX, absY) < 50) return;
@@ -526,6 +530,13 @@ function showBottomSheet() {
             <button class="re-sheet-btn" data-cmd="/look"><i class="fa-solid fa-eye"></i> Look</button>
         `;
         document.body.appendChild(sheet);
+
+        // Prevent sheet interactions from triggering background/stage/global handlers
+        sheet.addEventListener("mousedown", (e) => e.stopPropagation());
+        sheet.addEventListener("pointerdown", (e) => e.stopPropagation());
+        sheet.addEventListener("touchstart", (e) => { try { e.stopPropagation(); } catch (_) {} }, { passive: true });
+        sheet.addEventListener("click", (e) => e.stopPropagation());
+
         sheet.querySelectorAll("button").forEach(btn => {
             btn.addEventListener("click", (e) => {
                 const cmd = e.currentTarget.dataset.cmd;
@@ -550,6 +561,8 @@ function hideBottomSheet() {
 }
 
 export function initGestures() {
+    if (initGestures._inited) return;
+    initGestures._inited = true;
     const stage = document.getElementById("reality-stage");
     if (!stage) return;
     stage.addEventListener("touchstart", (e) => {
@@ -821,6 +834,8 @@ export class VisualPhysics {
 export const physics = new VisualPhysics();
 
 export function initVisualPhysics() {
+    if (initVisualPhysics._inited) return;
+    initVisualPhysics._inited = true;
     physics.init();
 }
 
@@ -840,6 +855,7 @@ class RuneCaster {
         this.isDrawing = false;
         this.active = false;
         this.templates = this.defineTemplates();
+        this._inited = false;
     }
 
     defineTemplates() {
@@ -857,6 +873,8 @@ class RuneCaster {
     }
 
     init() {
+        if (this._inited) return;
+        this._inited = true;
         this.canvas = document.getElementById("re-gesture-canvas");
         if (!this.canvas) return;
         this.ctx = this.canvas.getContext("2d");
@@ -889,6 +907,7 @@ class RuneCaster {
         if (!this.canvas) return;
         this.active = !this.active;
         if (this.active) {
+            this.canvas.style.zIndex = "2147483646";
             this.canvas.style.pointerEvents = "auto";
             this.canvas.style.opacity = "1";
             // Dim background
@@ -900,6 +919,7 @@ class RuneCaster {
             this.ctx.fillText("Draw a Rune", this.canvas.width / 2, this.canvas.height * 0.2);
             notify("info", "Rune Casting Active", "Magic");
         } else {
+            this.canvas.style.zIndex = "90";
             this.canvas.style.pointerEvents = "none";
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
             this.points = [];

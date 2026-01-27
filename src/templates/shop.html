@@ -1,19 +1,56 @@
 <style>
-  #uie-shop-window{ top: 80px; left: 80px; transform:none; width:700px; height:760px; background:rgba(11,15,21,0.96); position: fixed; z-index:2147483646; pointer-events:auto; }
+  #uie-shop-window{ top: 15vh; left: 15vw; transform:none; width:min(500px, 80vw); height:min(600px, 70vh); background:rgba(11,15,21,0.96); position: fixed; z-index:2147483646; pointer-events:auto; display:flex; flex-direction:column; border:1px solid rgba(225,193,122,0.2); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); }
   #uie-shop-window::before,
   #uie-shop-window::after{ content:none !important; }
-  #uie-shop-window .uie-content{ position: relative; z-index:1; }
+  #uie-shop-window .uie-content{ position: relative; z-index:1; flex:1; min-height:0; overflow:auto; }
+  #uie-shop-window .uie-header{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:space-between !important;
+    flex-direction:row !important;
+    position:relative !important;
+    padding: 10px 15px !important;
+    width: 100% !important;
+    height: auto !important;
+    flex-shrink: 0 !important;
+    background: linear-gradient(90deg, #1b202b, #0e121a) !important;
+    border-bottom: 1px solid rgba(225,193,122,0.18) !important;
+    border-radius: 12px 12px 0 0 !important;
+  }
+  #uie-shop-window .uie-header,
+  #uie-shop-window .uie-header *{
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    transform: none !important;
+  }
+  #uie-shop-window .uie-info{
+    display:flex !important;
+    flex-direction:column !important;
+    writing-mode: horizontal-tb !important;
+  }
+  #uie-shop-window .uie-header h2{
+    font-size: 1.1em !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    transform: none !important;
+  }
   @media (max-width: 700px), (pointer: coarse) {
     #uie-shop-window {
-      position: fixed !important;
-      inset: auto !important;
-      top: 12vh !important;
-      left: 3vw !important;
-      transform: none !important;
-      width: 94vw !important;
-      height: 80vh !important;
-      max-width: 94vw !important;
-      max-height: 80vh !important;
+      top: 6vh;
+      left: 4vw;
+      width: 91vw;
+      max-width: 91vw;
+      height: 87vh;
+      max-height: 87vh;
+    }
+    #uie-shop-window .uie-header{
+      padding: 8px 10px !important;
+      font-size: 0.9em !important;
+    }
+    #uie-shop-window .uie-header h2{
+      font-size: 0.95em !important;
     }
   }
 </style>

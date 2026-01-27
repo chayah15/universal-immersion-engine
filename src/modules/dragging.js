@@ -6,10 +6,43 @@ let touchBlocker = false;
 let launcherMouse = { active: false, ox: 0, oy: 0, moved: false, movedAt: 0 };
 let launcherSaveT = 0;
 
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const clampToViewport = (left, top, w, h, pad = 0) => {
+    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    // Keep at least some of the window visible even if it is larger than the viewport.
+    const minVisible = 40;
+    const minX = Math.min(pad, vw - minVisible);
+    const maxX = Math.max(pad, vw - minVisible);
+    const minY = Math.min(pad, vh - minVisible);
+    const maxY = Math.max(pad, vh - minVisible);
+    const x = clamp(left, -Math.max(0, w - minVisible), maxX);
+    const y = clamp(top, -Math.max(0, h - minVisible), maxY);
+    return { x, y };
+};
+
 export function initDragging() {
     if (window.uie_drag_controller) window.uie_drag_controller.abort();
     window.uie_drag_controller = new AbortController();
     const signal = window.uie_drag_controller.signal;
+
+    const markHandled = (e) => {
+        try {
+            if (e && e.__uieDragHandled) return false;
+            if (e) e.__uieDragHandled = true;
+        } catch (_) {}
+        return true;
+    };
+
+    const dragLog = (stage, data) => {
+        try {
+            const payload = { stage, t: Date.now(), ...(data || {}) };
+            window.UIE_lastDrag = payload;
+            if (window.UIE_DRAG_DEBUG === true) {
+                console.log("[UIE][drag]", payload);
+            }
+        } catch (_) {}
+    };
 
     const launcher = document.getElementById("uie-launcher");
     if (launcher) {
@@ -33,8 +66,9 @@ export function initDragging() {
                 const h = r.height || launcher.offsetHeight || 60;
                 let left = touch.clientX - (w / 2);
                 let top = touch.clientY - (h / 2);
-                left = Math.max(0, Math.min(left, vw - w));
-                top = Math.max(0, Math.min(top, vh - h));
+                const pos = clampToViewport(left, top, w, h, 0);
+                left = pos.x;
+                top = pos.y;
                 launcher.style.left = `${left}px`;
                 launcher.style.top = `${top}px`;
 
@@ -117,6 +151,29 @@ export function initDragging() {
         }, { signal });
     }
 
+    // Ensure drag handles are not treated as scroll gestures on mobile browsers.
+    // This prevents the page from hijacking the drag and making windows feel "stuck".
+    try {
+        const dragSel = [
+            "#uie-menu-drag",
+            ".uie-header",
+            ".uie-diary-header",
+            ".phone-status-bar",
+            ".uie-p-header",
+            ".uie-party-member-header",
+            ".uie-rpg-header",
+            ".uie-sim-header",
+            "#uie-inv-drag"
+        ].join(", ");
+        document.querySelectorAll(dragSel).forEach((el) => {
+            try {
+                el.style.touchAction = "none";
+                el.style.userSelect = "none";
+                el.style.webkitUserSelect = "none";
+            } catch (_) {}
+        });
+    } catch (_) {}
+
     const onWinStart = (e) => {
         if (launcherState.active) return;
         if (e.type === "mousedown" && typeof e.button === "number" && e.button !== 0) return;
@@ -124,21 +181,42 @@ export function initDragging() {
 
         const inStatsHeader = t.closest(".uie-rpg-header").length > 0;
         const inActivitiesHeader = t.closest(".uie-sim-header").length > 0;
-        const inDragHeader = inStatsHeader || inActivitiesHeader;
-        const inHeaderButton = t.closest("button, .uie-rpg-close, .uie-sim-close").length > 0;
+        const inGenericHeader = t.closest(".uie-header, .uie-diary-header, .phone-status-bar, .uie-p-header, .uie-party-member-header").length > 0;
+        const inDragHeader = inStatsHeader || inActivitiesHeader || inGenericHeader;
+        const inHeaderButton = t.closest("button, .uie-rpg-close, .uie-sim-close, .uie-close-btn").length > 0;
         const inAnyWindow = t.closest(".uie-window").length > 0;
+        const inPhoneWindow = t.closest("#uie-phone-window").length > 0;
         const inMainMenu = t.closest("#uie-main-menu").length > 0;
-        const allowMobileFreeDrag = isMobileUI() && (inAnyWindow || inMainMenu);
+        const inMenuDrag = t.closest("#uie-menu-drag").length > 0;
+        const inMenuContent = t.closest("#uie-menu-content").length > 0;
+        const inMenuTabs = t.closest(".uie-menu-tabs").length > 0;
+        const mobile = isMobileUI();
+        const allowDragStart = inMenuDrag || inDragHeader || (mobile && inMainMenu && !inMenuContent && !inMenuTabs);
 
-        // CRITICAL: Check for buttons and clickable elements FIRST, before any drag logic
+        // If the user is grabbing a real drag handle, prevent the browser from treating it as scroll.
+        if (allowDragStart && e.cancelable) {
+            try { e.preventDefault(); } catch (_) {}
+        }
+
+        dragLog("start", {
+            type: String(e?.type || ""),
+            target: String(t?.[0]?.id || t?.[0]?.className || ""),
+            allowDragStart,
+            inMenuDrag,
+            inDragHeader
+        });
+
+        // CRITICAL: Always allow interactive elements to receive clicks
+        if (!inMenuDrag && (t.is("button") || 
+            t.is("i") && t.closest("button").length ||
+            t.closest("button").length ||
+            t.closest(".uie-close-btn, .uie-rpg-close, .uie-sim-close, .uie-inv-close, #uie-phone-close, #uie-settings-close, #uie-party-member-close, #uie-party-member-bg-edit, .phone-back-btn, .uie-controls, .uie-dropdown, .uie-dd-item, .uie-menu-tab, .uie-inv-icon, .fa-wand-magic-sparkles, [id*='sparkle'], #uie-activity-sparkle, input, select, textarea, option, optgroup, a, label, .tab, .uie-tab, .uie-set-tab, .uie-settings-tab, [onclick], [role='button'], .uie-btn-accept, .uie-btn-deny, .uie-btn-complete, .uie-btn-fail, .uie-codex-add, .uie-codex-edit, .uie-codex-del, #re-st-menu, #re-q-menu, #uie-journal-menu, .menu, .popup, .dropdown-menu, .range-slider, .checkbox, .radio, .toggle, .re-qbtn, .re-menu-item, .re-forge-btn, .vn-dialogue-box, .re-bar, .re-hud-btn, .uie-social-card, .uie-p-close, .uie-inv-tabs, .uie-journal-sidebar, .uie-journal-list, #uie-world-content, .no-drag, .clickable, .re-actbtn, #re-action-grid, #re-composer, .re-obj, #re-phone, #re-journal, #re-ui button, #re-ui input, #re-ui textarea, #uie-stats-window .uie-rpg-close, #uie-activities-window .uie-sim-close").length)) {
+            return;
+        }
+
         // Allow dragging when clicking the stats/activities header background.
-        if ((!inDragHeader || inHeaderButton) && !allowMobileFreeDrag) {
-            if (t.is("button") || 
-                t.is("i") && t.closest("button").length ||
-                t.closest("button").length ||
-                t.closest(".uie-close-btn, .uie-rpg-close, .uie-sim-close, .uie-inv-close, #uie-phone-close, #uie-settings-close, #uie-party-member-close, #uie-party-member-bg-edit, .phone-back-btn, .uie-controls, .uie-dropdown, .uie-dd-item, .uie-menu-tab, .uie-inv-icon, .fa-wand-magic-sparkles, [id*='sparkle'], #uie-activity-sparkle, input, select, textarea, option, optgroup, a, label, .tab, .uie-tab, .uie-set-tab, .uie-settings-tab, [onclick], [role='button'], .uie-btn-accept, .uie-btn-deny, .uie-btn-complete, .uie-btn-fail, .uie-codex-add, .uie-codex-edit, .uie-codex-del, #re-st-menu, #re-q-menu, #uie-journal-menu, .menu, .popup, .dropdown-menu, .range-slider, .checkbox, .radio, .toggle, .re-qbtn, .re-menu-item, .re-forge-btn, .vn-dialogue-box, .re-bar, .re-hud-btn, .uie-social-card, .uie-p-close, .uie-inv-tabs, .uie-journal-sidebar, .uie-journal-list, #uie-world-content, .no-drag, .clickable, .re-actbtn, #re-action-grid, #re-composer, .re-obj, #re-phone, #re-journal, #re-ui button, #re-ui input, #re-ui textarea, #uie-stats-window .uie-rpg-close, #uie-activities-window .uie-sim-close").length) {
-                return;
-            }
+        if (!inDragHeader || inHeaderButton) {
+            if (!allowDragStart) return;
         }
 
         // Global Z-Index Safety Check: If clicking something with high z-index (likely popup), don't drag
@@ -151,7 +229,7 @@ export function initDragging() {
 
         // Heuristic: If it looks clickable (pointer cursor), don't drag
         // Skip this heuristic for stats/activities headers (they are drag handles)
-        if (!inDragHeader && !allowMobileFreeDrag) {
+            if (!inDragHeader && !allowDragStart) {
             try {
                 const cursor = window.getComputedStyle(e.target).cursor;
                 if (cursor === "pointer" || cursor === "text") return;
@@ -163,19 +241,34 @@ export function initDragging() {
         }
 
         let target = null;
-        if (t.closest(".uie-diary-header").length) target = $("#uie-diary-window");
-        else if (t.closest("#uie-inv-drag").length) target = $("#uie-inventory-window");
-        else if (t.closest("#uie-main-menu").length) target = $("#uie-main-menu");
-        else if (t.closest(".phone-status-bar").length) target = $("#uie-phone-window");
-        else if (t.closest(".uie-p-header").length) target = $("#uie-social-overlay .uie-paper-box");
-        else if (t.closest(".uie-party-member-header").length) target = $("#uie-party-member-card");
-        else if (t.closest(".uie-rpg-header").length) target = $("#uie-stats-window");
-        else if (t.closest(".uie-sim-header").length) target = $("#uie-activities-window");
-        else if (t.closest(".uie-header").length) target = t.closest(".uie-window");
+        
+        // Mobile: only drag from explicit handles (menu drag bar or headers)
+        if (mobile) {
+            if (inMenuDrag || (inMainMenu && !inMenuContent)) target = $("#uie-main-menu");
+            else if (t.closest(".uie-diary-header").length) target = $("#uie-diary-window");
+            else if (t.closest("#uie-inv-drag").length) target = $("#uie-inventory-window");
+            else if (t.closest(".phone-status-bar").length) target = $("#uie-phone-window");
+            else if (t.closest(".uie-p-header").length) target = $("#uie-social-overlay .uie-paper-box");
+            else if (t.closest(".uie-party-member-header").length) target = $("#uie-party-member-card");
+            else if (t.closest(".uie-rpg-header").length) target = $("#uie-stats-window");
+            else if (t.closest(".uie-sim-header").length) target = $("#uie-activities-window");
+            else if (t.closest(".uie-header").length) target = t.closest(".uie-window");
+        } else {
+            // Desktop: only drag from headers
+            if (t.closest(".uie-diary-header").length) target = $("#uie-diary-window");
+            else if (t.closest("#uie-inv-drag").length) target = $("#uie-inventory-window");
+            else if (t.closest("#uie-menu-drag").length) target = $("#uie-main-menu");
+            else if (t.closest(".phone-status-bar").length) target = $("#uie-phone-window");
+            else if (t.closest(".uie-p-header").length) target = $("#uie-social-overlay .uie-paper-box");
+            else if (t.closest(".uie-party-member-header").length) target = $("#uie-party-member-card");
+            else if (t.closest(".uie-rpg-header").length) target = $("#uie-stats-window");
+            else if (t.closest(".uie-sim-header").length) target = $("#uie-activities-window");
+            else if (t.closest(".uie-header").length) target = t.closest(".uie-window");
+        }
 
         if (!target || !target.length) return;
-        if (isMobileUI() && (target.attr("id") || "") === "uie-inventory-window") return;
-        if (isMobileUI() && t.closest(".uie-party-member-header").length) return;
+        if (mobile && (target.attr("id") || "") === "uie-inventory-window") return;
+        if (mobile && t.closest(".uie-party-member-header").length) return;
 
         const pos = e.touches ? e.touches[0] : e;
         try { window.UIE_isDragging = true; } catch (_) {}
@@ -190,6 +283,8 @@ export function initDragging() {
             prevOrigin: target.css("transform-origin"),
             prevTransform: target.css("transform")
         };
+
+        dragLog("target", { id: String(target.attr("id") || ""), startX: pos.clientX, startY: pos.clientY });
     };
 
     const onWinMove = (e) => {
@@ -212,6 +307,8 @@ export function initDragging() {
             
             // For desktop full-screen windows, ensure we use pixel values from current position
             // Don't reset position if it's already correctly positioned
+            const scale = Math.max(0.5, Math.min(2, Number(getSettings()?.uiScale || 1)));
+            const useScale = isMobileUI() && scale !== 1;
             if (isFullScreenWindow) {
                 // Get current computed position
                 const currentLeft = rect.left;
@@ -223,20 +320,34 @@ export function initDragging() {
                 windowState.target.css({ 
                     left: `${currentLeft}px`, 
                     top: `${currentTop}px`, 
+                    position: "fixed",
                     transformOrigin: "top left",
-                    transform: "none"
+                    transform: useScale ? `scale(${scale})` : "none"
                 });
             } else {
                 windowState.ox = pos.clientX - rect.left;
                 windowState.oy = pos.clientY - rect.top;
-                windowState.target.css({ left: rect.left, top: rect.top, transformOrigin: "top left" });
-                windowState.target.css({ transform: "none" });
+                windowState.target.css({ left: rect.left, top: rect.top, position: "fixed", transformOrigin: "top left" });
+                windowState.target.css({ transform: useScale ? `scale(${scale})` : "none" });
             }
         }
         // Only prevent default if we're actually dragging (not just pending)
         if (!windowState.pending && e.cancelable) e.preventDefault();
-        // Use pixel values for dragging
-        windowState.target.css({ left: `${pos.clientX - windowState.ox}px`, top: `${pos.clientY - windowState.oy}px` });
+
+        if (!windowState.pending) {
+            try {
+                const pos0 = e.touches ? e.touches[0] : e;
+                dragLog("move", { x: Number(pos0?.clientX || 0), y: Number(pos0?.clientY || 0), id: String(windowState.target?.attr?.("id") || "") });
+            } catch (_) {}
+        }
+        // Use pixel values for dragging + clamp to viewport
+        const r = windowState.target[0].getBoundingClientRect();
+        const w = r.width || windowState.target.outerWidth() || 320;
+        const h = r.height || windowState.target.outerHeight() || 320;
+        const rawLeft = pos.clientX - windowState.ox;
+        const rawTop = pos.clientY - windowState.oy;
+        const clamped = clampToViewport(rawLeft, rawTop, w, h, 0);
+        windowState.target.css({ left: `${clamped.x}px`, top: `${clamped.y}px`, position: "fixed" });
     };
 
     const onWinEnd = () => {
@@ -280,6 +391,7 @@ export function initDragging() {
             }
             updateLayout();
         }
+        try { dragLog("end", {}); } catch (_) {}
         try { window.UIE_isDragging = false; } catch (_) {}
         windowState.active = false;
         windowState.pending = false;
@@ -288,6 +400,7 @@ export function initDragging() {
 
     // Use capture phase but allow buttons to work
     document.addEventListener("mousedown", (e) => {
+        if (!markHandled(e)) return;
         const t = $(e.target);
         // If clicking a button or icon inside button, don't interfere
         if (t.is("button") || t.is("i") && t.closest("button").length || t.closest("button").length) {
@@ -295,11 +408,33 @@ export function initDragging() {
         }
         onWinStart(e);
     }, { capture: true, signal });
-    document.addEventListener("mousemove", onWinMove, { signal });
-    document.addEventListener("mouseup", onWinEnd, { signal });
+    document.addEventListener("mousemove", (e) => { if (!markHandled(e)) return; onWinMove(e); }, { signal });
+    document.addEventListener("mouseup", (e) => { if (!markHandled(e)) return; onWinEnd(e); }, { signal });
     window.addEventListener("blur", onWinEnd, { signal });
 
+    document.addEventListener("pointerdown", (e) => {
+        if (!markHandled(e)) return;
+        // Touch devices may only fire pointer events (no touchstart)
+        try {
+            if (String(e.pointerType || "") !== "touch") return;
+        } catch (_) { return; }
+        const t = $(e.target);
+        // If clicking a button or icon inside button, don't interfere
+        // Also check for close buttons specifically
+        if (t.is("button") ||
+            t.is("i") && t.closest("button").length ||
+            t.closest("button").length ||
+            t.closest(".uie-close-btn, .uie-rpg-close, .uie-sim-close").length) {
+            return;
+        }
+        onWinStart(e);
+    }, { capture: true, passive: false, signal });
+    document.addEventListener("pointermove", (e) => { if (!markHandled(e)) return; onWinMove(e); }, { passive: false, signal });
+    document.addEventListener("pointerup", (e) => { if (!markHandled(e)) return; onWinEnd(e); }, { signal });
+    document.addEventListener("pointercancel", (e) => { if (!markHandled(e)) return; onWinEnd(e); }, { signal });
+
     document.addEventListener("touchstart", (e) => {
+        if (!markHandled(e)) return;
         const t = $(e.target);
         // If clicking a button or icon inside button, don't interfere
         // Also check for close buttons specifically
@@ -311,6 +446,61 @@ export function initDragging() {
         }
         onWinStart(e);
     }, { capture: true, passive: false, signal });
-    document.addEventListener("touchmove", onWinMove, { passive: false, signal });
-    document.addEventListener("touchend", onWinEnd, { signal });
+
+    document.addEventListener("touchmove", (e) => { if (!markHandled(e)) return; onWinMove(e); }, { passive: false, signal });
+    document.addEventListener("touchend", (e) => { if (!markHandled(e)) return; onWinEnd(e); }, { signal });
+
+    // Some SillyTavern/mobile builds register capture listeners on document and stopImmediatePropagation.
+    // window-capture runs before document-capture, so it cannot be blocked the same way.
+    window.addEventListener("pointerdown", (e) => {
+        if (!markHandled(e)) return;
+        try {
+            if (String(e.pointerType || "") !== "touch") return;
+        } catch (_) { return; }
+        const t = $(e.target);
+        if (t.is("button") ||
+            t.is("i") && t.closest("button").length ||
+            t.closest("button").length ||
+            t.closest(".uie-close-btn, .uie-rpg-close, .uie-sim-close").length) {
+            return;
+        }
+        onWinStart(e);
+    }, { capture: true, passive: false, signal });
+
+    window.addEventListener("pointermove", (e) => {
+        if (!markHandled(e)) return;
+        onWinMove(e);
+    }, { capture: true, passive: false, signal });
+
+    window.addEventListener("pointerup", (e) => {
+        if (!markHandled(e)) return;
+        onWinEnd(e);
+    }, { capture: true, signal });
+
+    window.addEventListener("pointercancel", (e) => {
+        if (!markHandled(e)) return;
+        onWinEnd(e);
+    }, { capture: true, signal });
+
+    window.addEventListener("touchstart", (e) => {
+        if (!markHandled(e)) return;
+        const t = $(e.target);
+        if (t.is("button") || 
+            t.is("i") && t.closest("button").length || 
+            t.closest("button").length ||
+            t.closest(".uie-close-btn, .uie-rpg-close, .uie-sim-close").length) {
+            return;
+        }
+        onWinStart(e);
+    }, { capture: true, passive: false, signal });
+
+    window.addEventListener("touchmove", (e) => {
+        if (!markHandled(e)) return;
+        onWinMove(e);
+    }, { capture: true, passive: false, signal });
+
+    window.addEventListener("touchend", (e) => {
+        if (!markHandled(e)) return;
+        onWinEnd(e);
+    }, { capture: true, signal });
 }

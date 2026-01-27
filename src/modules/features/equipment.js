@@ -240,7 +240,7 @@ function renderLayer() {
         isEquipped = true;
         itemName = eqItem.name || "Unknown Item";
         if (eqItem.image) {
-          inner = `<img src="${eqItem.image}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
+          inner = `<img src="${eqItem.image}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;">`;
         } else {
            // If item has no image, keep default icon but maybe brighter?
            // Or use a generic bag icon. Let's stick to the slot icon but brighter.

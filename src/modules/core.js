@@ -35,7 +35,7 @@ export const SETTINGS_DEFAULT = {
         shop: true,
         loot: true
     },
-    generation: { requireConfirm: false, promptUI: true, aiConfirm: false, scanOnlyOnGenerateButtons: false, systemCheckMinIntervalMs: 20000, autoScanMinIntervalMs: 8000, customSystemPrompt: "", promptPrefixes: { global: "", byType: {} } },
+    generation: { requireConfirm: false, promptUI: true, aiConfirm: false, scanOnlyOnGenerateButtons: false, systemCheckMinIntervalMs: 20000, autoScanMinIntervalMs: 8000, allowSystemChecks: false, scanAllEnabled: false, customSystemPrompt: "", promptPrefixes: { global: "", byType: {} } },
     party: {
         name: "My Party",
         banner: "",
@@ -111,6 +111,7 @@ export const SETTINGS_DEFAULT = {
         css: { global: "" }
     },
     uiScale: 1.0,
+    uiScaleUserSet: false,
     characterClass: "Sanguine Shinobi",
     turbo: { enabled: false, url: "https://openrouter.ai/api/v1/chat/completions", key: "", model: "google/gemini-2.0-flash-exp" },
     image: { enabled: false, url: "https://api.openai.com/v1/images/generations", key: "", model: "dall-e-3", negativePrompt: "", features: { map: true, doll: true, social: true, phoneBg: true, msg: true, party: true, items: true }, comfy: { workflow: "", checkpoint: "", quality: "balanced", positiveNodeId: "", negativeNodeId: "", outputNodeId: "" } },
@@ -359,9 +360,33 @@ export function startChatStateWatcher() {
 
 export function isMobileUI() {
     try {
-        const byMedia = window.matchMedia("(max-width: 700px), (pointer: coarse), (hover: none)").matches;
-        const byTouch = (typeof navigator !== "undefined" && Number(navigator.maxTouchPoints || 0) > 0);
-        return byMedia || byTouch;
+        const nav = (typeof navigator !== "undefined" ? navigator : null);
+        const ua = String(nav?.userAgent || "");
+        const uaLooksMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+        if (uaLooksMobile) return true;
+        const touchCapable =
+            (typeof window !== "undefined" && ("ontouchstart" in window)) ||
+            (nav && Number(nav.maxTouchPoints || 0) > 0) ||
+            (nav && Number(nav.msMaxTouchPoints || 0) > 0);
+
+        const w = Number(window.innerWidth || 0);
+        const h = Number(window.innerHeight || 0);
+        const minDim = Math.min(w || 0, h || 0);
+
+        // Phone/tablet in landscape can have width > 700 while height is small.
+        // Some mobile browsers in "desktop site" mode report larger CSS pixels.
+        // Only treat small-ish min-dimension as mobile when the device is touch-capable.
+        if (touchCapable && minDim > 0 && minDim <= 1100) return true;
+
+        const smallScreen = window.matchMedia("(max-width: 700px)").matches;
+        if (smallScreen) return true;
+
+        const coarse = window.matchMedia("(pointer: coarse)").matches;
+        const noHover = window.matchMedia("(hover: none)").matches;
+
+        // Avoid false mobile detection on touch-capable desktops/laptops:
+        // require a coarse pointer AND no hover when using touch capability.
+        return touchCapable && coarse && noHover;
     } catch (_) {
         return window.innerWidth <= 700;
     }
@@ -374,6 +399,16 @@ export function sanitizeSettings() {
     for(const k in SETTINGS_DEFAULT) if(s[k] === undefined) s[k] = deepClone(SETTINGS_DEFAULT[k]);
 
     if (isNaN(parseFloat(s.uiScale))) s.uiScale = 1.0;
+    if (typeof s.uiScaleUserSet !== "boolean") s.uiScaleUserSet = false;
+    try {
+        const isMobile = isMobileUI();
+        if (isMobile && s.uiScaleUserSet !== true) {
+            const cur = Number(s.uiScale);
+            if (!Number.isFinite(cur) || cur === 1.0) {
+                s.uiScale = 0.9;
+            }
+        }
+    } catch (_) {}
     if (!s.phone) s.phone = SETTINGS_DEFAULT.phone;
     if (!s.phone.browser) s.phone.browser = { pages: {}, history: [], index: -1 };
     if (!s.phone.browser.pages) s.phone.browser.pages = {};
@@ -418,6 +453,8 @@ export function sanitizeSettings() {
     if (typeof s.generation.promptUI !== "boolean") s.generation.promptUI = true;
     if (typeof s.generation.aiConfirm !== "boolean") s.generation.aiConfirm = false;
     if (typeof s.generation.scanOnlyOnGenerateButtons !== "boolean") s.generation.scanOnlyOnGenerateButtons = false;
+    if (typeof s.generation.allowSystemChecks !== "boolean") s.generation.allowSystemChecks = false;
+    if (typeof s.generation.scanAllEnabled !== "boolean") s.generation.scanAllEnabled = false;
     if (!Number.isFinite(Number(s.generation.systemCheckMinIntervalMs))) s.generation.systemCheckMinIntervalMs = Number(SETTINGS_DEFAULT.generation.systemCheckMinIntervalMs ?? 20000) || 20000;
     if (!Number.isFinite(Number(s.generation.autoScanMinIntervalMs))) s.generation.autoScanMinIntervalMs = Number(SETTINGS_DEFAULT.generation.autoScanMinIntervalMs ?? 8000) || 8000;
     if (typeof s.generation.customSystemPrompt !== "string") s.generation.customSystemPrompt = String(s.generation.customSystemPrompt || "");
@@ -586,10 +623,47 @@ export function updateLayout() {
     const isFs = String(inv.attr("data-fullscreen") || "").toLowerCase() === "true" || inv.data("fullscreen") === true;
     const isMobile = isMobileUI();
     const scale = Number(s.uiScale) || 1;
+
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const clampToViewport = (left, top, w, h, pad = 0) => {
+        const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+        const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+        // Keep at least some of the element visible even if it is larger than the viewport.
+        // This avoids "stuck at top" when (vh - h) becomes negative (common on mobile + scaling).
+        const minVisible = 40;
+        const maxX = Math.max(pad, vw - minVisible);
+        const maxY = Math.max(pad, vh - minVisible);
+        const x = clamp(left, -Math.max(0, w - minVisible), maxX);
+        const y = clamp(top, -Math.max(0, h - minVisible), maxY);
+        return { x, y, vw, vh };
+    };
+    try {
+        if (isMobile) document.body.classList.add("uie-mobile");
+        else document.body.classList.remove("uie-mobile");
+    } catch (_) {}
     try {
         $("#uie-scale-display").text(scale.toFixed(1));
         $("#uie-scale-slider").val(scale.toFixed(1));
         $("#uie-setting-enable").prop("checked", s.enabled === false);
+        $("#uie-scanall-enable").prop("checked", s.generation?.scanAllEnabled === true);
+        $("#uie-systemchecks-enable").prop("checked", s.generation?.allowSystemChecks === true);
+        $("#uie-sw-scanall-enable").prop("checked", s.generation?.scanAllEnabled === true);
+        $("#uie-sw-systemchecks-enable").prop("checked", s.generation?.allowSystemChecks === true);
+    } catch (_) {}
+    try {
+        const img = (s.image && typeof s.image === "object") ? s.image : {};
+        $("#uie-sw-img-enable").prop("checked", img.enabled === true);
+        if (typeof img.url === "string") $("#uie-sw-img-url").val(img.url);
+        if (typeof img.model === "string") $("#uie-sw-img-model").val(img.model);
+        if (typeof img.key === "string") $("#uie-sw-img-key").val(img.key);
+        const f = (img.features && typeof img.features === "object") ? img.features : {};
+        $("#uie-sw-img-map").prop("checked", f.map !== false);
+        $("#uie-sw-img-doll").prop("checked", f.doll !== false);
+        $("#uie-sw-img-social").prop("checked", f.social !== false);
+        $("#uie-sw-img-phone-bg").prop("checked", f.phoneBg !== false);
+        $("#uie-sw-img-msg").prop("checked", f.msg !== false);
+        $("#uie-sw-img-party").prop("checked", f.party !== false);
+        $("#uie-sw-img-items").prop("checked", f.items !== false);
     } catch (_) {}
 
     // INVENTORY: Mobile layout - always fullscreen, position next to launcher
@@ -607,14 +681,23 @@ export function updateLayout() {
             position: "fixed",
             zIndex: "2147483600"
         });
-        
-        // Position menu next to launcher when opening
+
+        // PARTY: Match inventory behavior on mobile (fullscreen, no scaling)
         try {
-            const launcherEl = document.getElementById("uie-launcher");
-            if (launcherEl && inv.is(":visible")) {
-                const lRect = launcherEl.getBoundingClientRect();
-                // Menu opens centered, but we ensure it's not stuck at top
-                inv.css({ top: 0, left: 0 });
+            const party = $("#uie-party-window");
+            if (party && party.length) {
+                party.css({
+                    top: 0,
+                    left: 0,
+                    width: "100vw",
+                    height: "100vh",
+                    transform: "none",
+                    maxWidth: "none",
+                    maxHeight: "none",
+                    borderRadius: 0,
+                    position: "fixed",
+                    zIndex: "2147483600"
+                });
             }
         } catch (_) {}
     } else if (isFs) {
@@ -636,8 +719,13 @@ export function updateLayout() {
         }
 
         // Safety Clamp
-        x = Math.max(-100, Math.min(x, vw - 20)); // Allow partial offscreen
-        y = Math.max(0, Math.min(y, vh - 20));
+        {
+            const w = inv.outerWidth() || Math.min(1150, vw * 0.92);
+            const h = inv.outerHeight() || Math.min(950, vh * 0.92);
+            const pos = clampToViewport(x, y, w, h, 0);
+            x = pos.x;
+            y = pos.y;
+        }
 
         inv.css({ left: x, top: y, transform: "none" });
     }
@@ -745,58 +833,80 @@ export function updateLayout() {
         $("#uie-launcher").attr("title", "Open Menu");
     }
 
-    // MAIN MENU: Position next to launcher (not stuck at top)
+    // MAIN MENU: keep draggable positioning; only auto-place when missing/off-screen
     const menuEl = document.getElementById("uie-main-menu");
-    if (menuEl && launcherEl && getComputedStyle(menuEl).display !== "none") {
+    const isDraggingNow = (() => { try { return window.UIE_isDragging === true; } catch (_) { return false; } })();
+    if (!isDraggingNow && isMobile && menuEl && getComputedStyle(menuEl).display !== "none") {
+        const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+        const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+        const mrect = menuEl.getBoundingClientRect();
+        const styleLeft = String(menuEl.style.left || "");
+        const styleTop = String(menuEl.style.top || "");
+        const usesPercent = styleLeft.includes("%") || styleTop.includes("%");
+        let left = usesPercent ? NaN : Number.parseFloat(styleLeft);
+        let top = usesPercent ? NaN : Number.parseFloat(styleTop);
+
+        // If not set on element, try settings
+        if (!Number.isFinite(left)) {
+            const sx = (s.menuX === null || s.menuX === undefined) ? NaN : Number(s.menuX);
+            if (Number.isFinite(sx)) left = sx;
+        }
+        if (!Number.isFinite(top)) {
+            const sy = (s.menuY === null || s.menuY === undefined) ? NaN : Number(s.menuY);
+            if (Number.isFinite(sy)) top = sy;
+        }
+
+        // Default: center only when unset/percent-based; otherwise keep/clamp pixel position.
+        // Do NOT re-center just because it's "offscreen"; scaled windows can be larger than the viewport,
+        // and that causes an endless reset loop which feels like the UI is stuck at the top.
+        if (!Number.isFinite(left) || !Number.isFinite(top) || usesPercent) {
+            $(menuEl).css({ left: "50%", top: "50%", transform: "translate(-50%, -50%)", position: "fixed" });
+        } else {
+            const w = mrect.width || 320;
+            const h = mrect.height || 420;
+            const pos = clampToViewport(left, top, w, h, 0);
+            $(menuEl).css({ left: pos.x, top: pos.y, transform: "none", position: "fixed" });
+        }
+    } else if (!isMobile && menuEl && launcherEl && getComputedStyle(menuEl).display !== "none") {
         const vw = window.innerWidth || document.documentElement.clientWidth || 0;
         const vh = window.innerHeight || document.documentElement.clientHeight || 0;
         const mrect = menuEl.getBoundingClientRect();
         const lrect = launcherEl.getBoundingClientRect();
-        let left = Number.parseFloat(menuEl.style.left || "");
-        let top = Number.parseFloat(menuEl.style.top || "");
+        const styleLeft = String(menuEl.style.left || "");
+        const styleTop = String(menuEl.style.top || "");
+        const usesPercent = styleLeft.includes("%") || styleTop.includes("%");
+        let left = usesPercent ? NaN : Number.parseFloat(styleLeft);
+        let top = usesPercent ? NaN : Number.parseFloat(styleTop);
 
         // If not set on element, try settings
-        if (!Number.isFinite(left)) left = Number(s.menuX);
-        if (!Number.isFinite(top)) top = Number(s.menuY);
+        if (!Number.isFinite(left)) {
+            const sx = (s.menuX === null || s.menuX === undefined) ? NaN : Number(s.menuX);
+            if (Number.isFinite(sx)) left = sx;
+        }
+        if (!Number.isFinite(top)) {
+            const sy = (s.menuY === null || s.menuY === undefined) ? NaN : Number(s.menuY);
+            if (Number.isFinite(sy)) top = sy;
+        }
 
-        // Mobile: position next to launcher by default
-        if (isMobile && (!Number.isFinite(left) || !Number.isFinite(top))) {
-            const w = mrect.width || 320;
-            const h = mrect.height || 420;
-            if (lrect.left > vw / 2) left = lrect.right - w;
-            else left = lrect.left;
-            if (lrect.top > vh / 2) top = lrect.top - h - 10;
-            else top = lrect.bottom + 10;
-        } else if (!Number.isFinite(left) || !Number.isFinite(top) || (left === 0 && top === 0)) {
+        // Default behavior: open next to launcher (mobile + desktop)
+        if (!Number.isFinite(left) || !Number.isFinite(top) || (left === 0 && top === 0)) {
             // Smart Positioning relative to Launcher - always position next to launcher
             const w = mrect.width || 320;
             const h = mrect.height || 420;
 
-            // Vertical: Position above or below launcher
-            if (lrect.top > vh / 2) {
-                // Launcher is in bottom half -> Menu goes ABOVE
-                top = lrect.top - h - 10;
-            } else {
-                // Launcher is in top half -> Menu goes BELOW
-                top = lrect.bottom + 10;
-            }
-
-            // Horizontal: Align with launcher
-            if (lrect.left > vw / 2) {
-                // Launcher is right side -> Menu aligns Right
-                left = lrect.right - w;
-            } else {
-                // Launcher is left side -> Menu aligns Left
-                left = lrect.left;
-            }
+            // Prefer opening BESIDE the launcher (right, else left)
+            left = lrect.right + 10;
+            if (left + w > vw) left = lrect.left - w - 10;
+            top = lrect.top;
         }
 
-        const w = mrect.width || 320;
-        const h = mrect.height || 420;
-        left = Math.max(-w + 20, Math.min(left, vw - 20));
-        top = Math.max(0, Math.min(top, vh - 20));
-        $("#uie-main-menu").css({ left, top, transform: "none" });
-    } else if (s.menuX !== null && s.menuY !== null) {
+        if (Number.isFinite(left) && Number.isFinite(top)) {
+            const w = mrect.width || 320;
+            const h = mrect.height || 420;
+            const pos = clampToViewport(left, top, w, h, 0);
+            $("#uie-main-menu").css({ left: pos.x, top: pos.y, transform: "none", position: "fixed" });
+        }
+    } else if (!isMobile && Number.isFinite(Number(s.menuX)) && Number.isFinite(Number(s.menuY))) {
         const menu = document.getElementById("uie-main-menu");
         const vw = window.innerWidth || document.documentElement.clientWidth || 0;
         const vh = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -811,10 +921,8 @@ export function updateLayout() {
 
         // We still want to ensure it's not completely lost, but "Free Drag" implies minimal clamping
         // Let's just clamp so it doesn't disappear entirely.
-        const clampedLeft = Math.min(vw - 20, Math.max(-w + 20, Number(s.menuX) || 0));
-        const clampedTop = Math.min(vh - 20, Math.max(0, Number(s.menuY) || 0));
-
-        $("#uie-main-menu").css({ left: clampedLeft, top: clampedTop, transform: "none" });
+        const pos = clampToViewport(Number(s.menuX), Number(s.menuY), w, h, 0);
+        $("#uie-main-menu").css({ left: pos.x, top: pos.y, transform: "none", position: "fixed" });
     }
     {
         const needsTranslate = (v) => typeof v === "string" && v.includes("%");
@@ -824,16 +932,30 @@ export function updateLayout() {
             if (id === "uie-inventory-window") {
                 const $panel = $el.find(".uie-inv-panel");
                 if (isFs) $panel.css("transform", "");
-                else $panel.css("transform", scale === 1 ? "" : `scale(${scale})`);
+                else $panel.css("transform", ""); // User requested no scaling for inventory
                 $panel.css("transform-origin", "top left");
                 $el.css("transform", "none");
                 return;
             }
-            if (isMobile && $el.hasClass("uie-window")) {
+            if (id === "uie-party-window" && isMobile) {
+                $el.css("transform", "none");
+                $el.css("transform-origin", "");
+                return;
+            }
+            if (isMobile && ($el.hasClass("uie-window") || id === "uie-main-menu")) {
                 if (id === "uie-inventory-window") {
                     $el.css("transform", "none");
                     $el.css("transform-origin", "");
+                    return;
                 }
+                // Apply scale on mobile while preserving centering translate when the element is opened centered
+                const inlineTop = String($el[0]?.style?.top || "");
+                const inlineLeft = String($el[0]?.style?.left || "");
+                const isCentered = inlineTop.includes("%") && inlineLeft.includes("%");
+                const base = isCentered ? "translate(-50%, -50%)" : "";
+                const t = scale === 1 ? (base || "none") : `${base ? base + " " : ""}scale(${scale})`;
+                $el.css("transform", t);
+                $el.css("transform-origin", isCentered ? "" : "top left");
                 return;
             }
             const top = $el.css("top");
@@ -1032,14 +1154,14 @@ export function updateLayout() {
 // --- GLOBAL EVENT LISTENERS (Settings Window & More) ---
 // We bind to body to ensure we catch events even if elements are re-injected
 // We use a specific selector for the settings block to avoid conflicts
-$("body").on("click", "#uie-settings-block .uie-set-tab", function(e) {
+$("body").on("pointerup click touchstart", ".uie-settings-block .uie-set-tab", function(e) {
     e.preventDefault();
     e.stopPropagation(); // Stop propagation to prevent closing drawers if they are listening
     const tab = $(this).attr("data-tab");
     if(!tab) return;
 
     // Switch Active Class
-    const container = $(this).closest("#uie-settings-block");
+    const container = $(this).closest(".uie-settings-block");
     container.find(".uie-set-tab").removeClass("active").css("border-bottom-color", "transparent").css("color", "#888");
     $(this).addClass("active").css("border-bottom-color", "#cba35c").css("color", "#cba35c");
 
@@ -1050,6 +1172,153 @@ $("body").on("click", "#uie-settings-block .uie-set-tab", function(e) {
     container.find("[id^='uie-set-']").hide();
     container.find(`#uie-set-${tab}`).show();
 });
+
+$("body").on("pointerup click touchstart", "#uie-settings-window .uie-set-tab", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const tab = $(this).attr("data-tab");
+    if (!tab) return;
+
+    const container = $(this).closest("#uie-settings-window");
+    container.find(".uie-set-tab").removeClass("active").css("border-bottom-color", "transparent").css("color", "#888");
+    $(this).addClass("active").css("border-bottom-color", "#cba35c").css("color", "#fff");
+
+    container.find("[id^='uie-sw-']").hide();
+    container.find(`#uie-sw-${tab}`).show();
+});
+
+const uieGetStConnectionProfiles = () => {
+    const out = [];
+    const pushOne = (name, data) => {
+        const nm = String(name || "").trim();
+        if (!nm) return;
+        if (out.some(x => x.name === nm)) return;
+        out.push({ name: nm, data });
+    };
+    try {
+        const selects = Array.from(document.querySelectorAll("select"));
+        const scoreSel = (el) => {
+            const id = String(el?.id || "");
+            const name = String(el?.getAttribute?.("name") || "");
+            const cls = String(el?.className || "");
+            const blob = `${id} ${name} ${cls}`;
+            let score = 0;
+            if (/connection/i.test(blob)) score += 4;
+            if (/profile|preset/i.test(blob)) score += 4;
+            if (/api|openrouter|openai|kobold|ooba|ollama|claude|gemini/i.test(blob)) score += 1;
+            return score;
+        };
+        const ranked = selects
+            .map(el => ({ el, score: scoreSel(el) }))
+            .filter(x => x.score > 0)
+            .sort((a, b) => b.score - a.score);
+
+        for (const { el } of ranked) {
+            const opts = Array.from(el.options || []);
+            if (!opts.length) continue;
+            for (const o of opts) {
+                const text = String(o?.text || "").trim();
+                const val = String(o?.value || "").trim();
+                if (!text) continue;
+                if (/^\(.*\)$/.test(text)) continue;
+                if (/select/i.test(text) && !val) continue;
+                pushOne(text, { value: val });
+            }
+            if (out.length) break;
+        }
+        if (out.length) return out.slice(0, 80);
+    } catch (_) {}
+    try {
+        const es = window.extension_settings;
+        if (es && typeof es === "object") {
+            for (const k of Object.keys(es)) {
+                if (!/connection/i.test(k) || !/profile|preset/i.test(k)) continue;
+                const v = es[k];
+                if (Array.isArray(v)) {
+                    for (const it of v) pushOne(it?.name || it?.title || it?.id, it);
+                } else if (v && typeof v === "object") {
+                    const arr = Array.isArray(v.profiles) ? v.profiles : (Array.isArray(v.items) ? v.items : null);
+                    if (arr) for (const it of arr) pushOne(it?.name || it?.title || it?.id, it);
+                    else if (Object.keys(v).length && Object.values(v).every(x => x && typeof x === "object")) {
+                        for (const it of Object.values(v)) pushOne(it?.name || it?.title || it?.id, it);
+                    }
+                }
+            }
+        }
+    } catch (_) {}
+    try {
+        for (let i = 0; i < (window.localStorage?.length || 0); i++) {
+            const key = window.localStorage.key(i);
+            if (!key) continue;
+            if (!/connection/i.test(key) || !/profile|preset/i.test(key)) continue;
+            const raw = window.localStorage.getItem(key);
+            if (!raw) continue;
+            let data = null;
+            try { data = JSON.parse(raw); } catch (_) { continue; }
+            if (Array.isArray(data)) {
+                for (const it of data) pushOne(it?.name || it?.title || it?.id, it);
+            } else if (data && typeof data === "object") {
+                const arr = Array.isArray(data.profiles) ? data.profiles : (Array.isArray(data.items) ? data.items : null);
+                if (arr) for (const it of arr) pushOne(it?.name || it?.title || it?.id, it);
+            }
+        }
+    } catch (_) {}
+    return out.slice(0, 80);
+};
+
+const uiePopulateStPresets = () => {
+    const sel = document.getElementById("uie-st-preset-select");
+    if (!sel) return;
+    const profiles = uieGetStConnectionProfiles();
+    sel.innerHTML = "";
+    if (!profiles.length) {
+        sel.innerHTML = `<option value="">(No connection profiles found)</option>`;
+        return;
+    }
+    sel.appendChild(new Option("(Select a profile...)", ""));
+    for (const p of profiles) {
+        sel.appendChild(new Option(p.name, p.name));
+    }
+};
+
+const uieApplyStPresetByName = (name) => {
+    const nm = String(name || "").trim();
+    if (!nm) return false;
+    const selects = Array.from(document.querySelectorAll("select"));
+    const ranked = selects
+        .map(el => {
+            const id = String(el.id || "");
+            const score = (/connection/i.test(id) ? 2 : 0) + (/profile|preset/i.test(id) ? 2 : 0);
+            return { el, score };
+        })
+        .sort((a, b) => b.score - a.score);
+    for (const { el } of ranked) {
+        const opts = Array.from(el.options || []);
+        const hit = opts.find(o => String(o.text || "").trim() === nm) || opts.find(o => String(o.value || "").trim() === nm);
+        if (!hit) continue;
+        el.value = hit.value;
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+        return true;
+    }
+    return false;
+};
+
+$("body").on("click", ".uie-settings-block #uie-st-preset-refresh", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    uiePopulateStPresets();
+});
+
+$("body").on("change", ".uie-settings-block #uie-st-preset-select", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const name = String($(this).val() || "");
+    if (!name) return;
+    const ok = uieApplyStPresetByName(name);
+    try { window.toastr?.[ok ? "success" : "warning"]?.(ok ? `Applied ${name}` : `Could not apply ${name} automatically (no matching SillyTavern selector found).`); } catch (_) {}
+});
+
+setTimeout(() => { try { uiePopulateStPresets(); } catch (_) {} }, 1200);
 
 // Close button if it exists (usually settings is in a drawer, but if standalone)
 $("body").on("click", "#uie-settings-close", function(e) {
@@ -1063,19 +1332,117 @@ $("body").on("click", "#uie-open-settings", function(e) {
 });
 
 // Settings: UI Scale + Kill Switch
-$("body").on("input change", "#uie-settings-block #uie-scale-slider", function(e) {
+$("body").on("input change", ".uie-settings-block #uie-scale-slider", function(e) {
     e.preventDefault();
     e.stopPropagation();
     const s = getSettings();
     const raw = Number($(this).val());
     const next = Number.isFinite(raw) ? Math.max(0.5, Math.min(2, raw)) : 1.0;
     s.uiScale = next;
+    s.uiScaleUserSet = true;
     try { $("#uie-scale-display").text(next.toFixed(1)); } catch (_) {}
     saveSettings();
     try { updateLayout(); } catch (_) {}
 });
 
-$("body").on("change", "#uie-settings-block #uie-setting-enable", function(e) {
+$("body").off("change.uieLauncherIconSetting").on("change.uieLauncherIconSetting", ".uie-settings-block #uie-launcher-icon", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const val = String($(this).val() || "");
+    if (val === "custom") {
+        try { document.getElementById("uie-launcher-file")?.click(); } catch (_) {}
+        return;
+    }
+    const s = getSettings();
+    if (!s.launcher) s.launcher = {};
+    s.launcher.src = val;
+    try {
+        const prev = document.getElementById("uie-launcher-preview");
+        if (prev && val) {
+            prev.style.backgroundImage = `url("${val}")`;
+            prev.style.display = "block";
+        } else if (prev) {
+            prev.style.backgroundImage = "";
+            prev.style.display = "none";
+        }
+    } catch (_) {}
+    try { uieLauncherIconProbe = { src: "", ok: null, t: 0 }; } catch (_) {}
+    saveSettings();
+    try { updateLayout(); } catch (_) {}
+});
+
+$("body").off("change.uieLauncherFileSetting").on("change.uieLauncherFileSetting", ".uie-settings-block #uie-launcher-file", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = this.files && this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (evt) {
+        const src = String(evt?.target?.result || "");
+        if (!src) return;
+        const s = getSettings();
+        if (!s.launcher) s.launcher = {};
+        s.launcher.src = src;
+        s.launcher.lastUploadName = String(file.name || "");
+        if (!Array.isArray(s.launcher.savedIcons)) s.launcher.savedIcons = [];
+        if (!s.launcher.savedIcons.includes(src)) s.launcher.savedIcons.unshift(src);
+        try {
+            const prev = document.getElementById("uie-launcher-preview");
+            if (prev) {
+                prev.style.backgroundImage = `url("${src}")`;
+                prev.style.display = "block";
+            }
+        } catch (_) {}
+        try { uieLauncherIconProbe = { src: "", ok: null, t: 0 }; } catch (_) {}
+        saveSettings();
+        try { updateLayout(); } catch (_) {}
+    };
+    try { reader.readAsDataURL(file); } catch (_) {}
+    try { this.value = ""; } catch (_) {}
+});
+
+$("body").off("click.uieLauncherSaveSetting").on("click.uieLauncherSaveSetting", ".uie-settings-block #uie-launcher-save", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const sel = document.getElementById("uie-launcher-icon");
+    const val = String(sel?.value || "");
+    const s = getSettings();
+    if (!s.launcher) s.launcher = {};
+    if (val && val !== "custom") {
+        s.launcher.src = val;
+        if (!Array.isArray(s.launcher.savedIcons)) s.launcher.savedIcons = [];
+        if (!s.launcher.savedIcons.includes(val)) s.launcher.savedIcons.unshift(val);
+    }
+    try { uieLauncherIconProbe = { src: "", ok: null, t: 0 }; } catch (_) {}
+    saveSettings();
+    try { updateLayout(); } catch (_) {}
+});
+
+$("body").off("click.uieLauncherDeleteSetting").on("click.uieLauncherDeleteSetting", ".uie-settings-block #uie-launcher-delete", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    if (!s.launcher) s.launcher = {};
+    const cur = String(s.launcher.src || "");
+    if (cur && Array.isArray(s.launcher.savedIcons)) {
+        s.launcher.savedIcons = s.launcher.savedIcons.filter(x => String(x || "") !== cur);
+    }
+    s.launcher.src = "";
+    try {
+        const sel = document.getElementById("uie-launcher-icon");
+        if (sel) sel.value = "custom";
+        const prev = document.getElementById("uie-launcher-preview");
+        if (prev) {
+            prev.style.backgroundImage = "";
+            prev.style.display = "none";
+        }
+    } catch (_) {}
+    try { uieLauncherIconProbe = { src: "", ok: null, t: 0 }; } catch (_) {}
+    saveSettings();
+    try { updateLayout(); } catch (_) {}
+});
+
+$("body").on("change", ".uie-settings-block #uie-setting-enable", function(e) {
     e.preventDefault();
     e.stopPropagation();
     const s = getSettings();
@@ -1083,4 +1450,74 @@ $("body").on("change", "#uie-settings-block #uie-setting-enable", function(e) {
     s.enabled = !killOn;
     saveSettings();
     try { updateLayout(); } catch (_) {}
+});
+
+// Settings: Scan All + System Checks
+$("body").on("change", ".uie-settings-block #uie-scanall-enable, #uie-sw-scanall-enable", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    s.generation.scanAllEnabled = $(this).prop("checked") === true;
+    saveSettings();
+});
+$("body").on("change", ".uie-settings-block #uie-systemchecks-enable, #uie-sw-systemchecks-enable", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    s.generation.allowSystemChecks = $(this).prop("checked") === true;
+    saveSettings();
+});
+
+$("body").on("change", "#uie-sw-img-enable", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    if (!s.image) s.image = {};
+    s.image.enabled = $(this).prop("checked") === true;
+    saveSettings();
+});
+
+$("body").on("input change", "#uie-sw-img-url", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    if (!s.image) s.image = {};
+    s.image.url = String($(this).val() || "");
+    saveSettings();
+});
+
+$("body").on("input change", "#uie-sw-img-model", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    if (!s.image) s.image = {};
+    s.image.model = String($(this).val() || "");
+    saveSettings();
+});
+
+$("body").on("input change", "#uie-sw-img-key", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    if (!s.image) s.image = {};
+    s.image.key = String($(this).val() || "");
+    saveSettings();
+});
+
+$("body").on("change", "#uie-sw-img-map, #uie-sw-img-doll, #uie-sw-img-social, #uie-sw-img-phone-bg, #uie-sw-img-msg, #uie-sw-img-party, #uie-sw-img-items", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    if (!s.image) s.image = {};
+    if (!s.image.features) s.image.features = {};
+    const id = String(this.id || "");
+    const on = $(this).prop("checked") === true;
+    if (id === "uie-sw-img-map") s.image.features.map = on;
+    if (id === "uie-sw-img-doll") s.image.features.doll = on;
+    if (id === "uie-sw-img-social") s.image.features.social = on;
+    if (id === "uie-sw-img-phone-bg") s.image.features.phoneBg = on;
+    if (id === "uie-sw-img-msg") s.image.features.msg = on;
+    if (id === "uie-sw-img-party") s.image.features.party = on;
+    if (id === "uie-sw-img-items") s.image.features.items = on;
+    saveSettings();
 });

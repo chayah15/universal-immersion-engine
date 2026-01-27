@@ -12,22 +12,31 @@
   #uie-party-window .party-skill,
   #uie-party-window .party-fx{ border-radius:6px !important; box-shadow:none !important; }
   #uie-party-window .party-skill > div:first-child{ border-radius:6px !important; }
+  #party-paperdoll-pick img{ width:100%; height:100%; object-fit:contain; object-position:center; display:block; }
   @media (max-width: 700px), (pointer: coarse) {
     #uie-party-window {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100vw;
+      height: 100vh;
+      max-height: none;
+      border-radius: 0;
+      transform: none;
+    }
+    #uie-party-member-content{ font-size: 13px; }
+    #uie-party-member-card{
       position: fixed !important;
       inset: 0 !important;
-      transform: none !important;
       width: 100vw !important;
       height: 100vh !important;
-      max-width: 100vw !important;
-      max-height: 100vh !important;
       border-radius: 0 !important;
-      background: rgba(10,12,16,0.98) !important;
-      backdrop-filter: none !important;
+      margin: 0 !important;
     }
-    #uie-party-member-modal{ position:fixed !important; inset:0 !important; }
-    #uie-party-member-modal > div{ position:absolute !important; inset:0 !important; border-radius:0 !important; }
-    #uie-party-member-content{ font-size: 13px; }
+    #uie-party-member-card .party-paperdoll-pane{ flex:0 0 280px !important; min-width:160px !important; }
+    #uie-party-member-card #party-paperdoll-pick{ flex:0 0 min(68vh, 720px) !important; height:min(68vh, 720px) !important; min-height:420px !important; }
   }
 </style>
 <div id="uie-party-window" class="uie-window" style="display:none; width: 560px; height: 760px; background: linear-gradient(180deg, rgba(20,25,40,0.88), rgba(10,12,16,0.88)); backdrop-filter: blur(8px); flex-direction:column; border:1px solid rgba(203,163,92,0.45);">
@@ -150,9 +159,9 @@
 </template>
 
 <template id="uie-party-gear-slot">
-    <div class="party-slot" style="aspect-ratio:1; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.1); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;">
+    <div class="party-slot" style="aspect-ratio:1; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.1); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; overflow:hidden; padding:4px;">
         <div class="slot-icon-container" style="width:48px; height:48px; display:grid; place-items:center;"></div>
-        <div class="slot-label" style="font-size:0.75em; color:#888; text-transform:uppercase;"></div>
+        <div class="slot-label" style="font-size:0.7em; color:#888; text-transform:uppercase; text-align:center; line-height:1.1; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
     </div>
 </template>
 
@@ -316,10 +325,10 @@
 
 <template id="uie-party-modal-equip-pane">
     <div style="display:flex; gap:20px; height:100%;">
-        <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+        <div class="party-paperdoll-pane" style="flex:1 1 320px; min-width:320px; display:flex; flex-direction:column; gap:10px;">
             <div id="party-paperdoll-pick" style="flex:1; border-radius:12px; border:2px dashed rgba(255,255,255,0.1); display:grid; place-items:center; overflow:hidden; min-height:200px;"></div>
         </div>
-        <div class="equip-rows" style="width:240px; display:flex; flex-direction:column; gap:8px;"></div>
+        <div class="equip-rows" style="width:min(220px, 34vw); display:flex; flex-direction:column; gap:8px;"></div>
     </div>
     <button class="party-mm-save-btn" id="party-mm-save" style="display:none; width:100%; margin-top:15px; padding:12px; background:rgba(241,196,15,0.2); border:1px solid rgba(241,196,15,0.3); color:#f1c40f; font-weight:900; border-radius:10px; cursor:pointer;">Save Equipment</button>
 </template>

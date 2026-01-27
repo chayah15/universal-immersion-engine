@@ -239,13 +239,15 @@ async function waitForRealityStage(maxWait = 5000) {
  * @param {boolean} isInScene - Whether character is actually in scene (speaking/shown) vs just mentioned
  */
 export async function updateSpriteStage(text, charName, isInScene = true) {
-    if (!charName) {
-        console.warn(`[UIE] updateSpriteStage called without charName`);
+    if (!charName || charName === "SillyTavern System" || charName === "System") {
+        if (!charName) console.warn(`[UIE] updateSpriteStage called without charName`);
         return;
     }
     
     console.log(`[UIE] updateSpriteStage called for ${charName} with text: ${text?.substring(0, 50)}...`);
     
+    const s = getSettings();
+
     // Wait for reality stage to be ready (it's loaded from world.html template)
     let stage = document.getElementById("reality-stage");
     if (!stage) {
@@ -253,42 +255,18 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
         stage = await waitForRealityStage(3000);
         if (!stage) {
             console.error(`[UIE] Reality stage not found after waiting - template may not be loaded`);
-            // Try to create it as fallback
-            stage = document.createElement("div");
-            stage.id = "reality-stage";
-            stage.setAttribute("style", `
-                position: fixed !important;
-                inset: 0 !important;
-                z-index: 10000 !important;
-                display: block !important;
-                visibility: visible !important;
-                pointer-events: none !important;
-            `);
-            document.body.appendChild(stage);
-            console.log(`[UIE] Created reality-stage element as fallback`);
+            return;
         }
     }
     
-    // Force stage to be visible and enabled
-    if (stage) {
+    // If stage is currently hidden, do NOT force it visible just to show a sprite.
+    // Forcing the stage visible is a major source of projection glitches.
+    try {
         const stageStyle = window.getComputedStyle(stage);
         if (stageStyle.display === "none" || stageStyle.visibility === "hidden") {
-            console.warn(`[UIE] Reality stage is hidden - forcing visibility for sprite`);
-            stage.setAttribute("style", (stage.getAttribute("style") || "") + " display: block !important; visibility: visible !important; opacity: 1 !important;");
-            stage.style.display = "block";
-            stage.style.visibility = "visible";
-            stage.style.opacity = "1";
-            
-            // Also enable in settings to persist
-            try {
-                const s = getSettings();
-                if (s && s.realityEngine) {
-                    s.realityEngine.enabled = true;
-                    saveSettings();
-                }
-            } catch (_) {}
+            return;
         }
-    }
+    } catch (_) {}
     
     if (!stage) {
         console.error(`[UIE] Cannot proceed - reality-stage not available`);
@@ -337,7 +315,6 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
     spriteLayer.style.inset = "0";
     spriteLayer.style.overflow = "visible";
     
-    const s = getSettings();
     // Allow sprite updates even if reality engine is not enabled (for character selection)
     // OR if Character Expressions extension is available (we can mirror those sprites)
     if (!s.realityEngine?.enabled) {
@@ -684,6 +661,12 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                                         if (dataUrl && !dataUrl.startsWith("data:") && !dataUrl.startsWith("http")) {
                                             dataUrl = new URL(dataUrl, window.location.origin).href;
                                         }
+                                        // Validate: ignore root URL
+                                        if (dataUrl === window.location.origin + "/") {
+                                            dataUrl = null;
+                                            continue; // Try next selector
+                                        }
+
                                         console.log(`[UIE] Found Character Expression sprite in DOM: ${dataUrl}`);
                                         break;
                                     }
@@ -798,6 +781,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
     // If still no image, we can't show anything (or hide it?)
     if (!dataUrl) {
         console.warn(`[UIE] No sprite found for ${charName} with mood ${mood} - tried API, sprite sets, and fallbacks`);
+        try { hideSprite(charName); } catch (_) {}
         return;
     }
     
@@ -867,9 +851,9 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
         img.style.transition = "left 0.5s ease, height 0.5s ease, filter 0.3s";
         img.style.zIndex = "20"; // Higher z-index to ensure visibility
         img.style.pointerEvents = "none"; // Let clicks pass through to BG
-        img.style.display = "block !important"; // Force visible
-        img.style.visibility = "visible !important";
-        img.style.opacity = "1 !important";
+        img.style.display = "block";
+        img.style.visibility = "hidden";
+        img.style.opacity = "0";
         img.style.maxWidth = "96vw";
         img.style.maxHeight = "96vh";
         img.style.imageRendering = "auto";
@@ -942,6 +926,19 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
             dataUrl = toAbsoluteUrl(dataUrl);
         }
         
+        // Validation: Don't try to load if URL is empty or just root
+        if (!dataUrl || dataUrl === window.location.origin + "/") {
+            console.warn(`[UIE] Invalid sprite URL for ${charName}: ${dataUrl}`);
+            img.style.display = "none";
+            return;
+        }
+
+        // Hide while loading to avoid browser "missing image" placeholders on the projection screen.
+        try {
+            img.style.visibility = "hidden";
+            img.style.opacity = "0";
+        } catch (_) {}
+
         // Try multiple path variations if first attempt fails
         // Priority: Character Expression extension paths first, then custom folder, then SillyTavern default
         let attempts = [dataUrl];
@@ -1025,9 +1022,14 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
         }
         
         let attemptIndex = 0;
+        // Filter out empty or invalid URLs from attempts
+        attempts = attempts.filter(url => url && url.trim() !== "" && url !== window.location.origin + "/");
+        
         const tryNext = () => {
             if (attemptIndex >= attempts.length) {
                 img.style.display = "none";
+                img.style.visibility = "hidden";
+                img.style.opacity = "0";
                 return;
             }
             img.src = attempts[attemptIndex];

@@ -1,5 +1,5 @@
 
-import { getSettings, saveSettings, updateLayout } from "./core.js";
+import { getSettings, saveSettings, updateLayout, isMobileUI } from "./core.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { notify } from "./notifications.js";
 
@@ -11,16 +11,91 @@ export function initInteractions() {
     initLauncher();
 }
 
+function clampToViewportPx(left, top, w, h, pad = 8) {
+    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    const minVisible = 40;
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const maxX = Math.max(pad, vw - minVisible);
+    const maxY = Math.max(pad, vh - minVisible);
+    const x = clamp(left, -Math.max(0, w - minVisible), maxX);
+    const y = clamp(top, -Math.max(0, h - minVisible), maxY);
+    return { x, y, vw, vh };
+}
+
+function placeCenteredClamped($el) {
+    if (!$el || !$el.length) return;
+    const el = $el.get(0);
+    if (!el) return;
+    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    const rect = el.getBoundingClientRect();
+    const w = rect.width || $el.outerWidth() || Math.min(420, vw * 0.94);
+    const h = rect.height || $el.outerHeight() || Math.min(520, vh * 0.88);
+    const left = (vw - w) / 2;
+    const top = (vh - h) / 2;
+    const pos = clampToViewportPx(left, top, w, h, 8);
+    $el.css({ left: `${pos.x}px`, top: `${pos.y}px`, right: "auto", bottom: "auto", transform: "none", position: "fixed" });
+}
+
 function initLauncher() {
     const btn = document.getElementById("uie-launcher");
     if (!btn) return;
+
+    const openLauncherOptions = () => {
+        try {
+            const w = $("#uie-launcher-options-window");
+            if (!w.length) return;
+            w.show().css("display", "flex");
+            w.css("z-index", "2147483652");
+            placeCenteredClamped(w);
+
+            const s = getSettings();
+            const name = String(s?.launcher?.name || "");
+            const hidden = s?.launcher?.hidden === true;
+            const src = String(s?.launcher?.src || s?.launcherIcon || "");
+            $("#uie-launcher-opt-hide").prop("checked", hidden);
+            $("#uie-launcher-opt-name").val(name);
+
+            const sel = document.getElementById("uie-launcher-opt-icon");
+            if (sel) {
+                const has = Array.from(sel.options || []).some(o => String(o.value || "") === src);
+                sel.value = has ? src : "custom";
+            }
+            const prev = document.getElementById("uie-launcher-opt-preview");
+            if (prev && src) {
+                prev.style.backgroundImage = `url("${src}")`;
+                prev.style.display = "block";
+            } else if (prev) {
+                prev.style.backgroundImage = "";
+                prev.style.display = "none";
+            }
+        } catch (_) {}
+    };
 
     // Block Context Menu (Right Click) to prevent ST Menu interference
     $(btn).off("contextmenu.uieLauncher").on("contextmenu.uieLauncher", function(e) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
+        openLauncherOptions();
     });
+
+    let lpT = 0;
+    const clearLp = () => { if (lpT) { clearTimeout(lpT); lpT = 0; } };
+    btn.addEventListener("pointerdown", (e) => {
+        try {
+            if (String(e.pointerType || "") !== "touch") return;
+        } catch (_) { return; }
+        clearLp();
+        lpT = setTimeout(() => {
+            lpT = 0;
+            openLauncherOptions();
+        }, 520);
+    }, { passive: true });
+    btn.addEventListener("pointerup", clearLp, { passive: true });
+    btn.addEventListener("pointercancel", clearLp, { passive: true });
+    btn.addEventListener("pointermove", clearLp, { passive: true });
 
     // Block Mousedown/Pointerdown propagation to prevent ST from hijacking the drag
     // But allow default so dragging.js can handle it (dragging.js attaches directly)
@@ -46,28 +121,69 @@ function initLauncher() {
             // Ensure proper Z-index
             menu.css("z-index", "2147483650");
 
-            // Position next to the launcher each time
-            try {
-                const btnRect = btn.getBoundingClientRect();
-                const menuRect = menu[0].getBoundingClientRect();
-                menu.css({ position: "fixed", transform: "none" });
-                menu.css({ left: btnRect.right + 8, top: btnRect.top });
+            const mobileNow = (() => {
+                try {
+                    if (isMobileUI()) return true;
+                    const touch = (typeof navigator !== "undefined" && Number(navigator.maxTouchPoints || 0) > 0);
+                    const minDim = Math.min(Number(window.innerWidth || 0), Number(window.innerHeight || 0));
+                    return touch && minDim > 0 && minDim <= 700;
+                } catch (_) {
+                    return isMobileUI();
+                }
+            })();
 
-                // Keep on screen (clamp to viewport)
-                let left = parseFloat(menu.css("left")) || 0;
-                let top = parseFloat(menu.css("top")) || 0;
-                if (left + menuRect.width > window.innerWidth - 10) {
-                    left = btnRect.left - menuRect.width - 8;
+            if (mobileNow) {
+                const s = getSettings();
+                const sx = (s.menuX === null || s.menuX === undefined) ? NaN : Number(s.menuX);
+                const sy = (s.menuY === null || s.menuY === undefined) ? NaN : Number(s.menuY);
+                if (Number.isFinite(sx) && Number.isFinite(sy)) {
+                    const rect = menu.get(0)?.getBoundingClientRect?.();
+                    const w = rect?.width || menu.outerWidth() || 320;
+                    const h = rect?.height || menu.outerHeight() || 420;
+                    const pos = clampToViewportPx(sx, sy, w, h, 8);
+                    menu.css({ left: `${pos.x}px`, top: `${pos.y}px`, right: "auto", bottom: "auto", transform: "none", position: "fixed" });
+                } else {
+                    placeCenteredClamped(menu);
                 }
-                if (top + menuRect.height > window.innerHeight - 10) {
-                    top = window.innerHeight - menuRect.height - 10;
-                }
-                if (top < 10) top = 10;
-                if (left < 10) left = 10;
-                menu.css({ left, top });
-            } catch (_) {
-                // Fallback to center if positioning fails
-                menu.css({ top: "50%", left: "50%", transform: "translate(-50%, -50%)" });
+                try { updateLayout(); } catch (_) {}
+                return;
+            }
+
+            // Force position next to launcher (User Request)
+            const launcher = document.getElementById("uie-launcher");
+            if (launcher && launcher.getBoundingClientRect().height > 0) {
+                const rect = launcher.getBoundingClientRect();
+                // Dimensions
+                let mw = menu.outerWidth() || 300;
+                let mh = menu.outerHeight() || 400;
+                const margin = 10;
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+
+                // Prefer opening BESIDE the launcher (User Request)
+                // Try right side first, then left side.
+                let left = rect.right + margin;
+                if (left + mw > vw - margin) left = rect.left - mw - margin;
+                let top = rect.top;
+
+                // Strict Clamping to Viewport
+                if (left < margin) left = margin;
+                if (left + mw > vw - margin) left = vw - mw - margin;
+                
+                if (top < margin) top = margin;
+                if (top + mh > vh - margin) top = vh - mh - margin;
+
+                menu.css({
+                    top: top + "px",
+                    left: left + "px",
+                    bottom: "auto",
+                    right: "auto",
+                    transform: "none",
+                    position: "fixed"
+                });
+            } else {
+                // Fallback to center
+                 menu.css({ top: "50%", left: "50%", transform: "translate(-50%, -50%)", bottom: "auto", right: "auto" });
             }
         }
     });
@@ -77,6 +193,101 @@ function initLauncher() {
     initMenuTabs();
     initMenuButtons();
     initGenericHandlers();
+    initLauncherOptionsHandlers(openLauncherOptions);
+}
+
+function initLauncherOptionsHandlers(openLauncherOptions) {
+    const syncIcon = (src) => {
+        const prev = document.getElementById("uie-launcher-opt-preview");
+        if (prev && src) {
+            prev.style.backgroundImage = `url("${src}")`;
+            prev.style.display = "block";
+        } else if (prev) {
+            prev.style.backgroundImage = "";
+            prev.style.display = "none";
+        }
+    };
+
+    $("body").off("change.uieLauncherOptHide").on("change.uieLauncherOptHide", "#uie-launcher-opt-hide", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const s = getSettings();
+        if (!s.launcher) s.launcher = {};
+        s.launcher.hidden = $(this).prop("checked") === true;
+        saveSettings();
+        updateLayout();
+    });
+
+    $("body").off("input.uieLauncherOptName change.uieLauncherOptName").on("input.uieLauncherOptName change.uieLauncherOptName", "#uie-launcher-opt-name", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const s = getSettings();
+        if (!s.launcher) s.launcher = {};
+        s.launcher.name = String($(this).val() || "");
+        saveSettings();
+        updateLayout();
+    });
+
+    $("body").off("change.uieLauncherOptIcon").on("change.uieLauncherOptIcon", "#uie-launcher-opt-icon", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const val = String($(this).val() || "");
+        if (val === "custom") {
+            document.getElementById("uie-launcher-opt-file")?.click();
+            return;
+        }
+        const s = getSettings();
+        if (!s.launcher) s.launcher = {};
+        s.launcher.src = val;
+        saveSettings();
+        updateLayout();
+        syncIcon(val);
+    });
+
+    $("body").off("change.uieLauncherOptFile").on("change.uieLauncherOptFile", "#uie-launcher-opt-file", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const file = this.files && this.files[0];
+        if (!file) return;
+        const r = new FileReader();
+        r.onload = () => {
+            const src = String(r.result || "");
+            if (!src) return;
+            const s = getSettings();
+            if (!s.launcher) s.launcher = {};
+            s.launcher.src = src;
+            s.launcher.lastUploadName = String(file.name || "");
+            if (!Array.isArray(s.launcher.savedIcons)) s.launcher.savedIcons = [];
+            if (!s.launcher.savedIcons.includes(src)) s.launcher.savedIcons.unshift(src);
+            saveSettings();
+            updateLayout();
+            syncIcon(src);
+        };
+        r.readAsDataURL(file);
+        try { this.value = ""; } catch (_) {}
+    });
+
+    $("body").off("click.uieLauncherOptResetPos").on("click.uieLauncherOptResetPos", "#uie-launcher-opt-resetpos", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const s = getSettings();
+        s.launcherX = 20;
+        s.launcherY = 120;
+        saveSettings();
+        updateLayout();
+        try { openLauncherOptions?.(); } catch (_) {}
+    });
+
+    $("body").off("click.uieLauncherOptOpenSettings").on("click.uieLauncherOptOpenSettings", "#uie-launcher-opt-open-settings", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const w = $("#uie-settings-window");
+        if (w.length) {
+            w.show().css("display", "flex");
+            w.css("z-index", "2147483653");
+            placeCenteredClamped(w);
+        }
+    });
 }
 
 function initGenericHandlers() {
@@ -96,7 +307,7 @@ function initGenericHandlers() {
         "#uie-k-pick-close", "#uie-item-modal-close", "#uie-battle-close",
         "#uie-launcher-opt-close",
         "#uie-create-overlay-exit", "#uie-kitchen-exit", "#life-create-cancel",
-        "#uie-diary-close"
+        "#uie-diary-close", "#uie-databank-close", "#uie-journal-close"
     ].join(", ");
 
     let lastPointerTime = 0;
@@ -115,62 +326,36 @@ function initGenericHandlers() {
         e.stopPropagation();
         const win = $(this).closest(".uie-window");
         if (win.length) {
-            // Some templates had display:flex !important; enforce hide
-            try { win[0].style.setProperty("display", "none", "important"); } catch (_) { win.hide(); }
+            win.hide();
         } else {
             // Fallback for overlays that might not be .uie-window
             // Added .uie-book-overlay for Diary
-            const parent = $(this).closest(".uie-overlay, .uie-modal, #uie-inventory-window, .uie-full-modal, .uie-book-overlay, #uie-diary-window");
-            if (parent.length) {
-                try { parent[0].style.setProperty("display", "none", "important"); } catch (_) { parent.hide(); }
-            }
+            $(this).closest(".uie-overlay, .uie-modal, #uie-inventory-window, .uie-full-modal, .uie-book-overlay, #uie-diary-window").hide();
             // Also handle specific parents if closest fails
             if (this.id === "re-forge-close") $("#re-forge-modal").hide();
             if (this.id === "uie-map-card-close") $("#uie-map-card").hide();
         }
     });
 
-    // Explicit close for stats/activities buttons to override any inline display rules
-    $("body").off("click.uieForceCloseStats pointerup.uieForceCloseStats", ".uie-rpg-close, .uie-sim-close").on("click.uieForceCloseStats pointerup.uieForceCloseStats", ".uie-rpg-close, .uie-sim-close", function(e) {
+    $("body").off("click.uieLauncherOptClose pointerup.uieLauncherOptClose", "#uie-launcher-opt-close").on("click.uieLauncherOptClose pointerup.uieLauncherOptClose", "#uie-launcher-opt-close", function(e) {
         e.preventDefault();
         e.stopPropagation();
-        const win = $(this).closest(".uie-window");
-        if (win.length) {
-            try { win[0].style.setProperty("display", "none", "important"); } catch (_) { win.hide(); }
-        }
+        $("#uie-launcher-options-window").hide();
     });
 }
 
 function openWindow(selector) {
     const win = $(selector);
     if (!win.length) return;
-    const isMobile = (() => {
-        try { return window.matchMedia("(max-width: 768px), (pointer: coarse)").matches; } catch (_) { return window.innerWidth < 768; }
-    })();
-    const isInventory = win.is("#uie-inventory-window");
 
     // Hide other UIE windows
-    try {
-        document.querySelectorAll(".uie-window").forEach(el => {
-            try { el.style.setProperty("display", "none", "important"); } catch (_) {}
-        });
-    } catch (_) {
-        $(".uie-window").hide();
-    }
+    $(".uie-window").hide();
 
     // Show this window
-    try { win[0].style.setProperty("display", "flex", "important"); } catch (_) { win.show(); }
+    win.show();
     
     // Dynamic Z-Index Handling: Bring to front
-    const isVisibleEl = (el) => {
-        try {
-            const st = getComputedStyle(el);
-            return st.display !== "none" && st.visibility !== "hidden" && st.opacity !== "0";
-        } catch (_) {
-            return false;
-        }
-    };
-    const visibleWins = Array.from(document.querySelectorAll(".uie-window")).filter(isVisibleEl);
+    const visibleWins = $(".uie-window").filter(":visible").toArray();
     const highestZ = Math.max(2147483650, ...visibleWins.map(el => Number(getComputedStyle(el).zIndex) || 0));
     
     win.css("z-index", highestZ + 1);
@@ -180,27 +365,35 @@ function openWindow(selector) {
         document.body.appendChild(win[0]);
     }
     
-    try { win[0].style.setProperty("display", "flex", "important"); } catch (_) { win.css("display", "flex"); } // Most windows use flex
+    win.css("display", "flex"); // Most windows use flex
 
-    // Mobile: do not force position; allow drag anywhere
-    if (isMobile && !isInventory) {
+    // Mobile: always center newly opened windows (prevents "stuck at top")
+    const mobileNow = (() => {
         try {
-            win[0].style.setProperty("position", "fixed", "important");
-            win[0].style.setProperty("max-width", "94vw", "important");
-            win[0].style.setProperty("max-height", "90vh", "important");
-        } catch (_) {}
+            if (isMobileUI()) return true;
+            const touch = (typeof navigator !== "undefined" && (Number(navigator.maxTouchPoints || 0) > 0 || Number(navigator.msMaxTouchPoints || 0) > 0)) || (typeof window !== "undefined" && ("ontouchstart" in window));
+            const minDim = Math.min(Number(window.innerWidth || 0), Number(window.innerHeight || 0));
+            return touch && minDim > 0 && minDim <= 820;
+        } catch (_) {
+            return isMobileUI();
+        }
+    })();
+    if (mobileNow) {
+        if (String(win.attr("id") || "") !== "uie-party-window") {
+            placeCenteredClamped(win);
+        }
     }
     
-    // Ensure on-screen (Center if off-screen)
-    const rect = win[0].getBoundingClientRect();
-    if (rect.top < 0 || rect.left < 0 || rect.bottom > window.innerHeight || rect.right > window.innerWidth) {
-        win.css({ 
-            top: "50%", 
-            left: "50%", 
-            transform: "translate(-50%, -50%)",
-            position: "fixed" 
-        });
-    }
+    // Ensure on-screen: clamp pixel position, never force translate centering
+    try {
+        const rect = win[0].getBoundingClientRect();
+        if (rect.top < 0 || rect.left < 0 || rect.bottom > window.innerHeight || rect.right > window.innerWidth) {
+            const w = rect.width || win.outerWidth() || 320;
+            const h = rect.height || win.outerHeight() || 420;
+            const pos = clampToViewportPx(rect.left, rect.top, w, h, 8);
+            win.css({ left: `${pos.x}px`, top: `${pos.y}px`, right: "auto", bottom: "auto", transform: "none", position: "fixed" });
+        }
+    } catch (_) {}
 
     // Close main menu
     $("#uie-main-menu").hide();
@@ -209,15 +402,7 @@ function openWindow(selector) {
 function initWindowLayering() {
     // Bring window to front on click
     $("body").off("mousedown.uieWindowLayering pointerdown.uieWindowLayering").on("mousedown.uieWindowLayering pointerdown.uieWindowLayering", ".uie-window", function() {
-        const isVisibleEl = (el) => {
-            try {
-                const st = getComputedStyle(el);
-                return st.display !== "none" && st.visibility !== "hidden" && st.opacity !== "0";
-            } catch (_) {
-                return false;
-            }
-        };
-        const visibleWins = Array.from(document.querySelectorAll(".uie-window")).filter(isVisibleEl);
+        const visibleWins = $(".uie-window:visible").toArray();
         const highestZ = Math.max(2147483650, ...visibleWins.map(el => Number(getComputedStyle(el).zIndex) || 0));
         
         const current = Number($(this).css("z-index")) || 0;
@@ -236,29 +421,6 @@ function initWindowLayering() {
 function initMenuButtons() {
     initWindowLayering();
     const $menu = $("#uie-main-menu");
-
-    async function ensureWindowTemplate(windowId, templateFile) {
-        if (document.getElementById(windowId)) return true;
-        try {
-            const baseUrl = String(window.UIE_BASEURL || "/scripts/extensions/third-party/universal-immersion-engine/").trim();
-            const mod = await import("./templateFetch.js");
-            const fetchTemplateHtml = mod?.fetchTemplateHtml;
-            if (typeof fetchTemplateHtml !== "function") return false;
-            const urls = [
-                `${baseUrl}src/templates/${templateFile}`,
-                `/scripts/extensions/third-party/universal-immersion-engine/src/templates/${templateFile}`,
-            ];
-            let html = "";
-            for (const u of urls) {
-                try { html = await fetchTemplateHtml(u); if (html) break; } catch (_) {}
-            }
-            if (!html) return false;
-            $("body").append(html);
-            return !!document.getElementById(windowId);
-        } catch (_) {
-            return false;
-        }
-    }
     
     // Inventory
     $menu.off("click.uieMenuInv").on("click.uieMenuInv", "#uie-btn-inventory", function() {
@@ -302,18 +464,14 @@ function initMenuButtons() {
 
     // Stats (Might be inventory tab or separate)
     $menu.off("click.uieMenuStats").on("click.uieMenuStats", "#uie-btn-stats", async function() {
-        await ensureWindowTemplate("uie-stats-window", "stats.html");
         openWindow("#uie-stats-window");
         try { (await import("./features/stats.js")).initStats?.(); } catch (_) {}
-        try { (await import("./features/stats.js")).renderStats?.(); } catch (_) {}
     });
 
     // Activities
     $menu.off("click.uieMenuActivities").on("click.uieMenuActivities", "#uie-btn-activities", async function() {
-        await ensureWindowTemplate("uie-activities-window", "activities.html");
         openWindow("#uie-activities-window");
         try { (await import("./features/activities.js")).initActivities?.(); } catch (_) {}
-        try { (await import("./features/activities.js")).render?.(); } catch (_) {}
     });
 
     // Phone
@@ -390,13 +548,24 @@ function initMenuButtons() {
 
 function initMenuTabs() {
     const $menu = $("#uie-main-menu");
-    $menu.off("click.uieMenuTabs").on("click.uieMenuTabs", ".uie-menu-tab", function() {
+    let lastPointerTime = 0;
+    $menu.off("click.uieMenuTabs pointerup.uieMenuTabs").on("click.uieMenuTabs pointerup.uieMenuTabs", ".uie-menu-tab", function(e) {
+        // De-dupe pointerup vs click on mobile
+        if (e?.type === "pointerup") {
+            lastPointerTime = Date.now();
+        } else if (e?.type === "click" && Date.now() - lastPointerTime < 300) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            return;
+        }
+
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+
         const tab = $(this).data("tab");
         const target = $("#uie-tab-" + tab);
         if (!target.length) return;
 
-        $(".uie-menu-tab").removeClass("active").css("border-bottom-color", "transparent");
-        $(this).addClass("active").css("border-bottom-color", "#f1c40f");
+        $(".uie-menu-tab").removeClass("active").css({ "border-bottom-color": "transparent", "color": "#888" });
+        $(this).addClass("active").css({ "border-bottom-color": "#f1c40f", "color": "#fff" });
 
         $(".uie-menu-page").hide();
         target.show();

@@ -1,11 +1,11 @@
 export async function fetchTemplateHtml(url) {
   try {
-    return await $.ajax({ url, method: "GET", timeout: 20000 });
+    return await $.ajax({ url, method: "GET", timeout: 20000, cache: false });
   } catch (jqErr) {
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 20000);
-      const res = await fetch(url, { cache: "no-cache", credentials: "same-origin", signal: ctrl.signal });
+      const res = await fetch(url, { cache: "no-store", credentials: "same-origin", signal: ctrl.signal });
       clearTimeout(t);
       if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
       return await res.text();

@@ -59,7 +59,21 @@ function renderLog() {
 export function getDebugReport() {
     const s = getSettings() || {};
     const safeSettings = JSON.parse(JSON.stringify(s || {}));
-    try { if (safeSettings?.turbo) safeSettings.turbo.key = safeSettings.turbo.key ? "[REDACTED]" : ""; } catch (_) {}
+    try {
+        if (safeSettings?.turbo) safeSettings.turbo.key = safeSettings.turbo.key ? "[REDACTED]" : "";
+    } catch (_) {}
+    try {
+        if (safeSettings?.image) safeSettings.image.key = safeSettings.image.key ? "[REDACTED]" : "";
+    } catch (_) {}
+    try {
+        const profs = safeSettings?.connections?.profiles;
+        if (Array.isArray(profs)) {
+            profs.forEach((p) => {
+                try { if (p?.turbo) p.turbo.key = p.turbo.key ? "[REDACTED]" : ""; } catch (_) {}
+                try { if (p?.image) p.image.key = p.image.key ? "[REDACTED]" : ""; } catch (_) {}
+            });
+        }
+    } catch (_) {}
     return {
         createdAt: nowIso(),
         location: String(window.location?.href || ""),

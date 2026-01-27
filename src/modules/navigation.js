@@ -2,11 +2,25 @@
 import { getSettings, saveSettings } from "./core.js";
 import { notify } from "./notifications.js";
 import { clearAllSprites } from "./sprites.js";
+import { getRealityEngineV3 } from "./reality.js";
 
 // --- SPATIAL NAVIGATION MODULE (v4.0) ---
 
 export function initNavigation() {
     renderNavHud();
+    updateNavVisibility();
+}
+
+export function setNavVisible(show) {
+    const s = getSettings();
+    if (!s.realityEngine) s.realityEngine = {};
+    if (!s.realityEngine.ui) s.realityEngine.ui = {};
+    s.realityEngine.ui.showNav = show === true;
+    saveSettings();
+    updateNavVisibility();
+}
+
+export function refreshNavVisibility() {
     updateNavVisibility();
 }
 
@@ -30,10 +44,22 @@ function renderNavHud() {
         { dir: "east", icon: "fa-chevron-right", style: isMobile ? "right:12px; top:50%; transform:translateY(-50%);" : "right:20px; top:50%; transform:translateY(-50%);" }
     ];
 
+    const handleNavActivate = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+        const vn = document.getElementById("re-vn-box");
+        if (vn && vn.style.display !== "none") return;
+        const dir = e.currentTarget?.dataset?.dir || e.target?.dataset?.dir;
+        if (!dir) return;
+        moveDirectionSilent(dir);
+    };
+
     arrows.forEach(a => {
         const btn = document.createElement("div");
         btn.className = `re-nav-arrow re-nav-${a.dir}`;
         btn.innerHTML = `<i class="fa-solid ${a.icon}"></i>`;
+        btn.dataset.dir = a.dir;
         btn.style.cssText = `
             position: absolute;
             width: ${size}px; height: ${size}px;
@@ -46,23 +72,21 @@ function renderNavHud() {
             cursor: pointer;
             pointer-events: auto;
             transition: all 0.2s;
-            touch-action: manipulation;
+            touch-action: none;
             ${a.style}
         `;
 
         btn.onpointerdown = (e) => {
+            e.preventDefault();
             e.stopPropagation();
         };
         btn.ontouchstart = (e) => {
             e.preventDefault();
             e.stopPropagation();
         };
-        btn.onclick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
-            moveDirectionSilent(a.dir);
-        };
+        btn.onpointerup = handleNavActivate;
+        btn.ontouchend = handleNavActivate;
+        btn.onclick = handleNavActivate;
 
         btn.onmouseenter = () => {
             btn.style.background = "rgba(255,255,255,0.2)";
@@ -90,11 +114,14 @@ function renderNavHud() {
 }
 
 function updateNavVisibility() {
-    // In a real roguelite, we check exits. For now, assume open world or check grid.
-    // We can hide arrows if at edge of map?
-    // User requirement: "Only show an arrow if an exit exists... If CurrentRoom.exits.north exists"
-    // Since we are building the system, let's assume all directions are open for generation unless blocked.
-    // We'll leave them visible for the "Infinite Generation" feel requested.
+    const layer = document.getElementById("re-nav-arrows");
+    if (!layer) return;
+    const s = getSettings();
+    const wantsNav = s.realityEngine?.ui?.showNav !== false;
+    const vn = document.getElementById("re-vn-box");
+    const vnOpen = vn && vn.style.display !== "none";
+    const show = wantsNav && !vnOpen;
+    layer.style.display = show ? "block" : "none";
 }
 
 function showTooltip(dir) {
@@ -123,7 +150,33 @@ function hideTooltip() {
     if (tip) tip.style.display = "none";
 }
 
+let navLastAt = 0;
+const navPending = new Map();
+
+// Global generation lock to prevent navigation during generation
+function isGenerating() {
+    try {
+        // Check standard SillyTavern generation flags if available
+        if (typeof is_send_press !== "undefined" && is_send_press) return true;
+        const btn = document.getElementById("send_but");
+        if (btn && btn.style.display === "none") return true; // Send button hidden usually means generating
+        const stop = document.getElementById("stop_but");
+        if (stop && stop.style.display !== "none") return true; // Stop button visible means generating
+    } catch (_) {}
+    return false;
+}
+
 export async function moveDirectionSilent(dir) {
+    // strict debounce + generation lock
+    if (isGenerating()) {
+        try { notify("warn", "Cannot move while generating.", "Navigation"); } catch (_) {}
+        return;
+    }
+
+    const now = Date.now();
+    if (now - navLastAt < 650) return; // Increased from 300ms to 650ms
+    navLastAt = now;
+
     const s = getSettings();
     if (!s.worldState) s.worldState = { x: 0, y: 0 };
     if (typeof s.worldState.x !== "number") s.worldState.x = 0;
@@ -160,6 +213,9 @@ export async function moveDirectionSilent(dir) {
     s.worldState.location = locId;
     saveSettings();
 
+    const reV3 = getRealityEngineV3();
+    try { reV3.setLocation(locId); } catch (_) {}
+
     setTimeout(async () => {
         // Apply new background
         if (bg) {
@@ -169,15 +225,32 @@ export async function moveDirectionSilent(dir) {
             bg.style.opacity = "";
 
             // Check if exists
-            const savedBg = s.realityEngine?.backgrounds?.[locId];
+            let savedBg = "";
+            try { savedBg = String(reV3.getBackground(locId) || "").trim(); } catch (_) {}
+            if (!savedBg) savedBg = String(s.realityEngine?.backgrounds?.[locId] || "").trim();
             if (savedBg) {
                 bg.style.backgroundImage = `url("${savedBg}")`;
                 notify("info", `Arrived at ${locId}`, "Navigation");
             } else {
                 bg.style.backgroundImage = "";
                 notify("info", `New Area: ${locId}. Generating...`, "Navigation");
-                // Do not auto-trigger assistant/system narration or auto-generation here.
-                // Background generation is handled by the Reality Engine background manager when needed.
+                // Trigger background generation once, then wait for it
+                if (!navPending.has(locId)) {
+                    navPending.set(locId, Date.now());
+                    try { reV3.ensureBackgroundOrRequest(); } catch (_) {}
+                    const poll = (tries = 0) => {
+                        let nextBg = "";
+                        try { nextBg = String(reV3.getBackground(locId) || "").trim(); } catch (_) {}
+                        if (nextBg && bg) {
+                            bg.style.backgroundImage = `url("${nextBg}")`;
+                            navPending.delete(locId);
+                            return;
+                        }
+                        if (tries >= 8) { navPending.delete(locId); return; }
+                        setTimeout(() => poll(tries + 1), 350);
+                    };
+                    poll();
+                }
             }
         }
 

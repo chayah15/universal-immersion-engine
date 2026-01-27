@@ -1244,6 +1244,7 @@ export function initInventory() {
     .on("click.uieInvSparkle", "#uie-inv-sparkle", function (e) {
       e.preventDefault();
       e.stopPropagation();
+      try { e.stopImmediatePropagation(); } catch (_) {}
       openCreateStation();
       const st = document.getElementById("uie-create-status");
       if (st) st.textContent = "";

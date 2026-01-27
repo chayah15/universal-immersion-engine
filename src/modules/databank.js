@@ -489,8 +489,15 @@ function renderState() {
     const container = document.getElementById("uie-db-state-content");
     if (!container) return;
     container.innerHTML = "";
-    
-    const state = getWorldState();
+
+    let state = null;
+    try {
+        state = getWorldState();
+    } catch (e) {
+        container.innerHTML = `<div style="text-align:center; margin-top:50px; color:rgba(0,240,255,0.5); font-style:italic;">WORLD STATE ERROR<br><small>Check console for details.</small></div>`;
+        try { console.warn("[UIE] getWorldState() failed:", e); } catch (_) {}
+        return;
+    }
 
     if (!state || Object.keys(state).length === 0) {
         container.innerHTML = `<div style="text-align:center; margin-top:50px; color:rgba(0,240,255,0.5); font-style:italic;">NO WORLD STATE DATA<br><small>Start chatting to generate state.</small></div>`;
@@ -500,7 +507,70 @@ function renderState() {
     // Status Block
     const tmplStatus = document.getElementById("uie-template-db-state-status");
     const tmplRow = document.getElementById("uie-template-db-state-row");
-    
+
+    if (!(tmplStatus && tmplRow)) {
+        const wrap = document.createElement("div");
+        wrap.style.display = "flex";
+        wrap.style.flexDirection = "column";
+        wrap.style.gap = "10px";
+
+        const makeGrid = () => {
+            const grid = document.createElement("div");
+            grid.style.display = "grid";
+            grid.style.gridTemplateColumns = "minmax(120px, 0.9fr) 1.1fr";
+            grid.style.gap = "6px 10px";
+            grid.style.background = "rgba(0,240,255,0.05)";
+            grid.style.border = "1px solid rgba(0,240,255,0.25)";
+            grid.style.borderRadius = "10px";
+            grid.style.padding = "10px";
+            return grid;
+        };
+
+        const grid = makeGrid();
+        for (const [k, v] of Object.entries(state)) {
+            if (k === "custom") continue;
+            const keyEl = document.createElement("div");
+            keyEl.style.color = "rgba(0,240,255,0.9)";
+            keyEl.style.fontWeight = "900";
+            keyEl.style.letterSpacing = "0.4px";
+            keyEl.style.wordBreak = "break-word";
+            keyEl.textContent = String(k);
+
+            const valEl = document.createElement("div");
+            valEl.style.color = "rgba(255,255,255,0.88)";
+            valEl.style.wordBreak = "break-word";
+            valEl.textContent = String(v);
+
+            grid.appendChild(keyEl);
+            grid.appendChild(valEl);
+        }
+        wrap.appendChild(grid);
+
+        if (state.custom && Object.keys(state.custom).length > 0) {
+            const grid2 = makeGrid();
+            for (const [k, v] of Object.entries(state.custom)) {
+                const keyEl = document.createElement("div");
+                keyEl.style.color = "rgba(0,240,255,0.9)";
+                keyEl.style.fontWeight = "900";
+                keyEl.style.letterSpacing = "0.4px";
+                keyEl.style.wordBreak = "break-word";
+                keyEl.textContent = String(k);
+
+                const valEl = document.createElement("div");
+                valEl.style.color = "rgba(255,255,255,0.88)";
+                valEl.style.wordBreak = "break-word";
+                valEl.textContent = String(v);
+
+                grid2.appendChild(keyEl);
+                grid2.appendChild(valEl);
+            }
+            wrap.appendChild(grid2);
+        }
+
+        container.appendChild(wrap);
+        return;
+    }
+
     if (tmplStatus && tmplRow) {
         const cloneStatus = tmplStatus.content.cloneNode(true);
         const grid = cloneStatus.querySelector(".db-state-grid");

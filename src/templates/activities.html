@@ -1,4 +1,4 @@
-<div id="uie-activities-window" class="uie-window uie-sim-theme" style="display:none; top:20%; left:20%; width:500px; height:650px; padding:0; background:#050505; border:2px solid #a2d2ff; border-radius:16px; box-shadow:0 0 25px rgba(0,0,0,0.9); overflow:hidden; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+<div id="uie-activities-window" class="uie-window uie-sim-theme" style="display:none; padding:0; background:#050505; border:2px solid #a2d2ff; border-radius:16px; box-shadow:0 0 25px rgba(0,0,0,0.9); overflow:hidden; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
     <style>
         .uie-sim-theme ::-webkit-scrollbar { width: 6px; }
         .uie-sim-theme ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
@@ -7,27 +7,23 @@
         /* CRITICAL: Force header to be at top, horizontal, normal size */
         #uie-activities-window {
             flex-direction: column !important;
+            top: 15vh;
+            left: 15vw;
+            transform: none;
+            width: min(500px, 80vw);
+            height: min(600px, 70vh);
+            position: fixed;
         }
         
         /* Full menu on desktop, normal size on mobile */
-        @media (min-width: 768px) {
+        @media (max-width: 700px), (pointer: coarse) {
             #uie-activities-window {
-                width: 45vw !important;
-                max-width: 600px !important;
-                height: 85vh !important;
-                top: 5vh !important;
-                left: 50% !important;
-                transform: translateX(-50%) !important;
-            }
-        }
-        
-        @media (max-width: 767px) {
-            #uie-activities-window {
-                width: min(92vw, 520px) !important;
-                height: min(82dvh, 720px) !important;
-                top: 50% !important;
-                left: 50% !important;
-                transform: translate(-50%, -50%) !important;
+                top: 6vh;
+                left: 4vw;
+                width: 91vw;
+                max-width: 91vw;
+                height: 87vh;
+                max-height: 87vh;
             }
         }
 
@@ -296,7 +292,11 @@
     <div class="uie-sim-header" style="position:relative !important; top:0 !important; left:0 !important; width:100% !important; height:auto !important; flex-direction:row !important; display:flex !important; align-items:center !important; justify-content:space-between !important; writing-mode:horizontal-tb !important; transform:none !important; font-size:1em !important;">
         <div class="uie-sim-title" style="writing-mode:horizontal-tb !important; transform:none !important; font-size:1em !important; display:flex !important; flex-direction:row !important; align-items:center !important;"><i class="fa-solid fa-calendar-check"></i> Daily Schedule</div>
         <div style="display:flex; gap:8px;">
-            <button class="uie-sim-close" id="uie-activity-sparkle" title="New Activity" onclick="if(window.UIE_openCreateStation) window.UIE_openCreateStation();"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+            <button class="uie-sim-sparkle" id="uie-activity-sparkle" title="New Activity"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+            <div class="uie-dropdown" id="uie-activity-menu" style="position:absolute; top:44px; right:44px; background:#111; border:1px solid rgba(162,210,255,0.55); border-radius:10px; padding:6px; display:none; flex-direction:column; gap:6px; z-index:20010; min-width:200px;">
+                <div class="uie-dd-item" id="uie-activity-act-add" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#fff; background:rgba(255,255,255,0.06);"><i class="fa-solid fa-plus" style="width:18px; color:#a2d2ff;"></i> Add Routine</div>
+                <div class="uie-dd-item" id="uie-activity-act-station" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#fff; background:rgba(255,255,255,0.06);"><i class="fa-solid fa-wand-magic-sparkles" style="width:18px; color:#a2d2ff;"></i> Open Create Station</div>
+            </div>
             <button class="uie-sim-close" onclick="$('#uie-activities-window').hide();"><i class="fa-solid fa-xmark"></i></button>
         </div>
     </div>
@@ -314,6 +314,13 @@
                 <span id="uie-activity-stop" style="cursor:pointer; color:#ff6b6b; font-weight:bold; display:none;">CANCEL</span>
             </div>
         </div>
+
+        <div id="uie-activity-tabs" style="display:flex; gap:8px; margin:12px 0;">
+            <button id="uie-activity-tab-user" style="flex:1; height:36px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(162,210,255,0.18); color:#a2d2ff; font-weight:900; cursor:pointer;">You</button>
+            <button id="uie-activity-tab-party" style="flex:1; height:36px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Party</button>
+        </div>
+
+        <div id="uie-activity-pane-user">
 
         <div class="uie-sim-list-title">Select Activity</div>
         <div id="uie-activities-list">
@@ -350,6 +357,26 @@
             <div class="uie-sim-input-group">
                 <input type="text" id="uie-activity-new-name" placeholder="E.g. Piano Practice" class="uie-sim-input" />
                 <button id="uie-activity-create" class="uie-sim-btn">ADD</button>
+            </div>
+        </div>
+
+        </div>
+
+        <div id="uie-activity-pane-party" style="display:none;">
+            <div class="uie-sim-list-title">Upgrade Party Member</div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <div>
+                    <div style="font-size:0.75em; color:#888; margin-bottom:6px;">Member</div>
+                    <select id="uie-activity-party-member" style="width:100%; height:40px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 10px;"></select>
+                </div>
+                <div>
+                    <div style="font-size:0.75em; color:#888; margin-bottom:6px;">Activity</div>
+                    <select id="uie-activity-party-activity" style="width:100%; height:40px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 10px;"></select>
+                </div>
+                <div id="uie-activity-party-preview" style="padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#ccc; font-size:0.9em; line-height:1.4;">
+                    Select a member and activity.
+                </div>
+                <button id="uie-activity-party-apply" class="uie-sim-btn" style="height:44px;">APPLY TO PARTY MEMBER</button>
             </div>
         </div>
     </div>

@@ -1,4 +1,4 @@
-import { getSettings, saveSettings } from "./core.js";
+import { getSettings, saveSettings, isMobileUI } from "./core.js";
 import { getContext } from "/scripts/extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { generateContent } from "./apiClient.js";
@@ -596,6 +596,7 @@ function renderFormation(s) {
 
     laneConfigs.forEach(cfg => {
         const laneEl = $(laneTmpl.cloneNode(true));
+        lanesContainer.append(laneEl);
         laneEl.find(".lane-title").text(cfg.title);
 
         // Add Select
@@ -644,8 +645,6 @@ function renderFormation(s) {
         } else {
             laneEl.find(".lane-empty").show();
         }
-
-        lanesContainer.append(laneEl);
     });
 }
 
@@ -832,12 +831,11 @@ function renderMemberModal(s, m) {
     // --- SHEET PANE ---
     const sheetPane = container.find("#party-mm-pane-sheet");
     const sheetTmpl = document.getElementById("uie-party-modal-sheet-pane").content.cloneNode(true);
-    const sheetEl = $(sheetTmpl);
-    sheetPane.append(sheetEl);
+    sheetPane.append(sheetTmpl);
 
     // Portrait
     const portrait = resolvePortraitUrl(s, m);
-    const pContainer = sheetEl.find(".sheet-portrait-container");
+    const pContainer = sheetPane.find(".sheet-portrait-container");
     if (portrait) {
         pContainer.html(`<img src="${esc(portrait)}" style="width:100%;height:100%;object-fit:cover;">`);
     } else {
@@ -848,11 +846,11 @@ function renderMemberModal(s, m) {
     const dis = memberEdit ? false : true;
     const pe = memberEdit ? {} : { "pointer-events": "none", "opacity": "0.85" };
 
-    sheetEl.find("#party-mm-name").val(m.identity?.name || "").prop("disabled", dis).css(pe);
-    sheetEl.find("#party-mm-class").val(m.identity?.class || "").prop("disabled", dis).css(pe);
-    sheetEl.find("#party-mm-level").val(Number(m.progression?.level || 1)).prop("disabled", dis).css(pe);
+    sheetPane.find("#party-mm-name").val(m.identity?.name || "").prop("disabled", dis).css(pe);
+    sheetPane.find("#party-mm-class").val(m.identity?.class || "").prop("disabled", dis).css(pe);
+    sheetPane.find("#party-mm-level").val(Number(m.progression?.level || 1)).prop("disabled", dis).css(pe);
 
-    const roleSel = sheetEl.find("#party-mm-role");
+    const roleSel = sheetPane.find("#party-mm-role");
     ["Tank","Healer","DPS","Support","Mage","Ranger","Scout","Leader","Bruiser"].forEach(r => {
         const opt = $("<option>").val(r).text(r);
         if ((m.partyRole||"DPS")===r) opt.prop("selected", true);
@@ -862,11 +860,12 @@ function renderMemberModal(s, m) {
 
     // Bars
     const barTmpl = document.getElementById("uie-party-modal-bar").content;
-    const vitalsSection = sheetEl.find(".vitals-section");
+    const vitalsSection = sheetPane.find(".vitals-section");
     const bars = [
         { l: "HP", c: m.vitals?.hp, m: m.vitals?.maxHp, col: "#e74c3c", k: "hp" },
         { l: "MP", c: m.vitals?.mp, m: m.vitals?.maxMp, col: "#3498db", k: "mp" },
-        { l: "AP", c: m.vitals?.ap, m: m.vitals?.maxAp, col: "#f1c40f", k: "ap" }
+        { l: "AP", c: m.vitals?.ap, m: m.vitals?.maxAp, col: "#f1c40f", k: "ap" },
+        { l: "XP", c: m.progression?.xp, m: (m.progression?.level||1)*1000, col: "#2ecc71", k: "xp" }
     ];
     bars.forEach(b => {
         const el = $(barTmpl.cloneNode(true));
@@ -881,7 +880,7 @@ function renderMemberModal(s, m) {
     });
 
     // Status FX
-    const fxList = sheetEl.find(".status-fx-list");
+    const fxList = sheetPane.find(".status-fx-list");
     const fx = Array.isArray(m.statusEffects) ? m.statusEffects : [];
     if (fx.length === 0) fxList.html(`<div style="opacity:0.6; font-weight:900;">None</div>`);
     else {
@@ -894,12 +893,12 @@ function renderMemberModal(s, m) {
     }
 
     if (memberEdit) {
-        sheetEl.find("#party-mm-fx").val(fx.join(", ")).show();
-        sheetEl.find("#party-mm-save").show();
+        sheetPane.find("#party-mm-fx").val(fx.join(", ")).show();
+        sheetPane.find("#party-mm-save").show();
     }
 
     // Stats
-    const statsGrid = sheetEl.find(".stats-grid");
+    const statsGrid = sheetPane.find(".stats-grid");
     const statInputTmpl = document.getElementById("uie-party-modal-stat-input").content;
     const statKeys = ["str","dex","con","int","wis","cha","per","luk"];
     statKeys.forEach(k => {
@@ -915,10 +914,9 @@ function renderMemberModal(s, m) {
     // --- EQUIP PANE ---
     const equipPane = container.find("#party-mm-pane-equip");
     const equipTmpl = document.getElementById("uie-party-modal-equip-pane").content.cloneNode(true);
-    const equipEl = $(equipTmpl);
-    equipPane.append(equipEl);
+    equipPane.append(equipTmpl);
 
-    const pdPick = equipEl.find("#party-paperdoll-pick");
+    const pdPick = equipPane.find("#party-paperdoll-pick");
     pdPick.css("cursor", memberEdit ? "pointer" : "default");
     if (m.images.paperDoll) {
         pdPick.html(`<img src="${esc(m.images.paperDoll)}" style="width:100%;height:100%;object-fit:contain; background:rgba(0,0,0,0.10);">`);
@@ -926,7 +924,7 @@ function renderMemberModal(s, m) {
         pdPick.html(`<div style="opacity:0.7; font-weight:900;">Paper Doll</div>`);
     }
 
-    const equipRows = equipEl.find(".equip-rows");
+    const equipRows = equipPane.find(".equip-rows");
     const eqRowTmpl = document.getElementById("uie-party-modal-equip-row").content;
     const slotLabel = {
         head: "Head", chest: "Chest", legs: "Legs", feet: "Feet", hands: "Hands",
@@ -942,17 +940,16 @@ function renderMemberModal(s, m) {
         equipRows.append(el);
     });
 
-    if (memberEdit) equipEl.find(".party-mm-save-btn").show();
+    if (memberEdit) equipPane.find(".party-mm-save-btn").show();
 
     // --- SKILLS PANE ---
     const skillsPane = container.find("#party-mm-pane-skills");
     const skillsTmpl = document.getElementById("uie-party-modal-skills-pane").content.cloneNode(true);
-    const skillsEl = $(skillsTmpl);
-    skillsPane.append(skillsEl);
+    skillsPane.append(skillsTmpl);
 
     // Rebirth
     if (m.progression.level >= 150 || m.progression.reborn || memberEdit) {
-        const rbSec = skillsEl.find(".rebirth-section");
+        const rbSec = skillsPane.find(".rebirth-section");
         rbSec.show();
         rbSec.find("#party-mm-reborn").prop("checked", m.progression.reborn).prop("disabled", dis);
         const medSel = rbSec.find("#party-mm-medallion");
@@ -964,9 +961,9 @@ function renderMemberModal(s, m) {
         });
     }
 
-    if (memberEdit) skillsEl.find("#party-mm-add-skill").show();
+    if (memberEdit) skillsPane.find("#party-mm-add-skill").show();
 
-    const skillsList = skillsEl.find(".skills-list");
+    const skillsList = skillsPane.find(".skills-list");
     if (memberEdit) {
         // Edit Mode: Rows
         const editRowTmpl = document.getElementById("uie-party-modal-skill-edit-row").content;
@@ -984,7 +981,7 @@ function renderMemberModal(s, m) {
                 skillsList.append(el);
             });
         }
-        skillsEl.find(".skills-save-container").show();
+        skillsPane.find(".skills-save-container").show();
     } else {
         // View Mode: Items
         const viewRowTmpl = document.getElementById("uie-party-modal-skill-view-row").content;
@@ -1017,17 +1014,22 @@ function openMemberModal(s, id, edit = false) {
     selectedId = String(m.id);
     memberModalOpen = true;
     memberEdit = edit === true;
-    $("#uie-party-member-modal").css({ display: "block" });
+    // Ensure display block AND pointer-events auto
+    $("#uie-party-member-modal").css({ display: "block", pointerEvents: "auto" });
     const card = $("#uie-party-member-card");
     if (card && card.length) {
         try {
-            const vw = window.innerWidth || document.documentElement.clientWidth || 0;
-            const vh = window.innerHeight || document.documentElement.clientHeight || 0;
-            const w = Math.min(680, Math.floor(vw * 0.96));
-            const h = Math.min(740, Math.floor(vh * 0.92));
-            const x = Math.max(10, Math.floor((vw - w) / 2));
-            const y = Math.max(10, Math.floor((vh - h) / 2));
-            card.css({ left: x, top: y, right: "", bottom: "", width: w, height: h });
+            if (isMobileUI()) {
+                card.css({ left: 0, top: 0, right: 0, bottom: 0, width: "100%", height: "100%", borderRadius: 0, margin: 0 });
+            } else {
+                const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+                const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+                const w = Math.min(680, Math.floor(vw * 0.96));
+                const h = Math.min(740, Math.floor(vh * 0.92));
+                const x = Math.max(10, Math.floor((vw - w) / 2));
+                const y = Math.max(10, Math.floor((vh - h) / 2));
+                card.css({ left: x, top: y, right: "", bottom: "", width: w, height: h, borderRadius: "16px" });
+            }
         } catch (_) {}
     }
     renderMemberModal(s, m);

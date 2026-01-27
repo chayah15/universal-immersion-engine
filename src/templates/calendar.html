@@ -10,18 +10,11 @@
     #cal-toolbar button{ height:32px !important; width:38px !important; border-radius:6px !important; }
     #cal-toolbar #cal-title{ font-size:14px; }
   }
-  #uie-calendar-window{ position: fixed; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; isolation:isolate; z-index:20000; }
+  #uie-calendar-window{ position: fixed; isolation:isolate; z-index:20000; }
   @media (max-width: 700px), (pointer: coarse) {
     #uie-calendar-window {
-      position: fixed !important;
-      inset: auto !important;
-      top: 12vh !important;
-      left: 3vw !important;
-      transform: none !important;
-      width: 94vw !important;
-      height: 80vh !important;
-      max-width: 94vw !important;
-      max-height: 80vh !important;
+      width: 94vw;
+      max-height: 80vh;
     }
   }
 </style>

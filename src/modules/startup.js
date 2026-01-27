@@ -23,7 +23,7 @@ export async function loadTemplates() {
                     const st = document.createElement("style");
                     st.id = "uie-launcher-fallback-style";
                     st.textContent = `
-#uie-launcher{position:fixed;right:18px;bottom:18px;width:54px;height:54px;z-index:2147483645;cursor:pointer;background:transparent;}
+#uie-launcher{position:fixed;width:54px;height:54px;z-index:2147483645;cursor:pointer;background:transparent;}
 #uie-launcher .uie-launcher-fallback{display:block; filter: drop-shadow(0 0 4px rgba(0,0,0,0.8));}
 `;
                     document.head.appendChild(st);
@@ -46,7 +46,13 @@ export async function loadTemplates() {
     }
 
     const required = ["menu", "inventory", "world"];
-    const ts = Date.now();
+    const ts = (() => {
+        try {
+            const v = Number(window.UIE_BUILD);
+            if (Number.isFinite(v) && v > 0) return v;
+        } catch (_) {}
+        return Date.now();
+    })();
     for (const f of required) {
         if ($(`#uie-${f === "menu" ? "main-menu" : `${f}-window`}`).length) continue;
         const urls = [
@@ -127,7 +133,14 @@ export function injectSettingsUI() {
         const target = $("#extensions_settings, #extensions_settings_panel, #extensions-settings-container");
         if(target.length && !$("#uie-settings-block").length) {
             try {
-                const html = await fetchTemplateHtml(`${baseUrl}src/templates/settings.html`);
+                const ts = (() => {
+                    try {
+                        const v = Number(window.UIE_BUILD);
+                        if (Number.isFinite(v) && v > 0) return v;
+                    } catch (_) {}
+                    return Date.now();
+                })();
+                const html = await fetchTemplateHtml(`${baseUrl}src/templates/settings.html?v=${ts}`);
                 target.append($(html).attr("id", "uie-settings-block"));
                 initTurboUi();
                 initImageUi();

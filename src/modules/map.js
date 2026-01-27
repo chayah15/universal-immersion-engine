@@ -552,10 +552,11 @@ export function initMap() {
     $win.on("pointerup.mapSparkle click.mapSparkle", "#uie-map-sparkle", function(e){
         e.preventDefault();
         e.stopPropagation();
+        try { e.stopImmediatePropagation(); } catch (_) {}
         const m = document.getElementById("uie-map-menu");
         if (!m) return;
-        const open = m.style.display === "flex";
-        m.style.display = open ? "none" : "flex";
+        const isOpen = String(m.style.display || "").toLowerCase() === "block";
+        m.style.display = isOpen ? "none" : "block";
     });
 
     $win.on("pointerup.mapMenu click.mapMenu", "#uie-map-menu .uie-dd-item", async function(e){

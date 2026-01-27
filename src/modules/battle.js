@@ -301,6 +301,8 @@ function startAuto() {
     const s = getSettings();
     if (!s) return;
     ensureBattle(s);
+      if (s.generation?.scanAllEnabled === false) return;
+      if (s.generation?.allowSystemChecks === false) return;
     if (!s.battle.auto) return;
     try {
       if (autoTimer) clearTimeout(autoTimer);

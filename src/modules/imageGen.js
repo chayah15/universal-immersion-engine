@@ -643,12 +643,106 @@ export function initImageUi() {
         else if (val === "openai") $("#uie-img-openai-block").show();
     };
 
-    $(document).off("change.uieImg").on("change.uieImg", "#uie-img-provider", function() {
+    const applySettingsToInputs = () => {
         const s = getSettings();
-        if(!s.image) s.image = {};
-        s.image.provider = $(this).val();
+        const img = s.image || {};
+        if (typeof img.enabled === "boolean") $("#uie-img-enable").prop("checked", img.enabled);
+        if (img.provider) $("#uie-img-provider").val(img.provider);
+        if (img.url) $("#uie-img-url").val(img.url);
+        if (img.key) $("#uie-img-key").val(img.key);
+        if (img.model) {
+            $("#uie-img-model").val(img.model);
+            if ($("#uie-img-model-select option[value='" + img.model + "']").length) {
+                $("#uie-img-model-select").val(img.model);
+            }
+        }
+        if (img.negativePrompt) $("#uie-img-negative").val(img.negativePrompt);
+        if (img.sdwebuiUrl) $("#uie-img-sdwebui-url").val(img.sdwebuiUrl);
+        if (img.comfy) {
+            if (img.comfy.base) $("#uie-img-comfy-base").val(img.comfy.base);
+            if (img.comfy.key) $("#uie-img-comfy-key").val(img.comfy.key);
+            if (img.comfy.checkpoint) $("#uie-img-comfy-ckpt").val(img.comfy.checkpoint);
+            if (img.comfy.quality) $("#uie-img-comfy-quality").val(img.comfy.quality);
+            if (img.comfy.sampler) $("#uie-img-comfy-sampler").val(img.comfy.sampler);
+            if (img.comfy.scheduler) $("#uie-img-comfy-scheduler").val(img.comfy.scheduler);
+            if (img.comfy.common) $("#uie-img-comfy-common").val(img.comfy.common);
+            if (img.comfy.commonNeg) $("#uie-img-comfy-common-neg").val(img.comfy.commonNeg);
+            if (img.comfy.workflow) $("#uie-img-comfy-workflow").val(img.comfy.workflow);
+            if (img.comfy.positiveNodeId) $("#uie-img-comfy-posnode").val(img.comfy.positiveNodeId);
+            if (img.comfy.negativeNodeId) $("#uie-img-comfy-negnode").val(img.comfy.negativeNodeId);
+            if (img.comfy.outputNodeId) $("#uie-img-comfy-outnode").val(img.comfy.outputNodeId);
+        }
+        $("#uie-img-url-adv").val(img.url || "");
+        $("#uie-img-key-adv").val(img.key || "");
+        $("#uie-img-model-adv").val(img.model || "");
+    };
+
+    const syncSetting = (updater) => {
+        const s = getSettings();
+        if (!s.image) s.image = {};
+        updater(s.image);
         saveSettings();
+    };
+
+    $(document).off("change.uieImg").on("change.uieImg", "#uie-img-provider", function() {
+        syncSetting((img) => { img.provider = $(this).val(); });
         refreshUi();
+    });
+
+    $(document).off("change.uieImgEnable").on("change.uieImgEnable", "#uie-img-enable", function() {
+        syncSetting((img) => { img.enabled = $(this).is(":checked"); });
+    });
+
+    $(document).off("input.uieImgUrl change.uieImgUrl").on("input.uieImgUrl change.uieImgUrl", "#uie-img-url, #uie-img-url-adv", function() {
+        const val = String($(this).val() || "").trim();
+        syncSetting((img) => { img.url = val; });
+    });
+
+    $(document).off("input.uieImgKey change.uieImgKey").on("input.uieImgKey change.uieImgKey", "#uie-img-key, #uie-img-key-adv", function() {
+        const val = String($(this).val() || "").trim();
+        syncSetting((img) => { img.key = val; });
+    });
+
+    $(document).off("change.uieImgModelSelect").on("change.uieImgModelSelect", "#uie-img-model-select", function() {
+        const val = String($(this).val() || "").trim();
+        if (val && val !== "__custom__") {
+            $("#uie-img-model").val(val);
+            syncSetting((img) => { img.model = val; });
+        }
+    });
+
+    $(document).off("input.uieImgModel change.uieImgModel").on("input.uieImgModel change.uieImgModel", "#uie-img-model, #uie-img-model-adv", function() {
+        const val = String($(this).val() || "").trim();
+        syncSetting((img) => { img.model = val; });
+    });
+
+    $(document).off("input.uieImgNeg change.uieImgNeg").on("input.uieImgNeg change.uieImgNeg", "#uie-img-negative", function() {
+        const val = String($(this).val() || "").trim();
+        syncSetting((img) => { img.negativePrompt = val; });
+    });
+
+    $(document).off("input.uieImgSd change.uieImgSd").on("input.uieImgSd change.uieImgSd", "#uie-img-sdwebui-url", function() {
+        const val = String($(this).val() || "").trim();
+        syncSetting((img) => { img.sdwebuiUrl = val; });
+    });
+
+    $(document).off("input.uieImgComfy change.uieImgComfy").on("input.uieImgComfy change.uieImgComfy", "#uie-img-comfy-base, #uie-img-comfy-key, #uie-img-comfy-ckpt, #uie-img-comfy-quality, #uie-img-comfy-sampler, #uie-img-comfy-scheduler, #uie-img-comfy-common, #uie-img-comfy-common-neg, #uie-img-comfy-workflow, #uie-img-comfy-posnode, #uie-img-comfy-negnode, #uie-img-comfy-outnode", function() {
+        const s = getSettings();
+        if (!s.image) s.image = {};
+        if (!s.image.comfy) s.image.comfy = {};
+        s.image.comfy.base = String($("#uie-img-comfy-base").val() || "").trim();
+        s.image.comfy.key = String($("#uie-img-comfy-key").val() || "").trim();
+        s.image.comfy.checkpoint = String($("#uie-img-comfy-ckpt").val() || "").trim();
+        s.image.comfy.quality = String($("#uie-img-comfy-quality").val() || "").trim();
+        s.image.comfy.sampler = String($("#uie-img-comfy-sampler").val() || "").trim();
+        s.image.comfy.scheduler = String($("#uie-img-comfy-scheduler").val() || "").trim();
+        s.image.comfy.common = String($("#uie-img-comfy-common").val() || "").trim();
+        s.image.comfy.commonNeg = String($("#uie-img-comfy-common-neg").val() || "").trim();
+        s.image.comfy.workflow = String($("#uie-img-comfy-workflow").val() || "").trim();
+        s.image.comfy.positiveNodeId = String($("#uie-img-comfy-posnode").val() || "").trim();
+        s.image.comfy.negativeNodeId = String($("#uie-img-comfy-negnode").val() || "").trim();
+        s.image.comfy.outputNodeId = String($("#uie-img-comfy-outnode").val() || "").trim();
+        saveSettings();
     });
 
     $(document).off("click.uieImgRefresh").on("click.uieImgRefresh", "#uie-img-comfy-ckpt-refresh", function(e) {
@@ -694,5 +788,6 @@ export function initImageUi() {
     // Initial State
     const s = getSettings();
     if (s.image?.provider) $("#uie-img-provider").val(s.image.provider);
+    applySettingsToInputs();
     refreshUi();
 }

@@ -1,5 +1,5 @@
 
-import { getSettings, saveSettings } from "./core.js";
+import { getSettings, saveSettings, isMobileUI } from "./core.js";
 import { notify } from "./notifications.js";
 import { initBackgroundManager } from "./backgrounds.js";
 import { initAtmosphere, updateAtmosphere } from "./atmosphere.js";
@@ -22,6 +22,7 @@ import {
 import { initRuneCasting } from "./reality.js";
 import { initLockpicking, initScratchCard } from "./minigames.js";
 import { initSimulation, worldGen, utilityAI } from "./simulation.js";
+import { initMods, openModsWindow } from "./mods.js";
 import { openCalendar } from "./calendar.js";
 
 let reBound = false;
@@ -95,43 +96,6 @@ function readLastChatMessage() {
     }
 }
 
-function isGroupChatActive() {
-    try {
-        if (typeof window.getContext === "function") {
-            const ctx = window.getContext();
-            if (ctx && ctx.groupId !== null && ctx.groupId !== undefined) return true;
-        }
-    } catch (_) {}
-    try {
-        return document.querySelector("#group_chat_members, .group-chat, .group_members") !== null;
-    } catch (_) {
-        return false;
-    }
-}
-
-function readRecentChatTexts(limit = 30) {
-    try {
-        const chatEl = document.getElementById("chat");
-        if (!chatEl) return [];
-        const msgs = Array.from(chatEl.querySelectorAll(".mes"));
-        if (!msgs.length) return [];
-        const slice = msgs.slice(Math.max(0, msgs.length - limit));
-        const out = [];
-        for (const m of slice) {
-            // Prefer mes_text to avoid "Name: text" and button text contamination
-            const t =
-                m.querySelector?.(".mes_text")?.textContent ||
-                m.querySelector?.(".mes-text")?.textContent ||
-                "";
-            const clean = String(t || "").trim();
-            if (clean) out.push(clean.slice(0, 4000));
-        }
-        return out;
-    } catch (_) {
-        return [];
-    }
-}
-
 function extractTagValue(text, key) {
     const re = new RegExp(`\\[\\s*${key}\\s*:\\s*([^\\]]+)\\]`, "ig");
     let out = [];
@@ -184,28 +148,6 @@ function stripCssBlocks(text) {
     return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function hasSeenDevNotice(s) {
-    try {
-        if (s?.realityEngine?.devNoticeSeen === true) return true;
-    } catch (_) {}
-    try {
-        return localStorage.getItem("UIE_RE_DEV_NOTICE_SEEN") === "1";
-    } catch (_) {
-        return false;
-    }
-}
-
-function markDevNoticeSeen(s) {
-    try {
-        ensureReality(s);
-        s.realityEngine.devNoticeSeen = true;
-        saveSettings();
-    } catch (_) {}
-    try {
-        localStorage.setItem("UIE_RE_DEV_NOTICE_SEEN", "1");
-    } catch (_) {}
-}
-
 function ensureReality(s) {
     if (!s.realityEngine || typeof s.realityEngine !== "object") {
         s.realityEngine = {
@@ -235,6 +177,7 @@ function ensureReality(s) {
     if (typeof r.ui.allowBg !== "boolean") r.ui.allowBg = true;
 
     r.comingSoon = false;
+    if (typeof r.warningAck !== "boolean") r.warningAck = false;
 
     if (!Number.isFinite(Number(r.stress))) r.stress = 0;
     if (!Number.isFinite(Number(r.maxStress)) || Number(r.maxStress) <= 0) r.maxStress = 100;
@@ -648,35 +591,17 @@ class RealityEngine {
         this.updateHud();
     }
 
-    updateFromChatLog(messageTexts) {
-        const speaker = document.getElementById("re-speaker");
-        if (speaker) speaker.textContent = ""; // No "Name:" header in group log
-
-        // Show box and render
-        const box = document.getElementById("re-vn-box");
-        if (box) box.style.display = "flex";
-
-        const rawJoined = Array.isArray(messageTexts) ? messageTexts.join("\n\n") : String(messageTexts || "");
-        const clean = stripTags(rawJoined);
-
-        this.vn.isUser = false;
-        this.vn.text = clean;
-        this.vn.pages = this.paginateText(clean);
-        this.vn.pageIdx = 0;
-        this.renderVnPage();
-
-        // For group chats, also refresh all member sprites
-        try {
-            import("./group_harmony.js").then(m => m.updateGroupChatSprites?.()).catch(() => {});
-        } catch (_) {}
-    }
-
     openForge() {
         const modal = document.getElementById("re-forge-modal");
         const prompt = document.getElementById("re-forge-prompt");
         const imgEl = document.getElementById("re-forge-img");
         const empty = document.getElementById("re-forge-empty");
         if (!modal || !prompt) return;
+        try {
+            if (modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+        } catch (_) {}
         const s = getSettings();
         ensureReality(s);
         try {
@@ -762,7 +687,16 @@ class RealityEngine {
 
         const actGate = (() => {
             const last = new Map();
-            return (key, ms = 450) => {
+            return (key, ms = 600) => { // Increased default from 450 to 600
+                // strict generation check for action keys
+                if (key && (key === "regen" || key === "cont" || key === "imp" || key === "send" || key.startsWith("qbtn_") || key === "actforge" || key === "forgegen")) {
+                    try {
+                        if (typeof is_send_press !== "undefined" && is_send_press) return false;
+                        const stop = document.getElementById("stop_but");
+                        if (stop && stop.style.display !== "none") return false;
+                    } catch (_) {}
+                }
+
                 const k = String(key || "");
                 const now = Date.now();
                 const prev = Number(last.get(k) || 0);
@@ -779,7 +713,7 @@ class RealityEngine {
     // EXCLUDE .uie-settings-drawer if it exists to allow ST settings to work if they are somehow caught here (unlikely but safe).
     // ADDED: #uie-journal-window, #uie-party-window, #uie-databank-window, #uie-inventory-window, #uie-social-window
     // REMOVED: #uie-calendar-window, #uie-map-window (Handled internally to allow dragging)
-    const getRoots = () => $("#reality-stage, #re-st-menu, #re-vn-box, #re-forge-modal, #uie-chatbox-window, #uie-sprites-window, .uie-window, #uie-journal-window, #uie-party-window, #uie-databank-window, #uie-inventory-window, #uie-social-window").not(".uie-settings-drawer").not("#uie-calendar-window").not("#uie-map-window");
+    const getRoots = () => $("#reality-stage, #re-st-menu, #re-vn-box, #re-vn-settings-modal, #re-quick-modal, #re-forge-modal, #re-gesture-canvas, #uie-chatbox-window, #uie-sprites-window").not(".uie-settings-drawer");
 
     // Apply blocker to current roots
     // Note: We use a capture-like approach by binding early or just relying on bubble order.
@@ -895,7 +829,9 @@ class RealityEngine {
             }
         });
 
-        $(document).on("pointerup click", "#re-vn-save-settings", (e) => {
+        $(document)
+            .off("pointerup.realityEngine click.realityEngine", "#re-vn-save-settings")
+            .on("pointerup.realityEngine click.realityEngine", "#re-vn-save-settings", (e) => {
             e.preventDefault(); e.stopPropagation();
             const speed = parseInt(document.getElementById("re-vn-speed").value) || 30;
             const words = parseInt(document.getElementById("re-vn-words").value) || 50;
@@ -922,22 +858,6 @@ class RealityEngine {
             this.vn.pages = this.paginateText(this.vn.text);
             this.vn.pageIdx = 0;
             this.renderVnPage();
-        });
-
-        // Dev Notice (one-time)
-        const hideDev = () => { try { $("#re-dev-notice").hide(); } catch (_) {} };
-        $roots.off("click.reDev pointerup.reDev", "#re-dev-ok").on("click.reDev pointerup.reDev", "#re-dev-ok", (e) => {
-            e.preventDefault(); e.stopPropagation();
-            const s = getSettings();
-            markDevNoticeSeen(s);
-            hideDev();
-        });
-        $roots.off("click.reDevBackdrop pointerup.reDevBackdrop", "#re-dev-notice").on("click.reDevBackdrop pointerup.reDevBackdrop", "#re-dev-notice", (e) => {
-            if ($(e.target).closest("#re-dev-ok").length) return;
-            if ($(e.target).closest("#re-dev-notice > div").length) return;
-            const s = getSettings();
-            markDevNoticeSeen(s);
-            hideDev();
         });
 
         // Main UI Controls
@@ -980,7 +900,104 @@ class RealityEngine {
 
     // --- GLOBAL UI HANDLERS (Document Level) ---
     // Force pointerup/click capture to bypass blockers
+    let menuToggleLock = 0;
+
+    const reVv = () => {
+        const vv = (typeof window !== "undefined") ? window.visualViewport : null;
+        const vw = Number(vv?.width || window.innerWidth || 0);
+        const vh = Number(vv?.height || window.innerHeight || 0);
+        const ox = Number(vv?.offsetLeft || 0);
+        const oy = Number(vv?.offsetTop || 0);
+        return { vw, vh, ox, oy };
+    };
+    const reClamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const rePlaceFixed = (el, left, top) => {
+        if (!el) return;
+        el.style.position = "fixed";
+        el.style.left = `${Math.round(left)}px`;
+        el.style.top = `${Math.round(top)}px`;
+        el.style.right = "auto";
+        el.style.bottom = "auto";
+        el.style.transform = "none";
+    };
+    const reCenterFixedClamped = (el, pad = 10) => {
+        if (!el) return;
+        const { vw, vh, ox, oy } = reVv();
+        const r = el.getBoundingClientRect();
+        const w = Number(r.width || 320);
+        const h = Number(r.height || 260);
+        const left = reClamp(ox + (vw - w) / 2, ox + pad, ox + vw - w - pad);
+        const top = reClamp(oy + (vh - h) / 2, oy + pad, oy + vh - h - pad);
+        rePlaceFixed(el, left, top);
+    };
+    const rePlaceNearAnchor = (el, anchorEl, pad = 10) => {
+        if (!el) return;
+        const { vw, vh, ox, oy } = reVv();
+        const a = anchorEl?.getBoundingClientRect?.();
+        const r = el.getBoundingClientRect();
+        const w = Number(r.width || 320);
+        const h = Number(r.height || 260);
+        const ar = a || { left: ox + vw / 2, top: oy + vh / 2, width: 0, height: 0, bottom: oy + vh / 2, right: ox + vw / 2 };
+
+        // Prefer above anchor; if not enough room, place below.
+        let left = ox + ar.left + (ar.width / 2) - (w / 2);
+        let top = oy + ar.top - h - 10;
+        const minLeft = ox + pad;
+        const maxLeft = ox + vw - w - pad;
+        const minTop = oy + pad;
+        const maxTop = oy + vh - h - pad;
+        left = reClamp(left, minLeft, maxLeft);
+        if (top < minTop) top = reClamp(oy + (ar.bottom || (ar.top + ar.height)) + 10, minTop, maxTop);
+        top = reClamp(top, minTop, maxTop);
+        rePlaceFixed(el, left, top);
+    };
+
+    const ensureReViewportWatcher = (() => {
+        let on = false;
+        return () => {
+            if (on) return;
+            on = true;
+            const handler = () => {
+                try {
+                    const menu = document.getElementById("re-st-menu");
+                    if (menu && String(getComputedStyle(menu).display || "") !== "none") {
+                        const anchor = document.getElementById("re-q-menu") || document.getElementById("uie-launcher");
+                        rePlaceNearAnchor(menu, anchor, 10);
+                    }
+                } catch (_) {}
+                try {
+                    const modal = document.getElementById("re-quick-modal");
+                    if (modal && String(getComputedStyle(modal).display || "") !== "none") {
+                        const card = modal.firstElementChild;
+                        if (card) {
+                            // Keep card within visible viewport
+                            card.style.maxHeight = "min(88dvh, 88vh)";
+                            card.style.overflow = "auto";
+                            reCenterFixedClamped(card, 10);
+                        }
+                    }
+                } catch (_) {}
+            };
+            try { window.addEventListener("resize", handler, { passive: true }); } catch (_) {}
+            try { window.addEventListener("orientationchange", handler, { passive: true }); } catch (_) {}
+            try {
+                if (window.visualViewport) {
+                    window.visualViewport.addEventListener("resize", handler, { passive: true });
+                    window.visualViewport.addEventListener("scroll", handler, { passive: true });
+                }
+            } catch (_) {}
+        };
+    })();
+
     window.reToggleMenu = (e) => {
+        // Prevent double-firing (pointerup + click)
+        const now = Date.now();
+        if (now - menuToggleLock < 300) {
+            if (e) { try{e.preventDefault(); e.stopPropagation();}catch(_){} }
+            return;
+        }
+        menuToggleLock = now;
+
         if(e) { try{e.preventDefault(); e.stopPropagation();}catch(_){} }
         
         // --- INJECTION: Ensure Menu Exists ---
@@ -995,20 +1012,7 @@ class RealityEngine {
                 { id: "re-act-continue", icon: "fa-forward", label: "Continue" },
                 { id: "re-act-regenerate", icon: "fa-rotate-right", label: "Regenerate" },
                 { id: "re-act-stop", icon: "fa-stop", label: "Stop" },
-                { sep: true },
-                { id: "uie-btn-open-phone", icon: "fa-mobile-screen", label: "Phone" },
                 { id: "re-act-impersonate", icon: "fa-user-pen", label: "Impersonate" },
-                { id: "re-act-author", icon: "fa-pen-nib", label: "Author's Note" },
-                { id: "re-act-cfg", icon: "fa-sliders", label: "CFG / Presets" },
-                { id: "re-act-tokens", icon: "fa-chart-pie", label: "Token Probs" },
-                { sep: true },
-                { id: "re-act-forge", icon: "fa-wand-magic-sparkles", label: "Forge Background" },
-                { id: "re-act-toggle-map", icon: "fa-map", label: "Toggle Map" },
-                { sep: true },
-                { id: "re-act-newchat", icon: "fa-comment", label: "Start New Chat" },
-                { id: "re-act-manage", icon: "fa-folder-open", label: "Manage Chats" },
-                { id: "re-act-delete", icon: "fa-trash", label: "Delete Messages" },
-                { id: "re-act-closechat", icon: "fa-xmark", label: "Close Chat" }
             ];
 
             items.forEach(item => {
@@ -1044,17 +1048,16 @@ class RealityEngine {
             m.style.display = "flex";
             m.style.zIndex = "2147483660"; // Force max z-index
             m.style.pointerEvents = "auto"; // Force clickable
-
+            
             const isMobile = (() => {
+                try { return isMobileUI(); } catch (_) {}
                 try { return window.matchMedia("(max-width: 768px), (pointer: coarse)").matches; } catch (_) { return window.innerWidth < 768; }
             })();
-
+            
             if (isMobile) {
-                // Mobile: always center
-                m.style.position = "fixed";
-                m.style.top = "50%";
-                m.style.left = "50%";
-                m.style.transform = "translate(-50%, -50%)";
+                // Mobile: place near the menu button, but relative to the VISUAL viewport (keyboard/address-bar safe).
+                const anchor = document.getElementById("re-q-menu") || document.getElementById("uie-launcher");
+                rePlaceNearAnchor(m, anchor, 10);
             } else {
                 // Desktop: position next to the launcher/quick menu button
                 const anchor = document.getElementById("re-q-menu") || document.getElementById("uie-launcher");
@@ -1065,20 +1068,20 @@ class RealityEngine {
                     m.style.left = `${btnRect.right + 8}px`;
                     m.style.top = `${btnRect.top}px`;
                     m.style.transform = "none";
-
-                    // Keep on screen
+                    
+                    // Keep on screen - clamp to viewport bounds
                     let left = parseFloat(m.style.left) || 0;
                     let top = parseFloat(m.style.top) || 0;
-
+                    
                     // If it doesn't fit to the right, place it on the left
                     if (left + menuRect.width > window.innerWidth - 10) {
                         left = btnRect.left - menuRect.width - 8;
                     }
-
+                    
                     // Clamp to viewport bounds (never off-screen)
                     left = Math.max(10, Math.min(left, window.innerWidth - menuRect.width - 10));
                     top = Math.max(10, Math.min(top, window.innerHeight - menuRect.height - 10));
-
+                    
                     m.style.left = `${left}px`;
                     m.style.top = `${top}px`;
                 } else {
@@ -1089,25 +1092,14 @@ class RealityEngine {
                     m.style.transform = "translate(-50%, -50%)";
                 }
             }
-
+            
             m.style.visibility = "visible";
-            m.dataset.openTs = String(Date.now());
+            ensureReViewportWatcher();
             // try { notify("info", "Menu Opened", "UIE"); } catch (_) {}
         } else {
             m.style.display = "none";
         }
     };
-
-    const toggleMenu = window.reToggleMenu;
-
-    // Nuclear Capture Listener to ensure click works
-    window.addEventListener("click", (e) => {
-        if (e.target.closest && e.target.closest("#re-q-menu")) {
-            e.stopPropagation();
-            e.preventDefault();
-            if (window.reToggleMenu) window.reToggleMenu(e);
-        }
-    }, true);
 
     // Initial Menu Injection (Ensure it exists before click)
     try {
@@ -1120,7 +1112,7 @@ class RealityEngine {
     } catch (_) {}
 
     // Bind to roots directly because body listener is blocked by stopPropagation
-    $roots.on("pointerup click", "#re-q-menu", toggleMenu);
+    $roots.on("pointerup click", "#re-q-menu", (e) => { if(window.reToggleMenu) window.reToggleMenu(e); });
 
     // --- MAGNIFYING GLASS FIX ---
     $roots.on("pointerup click", "#re-q-scavenge", (e) => {
@@ -1139,16 +1131,34 @@ class RealityEngine {
         e.preventDefault(); e.stopPropagation();
         const modal = document.getElementById("re-quick-modal");
         if (modal) {
+            try {
+                if (modal.parentElement !== document.body) {
+                    document.body.appendChild(modal);
+                }
+            } catch (_) {}
             modal.style.display = "flex";
             const l = document.getElementById("re-quick-label"); if(l) l.value = "";
             const i = document.getElementById("re-quick-icon"); if(i) i.value = "";
             const p = document.getElementById("re-quick-prompt"); if(p) p.value = "";
+
+            try {
+                const card = modal.firstElementChild;
+                if (card) {
+                    card.style.position = "fixed";
+                    card.style.maxHeight = "min(88dvh, 88vh)";
+                    card.style.overflow = "auto";
+                    // Measure after display:flex is applied
+                    requestAnimationFrame(() => {
+                        try { reCenterFixedClamped(card, 10); } catch (_) {}
+                    });
+                }
+            } catch (_) {}
+            ensureReViewportWatcher();
         }
     });
 
     
-    // EXTRA ROBUST BINDING for Menu
-    $(document).off("click.reMenu").on("click.reMenu", "#re-q-menu", toggleMenu);
+    // Menu binding is handled via window.reToggleMenu + $roots handler above.
 
     $roots.on("pointerup click", ".re-qbtn, .re-custom-btn", async (e) => {
             if (e.type === "contextmenu") {
@@ -1186,6 +1196,20 @@ class RealityEngine {
                         if (win.length) {
                             win.show();
                             win.css("z-index", "2147483655");
+                            win.css("display", "flex");
+                            try {
+                                if (isMobileUI()) {
+                                    const el = win.get(0);
+                                    if (el) {
+                                        el.style.setProperty("position", "fixed", "important");
+                                        el.style.setProperty("left", "50%", "important");
+                                        el.style.setProperty("top", "50%", "important");
+                                        el.style.setProperty("right", "auto", "important");
+                                        el.style.setProperty("bottom", "auto", "important");
+                                        el.style.setProperty("transform", "translate(-50%, -50%)", "important");
+                                    }
+                                }
+                            } catch (_) {}
                             try { (await import("./chatbox.js")).openChatbox?.(); } catch (_) {}
                         } else {
                             try { (await import("./chatbox.js")).openChatbox?.(); } catch (_) {}
@@ -1209,6 +1233,11 @@ class RealityEngine {
             else if (id === "re-q-add") {
                 const modal = document.getElementById("re-quick-modal");
                 if (modal) {
+                    try {
+                        if (modal.parentElement !== document.body) {
+                            document.body.appendChild(modal);
+                        }
+                    } catch (_) {}
                     modal.style.display = "flex";
                     // Reset fields
                     const l = document.getElementById("re-quick-label"); if(l) l.value = "";
@@ -1235,10 +1264,7 @@ class RealityEngine {
         $roots.on("pointerup click", "#re-composer-wrap", (e) => {
             if ($(e.target).closest("#re-st-menu, #re-q-menu").length) return;
             const m = document.getElementById("re-st-menu");
-            if (!m || m.style.display !== "flex") return;
-            const openedAt = Number(m.dataset.openTs || 0);
-            if (openedAt && Date.now() - openedAt < 250) return;
-            m.style.display = "none";
+            if (m && m.style.display === "flex") m.style.display = "none";
         });
 
         // Menu Actions
@@ -1255,25 +1281,6 @@ class RealityEngine {
             $("#re-st-menu").hide();
         });
         
-        $roots.on("pointerup click", "#uie-btn-open-phone", (e) => {
-            e.preventDefault(); e.stopPropagation();
-            $("#re-st-menu").hide();
-            // Try to find the phone button
-            const btn = document.querySelector("#phone_button") || document.querySelector(".silly-phone-icon");
-            if (btn) btn.click();
-            else {
-                try { notify("warn", "Phone extension not found", "UIE"); } catch (_) {}
-            }
-            // Try to boost phone z-index
-            setTimeout(() => {
-                const phone = document.querySelector("#silly_phone_container") || document.querySelector(".phone_shell");
-                if (phone) {
-                    phone.style.zIndex = "2147483660"; 
-                    phone.style.position = "fixed";
-                }
-            }, 100);
-        });
-
         $roots.on("pointerup click", "#re-act-impersonate", (e) => {
             if (!actGate("imp")) return;
             e.preventDefault(); e.stopPropagation();
@@ -1284,73 +1291,6 @@ class RealityEngine {
             if (!actGate("stop")) return;
             e.preventDefault(); e.stopPropagation();
             const els = stEls(); if (els.stop) els.stop.click();
-            $("#re-st-menu").hide();
-        });
-        $roots.on("pointerup click", "#re-act-forge", (e) => {
-            if (!actGate("actforge")) return;
-            e.preventDefault(); e.stopPropagation();
-            this.openForge();
-            $("#re-st-menu").hide();
-        });
-        $roots.on("pointerup click", "#re-act-toggle-map", (e) => {
-            if (!actGate("actmap")) return;
-            e.preventDefault(); e.stopPropagation();
-            const s = getSettings(); ensureReality(s);
-            const next = s.realityEngine.view === "map" ? "room" : "map";
-            this.setView(next);
-            $("#re-st-menu").hide();
-        });
-
-        const clickStOption = (re) => {
-            try { stMenu.openNearWand(); } catch (_) {}
-            setTimeout(() => { try { stMenu.clickItem(re); } catch (_) {} }, 20);
-        };
-        $roots.on("pointerup click", "#re-act-st-menu", (e) => {
-            if (!actGate("stmenu")) return;
-            e.preventDefault(); e.stopPropagation();
-            try { stMenu.openNearWand(); } catch (_) {}
-            $("#re-st-menu").hide();
-        });
-        $roots.on("pointerup click", "#re-act-author", (e) => {
-            if (!actGate("author")) return;
-            e.preventDefault(); e.stopPropagation();
-            clickStOption(/author'?s\s+note/i);
-            $("#re-st-menu").hide();
-        });
-        $roots.on("pointerup click", "#re-act-cfg", (e) => {
-            if (!actGate("cfg")) return;
-            e.preventDefault(); e.stopPropagation();
-            clickStOption(/cfg\s*scale/i);
-            $("#re-st-menu").hide();
-        });
-        $roots.on("pointerup click", "#re-act-tokens", (e) => {
-            if (!actGate("tokens")) return;
-            e.preventDefault(); e.stopPropagation();
-            clickStOption(/token\s+probabilities/i);
-            $("#re-st-menu").hide();
-        });
-        $roots.on("pointerup click", "#re-act-newchat", (e) => {
-            if (!actGate("newchat")) return;
-            e.preventDefault(); e.stopPropagation();
-            clickStOption(/start\s+new\s+chat|new\s+chat/i);
-            $("#re-st-menu").hide();
-        });
-        $roots.on("pointerup click", "#re-act-manage", (e) => {
-            if (!actGate("manage")) return;
-            e.preventDefault(); e.stopPropagation();
-            clickStOption(/manage\s+chat\s+files|chat\s+files/i);
-            $("#re-st-menu").hide();
-        });
-        $roots.on("pointerup click", "#re-act-delete", (e) => {
-            if (!actGate("delete")) return;
-            e.preventDefault(); e.stopPropagation();
-            clickStOption(/delete\s+messages/i);
-            $("#re-st-menu").hide();
-        });
-        $roots.on("pointerup click", "#re-act-closechat", (e) => {
-            if (!actGate("closechat")) return;
-            e.preventDefault(); e.stopPropagation();
-            clickStOption(/close\s+chat/i);
             $("#re-st-menu").hide();
         });
 
@@ -1385,14 +1325,25 @@ class RealityEngine {
         });
 
         // Helper for proxying text input
-        const stEls = () => ({
-            ta: document.querySelector("textarea#send_textarea") || document.querySelector("textarea#send_text") || document.querySelector("textarea"),
-            send: document.querySelector("#send_but") || document.querySelector("[data-testid='send']"),
-            regen: document.querySelector("#regenerate_but") || document.querySelector("#regenerate") || document.querySelector("[data-testid='regenerate']"),
-            cont: document.querySelector("#continue_but") || document.querySelector("#continue") || document.querySelector("[data-testid='continue']"),
-            imp: document.querySelector("#impersonate_but") || document.querySelector("#impersonate"),
-            stop: document.querySelector("#stop_but") || document.querySelector("#stop")
-        });
+        const stEls = () => {
+            const pick = (sels) => {
+                for (const sel of sels) {
+                    try {
+                        const el = document.querySelector(sel);
+                        if (el) return el;
+                    } catch (_) {}
+                }
+                return null;
+            };
+            return {
+                ta: pick(["textarea#send_textarea", "textarea#send_text", "textarea"]) ,
+                send: pick(["#send_but", "#send_button", "#send", "[data-testid='send']"]),
+                regen: pick(["#regenerate_but", "#regenerate_button", "#regenerate", "#regen", "[data-testid='regenerate']"]),
+                cont: pick(["#continue_but", "#continue_button", "#continue", "[data-testid='continue']"]),
+                imp: pick(["#impersonate_but", "#impersonate_button", "#impersonate_button", "#impersonate", "#impersonate_button_sheld"]),
+                stop: pick(["#stop_but", "#stop_button", "#stop", "[data-testid='stop']"])
+            };
+        };
 
         const proxySend = () => {
             const ui = document.getElementById("re-user-input");
@@ -1475,21 +1426,12 @@ class RealityEngine {
             if (s.realityEngine.enabled !== true) return;
             if (t) clearTimeout(t);
             t = setTimeout(() => {
-                if (isGroupChatActive()) {
-                    const texts = readRecentChatTexts(30);
-                    if (!texts.length) return;
-                    const sig = hash(texts.join("||").slice(-6000));
-                    if (sig === reLastSig) return;
-                    reLastSig = sig;
-                    this.updateFromChatLog(texts);
-                } else {
-                    const last = readLastChatMessage();
-                    if (!last) return;
-                    const sig = hash(`${last.name}::${last.text}`.slice(-1600));
-                    if (sig === reLastSig) return;
-                    reLastSig = sig;
-                    this.updateFromChat(last.name, last.text);
-                }
+                const last = readLastChatMessage();
+                if (!last) return;
+                const sig = hash(`${last.name}::${last.text}`.slice(-1600));
+                if (sig === reLastSig) return;
+                reLastSig = sig;
+                this.updateFromChat(last.name, last.text);
             }, 900);
         });
         reObserver.observe(chat, { childList: true, subtree: true });
@@ -1510,19 +1452,6 @@ class RealityEngine {
             this.updateHud();
             this.setView(s.realityEngine.view);
             this.startChatObserver();
-
-            // Show one-time dev notice (non-blocking)
-            try {
-                if (!hasSeenDevNotice(s)) {
-                    const modal = document.getElementById("re-dev-notice");
-                    if (modal) {
-                        modal.style.display = "flex";
-                    } else {
-                        // If template missing, still mark as seen to avoid loops
-                        markDevNoticeSeen(s);
-                    }
-                }
-            } catch (_) {}
 
             // --- INITIALIZE SYNC MODULES ---
             try { initChatSync(); } catch (e) { console.error("ChatSync init failed", e); }
@@ -1626,15 +1555,8 @@ class RealityEngine {
                 const hud = document.getElementById("re-hud");
                 if (hud) hud.style.display = s.realityEngine.ui?.showHud === false ? "none" : "flex";
             } catch (_) {}
-            if (isGroupChatActive()) {
-                const texts = readRecentChatTexts(30);
-                if (texts.length) this.updateFromChatLog(texts);
-                // Ensure group sprites are shown when projection is enabled
-                try { import("./group_harmony.js").then(m => m.updateGroupChatSprites?.()).catch(() => {}); } catch (_) {}
-            } else {
-                const last = readLastChatMessage();
-                if (last) this.updateFromChat(last.name, last.text);
-            }
+            const last = readLastChatMessage();
+            if (last) this.updateFromChat(last.name, last.text);
         } else {
             this.closeForge();
         }
@@ -1673,6 +1595,7 @@ export function initWorld() {
     try { initHaptics(); } catch (e) { console.error(e); }
     try { initVisualPhysics(); } catch (e) { console.error(e); }
     try { initSimulation(); } catch (e) { console.error(e); }
+    try { initMods(); } catch (e) { console.error(e); }
     // ------------------------------
 
     const render = () => {
@@ -1793,6 +1716,28 @@ export function initWorld() {
         finally { btn.removeClass("fa-spin"); }
     });
 
+    // --- Warning Modal Bindings ---
+    const $warn = $("#re-warning-modal");
+    $warn.off("click.uieWorld", "#re-warn-cancel").on("click.uieWorld", "#re-warn-cancel", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        $("#re-warning-modal").hide();
+    });
+
+    $warn.off("click.uieWorld", "#re-warn-continue").on("click.uieWorld", "#re-warn-continue", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const s = getSettings();
+        ensureReality(s);
+        s.realityEngine.warningAck = true;
+        s.realityEngine.enabled = true;
+        saveSettings();
+        $("#re-warning-modal").hide();
+        render();
+        try { reEngine.syncEnabled(); } catch (_) {}
+        try { notify("success", "Reality Stage enabled.", "Reality Engine", "api"); } catch (_) {}
+    });
+
     $worldWin.on("click.uieWorld", "#uie-world-projector, #uie-world-toggle-re", async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1802,6 +1747,18 @@ export function initWorld() {
         // Force enable if it was false
         if (!s2.realityEngine.enabled) {
              s2.realityEngine.enabled = true;
+             // Auto-ack warning if needed, or show modal?
+             // User complained about "Projector clicked. Enabled: false".
+             // We'll trust the user wants it ON.
+             if (!s2.realityEngine.warningAck) {
+                 const modal = $("#re-warning-modal");
+                 if (modal.length) {
+                     modal.css("display", "flex");
+                     return; // Wait for modal
+                 } else {
+                     s2.realityEngine.warningAck = true; // Auto-ack if modal missing
+                 }
+             }
         } else {
              s2.realityEngine.enabled = false;
         }
@@ -1909,6 +1866,12 @@ export function initWorld() {
                 if (mod.openSprites) mod.openSprites();
             }
         } catch (_) {}
+    });
+
+    $worldWin.on("pointerup click", "#uie-world-open-mods", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openModsWindow();
     });
 
     $worldWin.on("click.uieWorld", "#uie-world-open-calendar", (e) => {

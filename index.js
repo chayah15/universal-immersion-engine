@@ -19,6 +19,9 @@ jQuery(async () => {
         if (window.UIE_DEBUG === true) console.log("[UIE] Initializing (Import Only Mode)...", { url: import.meta.url, baseUrl });
     } catch (_) {}
 
+    const uieBuildV = Date.now();
+    try { window.UIE_BUILD = uieBuildV; } catch (_) {}
+
     const markInitError = (stage, e) => {
         try {
             window.UIE_lastInitError = {
@@ -54,14 +57,14 @@ jQuery(async () => {
     };
 
     // 1. Styles
-    $("<link>").attr({rel: "stylesheet", type: "text/css", href: `${baseUrl}style.css?v=${Date.now()}`}).appendTo("head");
+    $("<link>").attr({rel: "stylesheet", type: "text/css", href: `${baseUrl}style.css?v=${uieBuildV}`}).appendTo("head");
     
     // 2. Cleanup Old Elements
     $("#uie-launcher, #uie-main-menu, .uie-window, .uie-book-overlay, .uie-phone").remove();
 
     // 3. Import Core & Startup
     try {
-        const Core = await import("./src/modules/core.js");
+        const Core = await import(`./src/modules/core.js?v=${uieBuildV}`);
         const sleep = (ms) => new Promise(r => setTimeout(r, Math.max(0, ms | 0)));
         const ensureSanitized = async () => {
             let lastErr = null;
@@ -83,9 +86,9 @@ jQuery(async () => {
             throw lastErr || new Error("sanitizeSettings failed (timeout waiting for extension_settings)");
         };
         await ensureSanitized();
-        try { (await import("./src/modules/stateSubscriptions.js")).initStateSubscriptions?.(); } catch (_) {}
+        try { (await import(`./src/modules/stateSubscriptions.js?v=${uieBuildV}`)).initStateSubscriptions?.(); } catch (_) {}
         
-        const Startup = await import("./src/modules/startup.js");
+        const Startup = await import(`./src/modules/startup.js?v=${uieBuildV}`);
         Startup.patchToastr();
         try {
             await Startup.loadTemplates();
@@ -105,30 +108,31 @@ jQuery(async () => {
         
         // 4. Load Features (Modules)
         // These modules should self-initialize their event listeners
-        await safeImport("./src/modules/dragging.js", "initDragging", true);
-        await safeImport("./src/modules/interaction.js", "initInteractions", true);
-        await safeImport("./src/modules/prompt_injection.js", "initPromptInjection", false);
-        await safeImport("./src/modules/inventory.js", "initInventory", true);
-        await safeImport("./src/modules/features/activities.js", "initActivities", false);
-        await safeImport("./src/modules/diary.js", "initDiary", false);
-        await safeImport("./src/modules/diagnostics.js", "initDiagnostics", false);
-        await safeImport("./src/modules/calendar.js", "initCalendar", false);
-        await safeImport("./src/modules/databank.js", "initDatabank", false);
-        await safeImport("./src/modules/battle.js", "initBattle", false);
-        await safeImport("./src/modules/map.js", "initMap", false);
-        await safeImport("./src/modules/party.js", "initParty", false);
-        await safeImport("./src/modules/social.js", "initSocial", false);
+        await safeImport(`./src/modules/dragging.js?v=${uieBuildV}`, "initDragging", true);
+        await safeImport(`./src/modules/interaction.js?v=${uieBuildV}`, "initInteractions", true);
+        await safeImport(`./src/modules/prompt_injection.js?v=${uieBuildV}`, "initPromptInjection", false);
+        await safeImport(`./src/modules/inventory.js?v=${uieBuildV}`, "initInventory", true);
+        await safeImport(`./src/modules/features/activities.js?v=${uieBuildV}`, "initActivities", false);
+        await safeImport(`./src/modules/diary.js?v=${uieBuildV}`, "initDiary", false);
+        await safeImport(`./src/modules/diagnostics.js?v=${uieBuildV}`, "initDiagnostics", false);
+        await safeImport(`./src/modules/calendar.js?v=${uieBuildV}`, "initCalendar", false);
+        await safeImport(`./src/modules/databank.js?v=${uieBuildV}`, "initDatabank", false);
+        // Do not init War Room at startup; only init when the user explicitly opens it.
+        await safeImport(`./src/modules/map.js?v=${uieBuildV}`, "initMap", false);
+        await safeImport(`./src/modules/party.js?v=${uieBuildV}`, "initParty", false);
+        await safeImport(`./src/modules/social.js?v=${uieBuildV}`, "initSocial", false);
         // Force reload world.js to apply UI fixes
-        await safeImport(`./src/modules/world.js?v=${Date.now()}`, "initWorld", false);
-        await safeImport("./src/modules/chatbox.js", "initChatbox", false);
-        await safeImport("./src/modules/sprites.js", "initSprites", false);
-        await safeImport("./src/modules/features/stats.js", "initStats", false);
+        await safeImport(`./src/modules/world.js?v=${uieBuildV}`, "initWorld", false);
+        await safeImport(`./src/modules/chatbox.js?v=${uieBuildV}`, "initChatbox", false);
+        await safeImport(`./src/modules/sprites.js?v=${uieBuildV}`, "initSprites", false);
+        await safeImport(`./src/modules/features/stats.js?v=${uieBuildV}`, "initStats", false);
         
         // Phone placeholder
-        await safeImport("./src/modules/phone.js", "initPhone", false);
+        await safeImport(`./src/modules/phone.js?v=${uieBuildV}`, "initPhone", false);
 
         // 5. Finalize
         Core.updateLayout();
+        try { $("#uie-battle-window").hide().css("display", "none"); } catch (_) {}
         console.log("[UIE] Ready.");
         
     } catch (e) {

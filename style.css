@@ -48,8 +48,6 @@
 /* --- LAUNCHER BUTTON --- */
 #uie-launcher {
     position: fixed;
-    right: 20px;
-    bottom: 20px;
     width: 60px;
     height: 60px;
     z-index: 2147483645;
@@ -67,6 +65,13 @@
 #uie-launcher:hover {
     transform: scale(1.1);
     filter: drop-shadow(0 0 8px #cba35c);
+}
+
+@media (max-width: 700px), ((pointer: coarse) and (hover: none)) {
+    #uie-launcher {
+        width: 44px;
+        height: 44px;
+    }
 }
 
 /* Fallback SVG */
@@ -277,4 +282,62 @@
     0% { transform: scale(0.8); opacity: 0.6; box-shadow: 0 0 5px #ffd700; }
     50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 15px #ffd700; }
     100% { transform: scale(0.8); opacity: 0.6; box-shadow: 0 0 5px #ffd700; }
+}
+
+/* --- HEADER FIXES (User Request) --- */
+#uie-map-window .uie-header,
+#uie-journal-window .uie-header,
+#uie-diary-window .uie-diary-header,
+#uie-diary-window .uie-header {
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 8px !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    z-index: 10 !important;
+    font-size: 0.9em !important;
+}
+
+/* Ensure content is not covered */
+#uie-map-window,
+#uie-journal-window,
+#uie-diary-window {
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#uie-map-window > :not(.uie-header),
+#uie-journal-window > :not(.uie-header),
+#uie-diary-window > :not(.uie-diary-header) {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+}
+
+/* Specific Fix for Databank Title overlap */
+#uie-journal-window .uie-header h2,
+#uie-map-window .uie-header h2 {
+    font-size: 1.1em !important;
+    margin: 0 !important;
+    line-height: 1 !important;
+}
+
+/* --- MOBILE OPTIMIZATIONS --- */
+@media (max-width: 700px) {
+    .uie-window {
+        border-radius: 12px !important;
+    }
+    
+    /* Ensure menus aren't stuck at top */
+    #re-st-menu {
+        top: 50%;
+        left: 50%;
+        right: auto;
+        bottom: auto;
+        transform: translate(-50%, -50%);
+        width: min(320px, 86vw) !important;
+        max-height: 80vh;
+        overflow: auto;
+    }
 }

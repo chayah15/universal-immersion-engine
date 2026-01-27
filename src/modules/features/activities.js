@@ -5,6 +5,7 @@ import { injectRpEvent } from "./rp_log.js";
 
 let timer = null;
 let currentActivity = null; // { id, name, startTime, duration, type }
+let activeTab = "user";
 
 const DEFAULT_ACTIVITIES = [
     { id: "training_str", name: "Strength Training", duration: 60, stats: { str: 1, xp: 10 } },
@@ -19,6 +20,197 @@ function ensureActivities(s) {
     if (!s.activities) s.activities = {};
     if (!Array.isArray(s.activities.custom)) s.activities.custom = [];
     if (!s.activities.history) s.activities.history = [];
+}
+
+function ensurePartyMember(m) {
+    if (!m || typeof m !== "object") return;
+    if (!m.identity) m.identity = { name: "Member" };
+    if (!m.stats || typeof m.stats !== "object") m.stats = {};
+    if (!m.vitals || typeof m.vitals !== "object") m.vitals = {};
+    if (!m.progression || typeof m.progression !== "object") m.progression = { level: 1, xp: 0 };
+    if (!Array.isArray(m.skills)) m.skills = [];
+    if (!Array.isArray(m.statusEffects)) m.statusEffects = [];
+    if (typeof m.vitals.maxHp !== "number") m.vitals.maxHp = typeof m.vitals.hp === "number" ? m.vitals.hp : 100;
+    if (typeof m.vitals.maxMp !== "number") m.vitals.maxMp = typeof m.vitals.mp === "number" ? m.vitals.mp : 50;
+    if (typeof m.vitals.hp !== "number") m.vitals.hp = m.vitals.maxHp;
+    if (typeof m.vitals.mp !== "number") m.vitals.mp = m.vitals.maxMp;
+}
+
+function getPartyMembers() {
+    const s = getSettings();
+    const members = Array.isArray(s?.party?.members) ? s.party.members : [];
+    return members.filter(m => m && typeof m === "object");
+}
+
+function findPartyMemberById(id) {
+    const members = getPartyMembers();
+    const sid = String(id || "");
+    return members.find(m => String(m.id || "") === sid) || null;
+}
+
+function setActiveTab(next) {
+    activeTab = next === "party" ? "party" : "user";
+
+    const userBtn = document.getElementById("uie-activity-tab-user");
+    const partyBtn = document.getElementById("uie-activity-tab-party");
+    const userPane = document.getElementById("uie-activity-pane-user");
+    const partyPane = document.getElementById("uie-activity-pane-party");
+
+    if (userPane) userPane.style.display = activeTab === "user" ? "" : "none";
+    if (partyPane) partyPane.style.display = activeTab === "party" ? "" : "none";
+
+    if (userBtn) {
+        userBtn.style.background = activeTab === "user" ? "rgba(162,210,255,0.18)" : "rgba(0,0,0,0.25)";
+        userBtn.style.color = activeTab === "user" ? "#a2d2ff" : "#fff";
+    }
+    if (partyBtn) {
+        partyBtn.style.background = activeTab === "party" ? "rgba(162,210,255,0.18)" : "rgba(0,0,0,0.25)";
+        partyBtn.style.color = activeTab === "party" ? "#a2d2ff" : "#fff";
+    }
+}
+
+function renderPartyPane() {
+    const $win = $("#uie-activities-window");
+    if (!$win.is(":visible")) return;
+
+    const members = getPartyMembers();
+    const acts = getActivitiesList();
+
+    const memberSel = document.getElementById("uie-activity-party-member");
+    const actSel = document.getElementById("uie-activity-party-activity");
+    const applyBtn = document.getElementById("uie-activity-party-apply");
+
+    if (memberSel) {
+        const prev = String(memberSel.value || "");
+        memberSel.innerHTML = "";
+        if (!members.length) {
+            memberSel.appendChild(new Option("(No party members)", ""));
+        } else {
+            memberSel.appendChild(new Option("(Select a member...)", ""));
+            for (const m of members) {
+                const name = String(m?.identity?.name || "Member");
+                memberSel.appendChild(new Option(name, String(m.id || "")));
+            }
+            if (prev && Array.from(memberSel.options).some(o => String(o.value) === prev)) {
+                memberSel.value = prev;
+            }
+        }
+    }
+
+    if (actSel) {
+        const prev = String(actSel.value || "");
+        actSel.innerHTML = "";
+        actSel.appendChild(new Option("(Select an activity...)", ""));
+        for (const a of acts) {
+            actSel.appendChild(new Option(String(a.name || "Activity"), String(a.id || "")));
+        }
+        if (prev && Array.from(actSel.options).some(o => String(o.value) === prev)) {
+            actSel.value = prev;
+        }
+    }
+
+    if (applyBtn) {
+        applyBtn.disabled = !members.length;
+    }
+
+    updatePartyPreview();
+}
+
+function updatePartyPreview() {
+    const box = document.getElementById("uie-activity-party-preview");
+    if (!box) return;
+
+    const memberId = String(document.getElementById("uie-activity-party-member")?.value || "");
+    const actId = String(document.getElementById("uie-activity-party-activity")?.value || "");
+    const m = memberId ? findPartyMemberById(memberId) : null;
+    const act = actId ? getActivitiesList().find(a => String(a.id) === actId) : null;
+
+    if (!m) {
+        box.textContent = "Select a member and activity.";
+        return;
+    }
+    if (!act) {
+        box.textContent = "Select an activity.";
+        return;
+    }
+
+    const parts = [];
+    const stats = act.stats && typeof act.stats === "object" ? act.stats : {};
+    const keys = Object.keys(stats);
+    for (const k of keys) {
+        const v = Number(stats[k]);
+        if (!Number.isFinite(v) || v === 0) continue;
+        parts.push(`${String(k).toUpperCase()} +${v}`);
+    }
+    box.textContent = `${String(m?.identity?.name || "Member")}: ${String(act.name || "Activity")} (${formatTime(Number(act.duration || 0))})${parts.length ? `\nRewards: ${parts.join(", ")}` : ""}`;
+}
+
+function applyPartyActivity() {
+    const memberId = String(document.getElementById("uie-activity-party-member")?.value || "");
+    const actId = String(document.getElementById("uie-activity-party-activity")?.value || "");
+    if (!memberId || !actId) {
+        notify("warning", "Select a party member and an activity first.", "Activities");
+        return;
+    }
+
+    const s = getSettings();
+    const m = findPartyMemberById(memberId);
+    const act = getActivitiesList().find(a => String(a.id) === actId) || null;
+    if (!m || !act) {
+        notify("warning", "Selection not found.", "Activities");
+        return;
+    }
+
+    ensurePartyMember(m);
+    if (!s.inventory) s.inventory = {};
+    if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
+    if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
+
+    const msg = [];
+    const stats = act.stats && typeof act.stats === "object" ? act.stats : {};
+    for (const [k, raw] of Object.entries(stats)) {
+        const v = Number(raw);
+        if (!Number.isFinite(v) || v === 0) continue;
+        const key = String(k || "").toLowerCase();
+        if (key === "xp") {
+            m.progression.xp = Number(m.progression.xp || 0) + v;
+            msg.push(`${v} XP`);
+        } else if (key === "hp") {
+            m.vitals.hp = Math.min(Number(m.vitals.maxHp || 100), Number(m.vitals.hp || 0) + v);
+            msg.push(`HP +${v}`);
+        } else if (key === "mp") {
+            m.vitals.mp = Math.min(Number(m.vitals.maxMp || 50), Number(m.vitals.mp || 0) + v);
+            msg.push(`MP +${v}`);
+        } else {
+            const cur = Number(m.stats[key]);
+            const base = Number.isFinite(cur) ? cur : 10;
+            m.stats[key] = base + v;
+            msg.push(`${key.toUpperCase()} +${v}`);
+        }
+    }
+
+    if (act.rewards) {
+        if (Array.isArray(act.rewards.items)) {
+            act.rewards.items.forEach(it => {
+                s.inventory.items.push({ ...it, qty: it.qty || 1 });
+                msg.push(`Item: ${it.name}`);
+            });
+        }
+        if (Array.isArray(act.rewards.skills)) {
+            act.rewards.skills.forEach(sk => {
+                const nm = String(sk?.name || "").trim();
+                if (!nm) return;
+                if (!m.skills.find(x => String(x?.name || "").trim() === nm)) {
+                    m.skills.push(sk);
+                    msg.push(`Skill: ${nm}`);
+                }
+            });
+        }
+    }
+
+    saveSettings();
+    notify("success", `Upgraded ${String(m.identity?.name || "Member")} via ${String(act.name || "Activity")}. Gained: ${msg.join(", ") || "(no changes)"}`, "Activities");
+    injectRpEvent(`[System: Party member ${String(m.identity?.name || "Member")} completed ${String(act.name || "Activity")}. Gained: ${msg.join(", ") || "(no changes)"}.]`);
 }
 
 function getActivitiesList() {
@@ -128,6 +320,8 @@ export function render() {
     });
 
     updateCurrentUI();
+
+    try { renderPartyPane(); } catch (_) {}
 }
 
 function deleteActivity(id) {
@@ -285,15 +479,79 @@ function createCustomActivity() {
 
 export function initActivities() {
     const $win = $("#uie-activities-window");
-    
+
+    $win.off("click.uieActTabs").on("click.uieActTabs", "#uie-activity-tab-user, #uie-activity-tab-party", (e) => {
+        try { e?.preventDefault?.(); } catch (_) {}
+        try { e?.stopPropagation?.(); } catch (_) {}
+        const id = String(e?.currentTarget?.id || "");
+        setActiveTab(id === "uie-activity-tab-party" ? "party" : "user");
+        try { renderPartyPane(); } catch (_) {}
+    });
+
+    $win.off("change.uieActPartySel").on("change.uieActPartySel", "#uie-activity-party-member, #uie-activity-party-activity", (e) => {
+        try { e?.stopPropagation?.(); } catch (_) {}
+        updatePartyPreview();
+    });
+
+    $win.off("click.uieActPartyApply").on("click.uieActPartyApply", "#uie-activity-party-apply", (e) => {
+        try { e?.preventDefault?.(); } catch (_) {}
+        try { e?.stopPropagation?.(); } catch (_) {}
+        applyPartyActivity();
+    });
+
     $win.off("click.uieAct", "#uie-activity-stop").on("click.uieAct", "#uie-activity-stop", stopActivity);
     $win.off("click.uieAct", "#uie-activity-create").on("click.uieAct", "#uie-activity-create", createCustomActivity);
 
-    $win.off("click.uieAct", "#uie-activity-sparkle").on("click.uieAct", "#uie-activity-sparkle", () => {
+    $win.off("click.uieAct", "#uie-activity-sparkle").on("click.uieAct", "#uie-activity-sparkle", (e) => {
+        try { e?.preventDefault?.(); } catch (_) {}
+        try { e?.stopPropagation?.(); } catch (_) {}
+        try { e?.stopImmediatePropagation?.(); } catch (_) {}
+
+        const menu = document.getElementById("uie-activity-menu");
+        if (menu) {
+            const open = String(menu.style.display || "").toLowerCase() === "block";
+            menu.style.display = open ? "none" : "block";
+            return;
+        }
+        // Fallback: focus the add routine input
+        try {
+            const inp = document.getElementById("uie-activity-new-name");
+            if (inp) { inp.scrollIntoView?.({ block: "center" }); inp.focus?.(); }
+        } catch (_) {}
+    });
+
+    // Close activity menu if clicking elsewhere
+    $win.off("click.uieActMenuClose").on("click.uieActMenuClose", function(e){
+        const $t = $(e.target);
+        if ($t.closest("#uie-activity-sparkle, #uie-activity-menu").length) return;
+        const menu = document.getElementById("uie-activity-menu");
+        if (menu) menu.style.display = "none";
+    });
+
+    $win.off("click.uieAct", "#uie-activity-act-add").on("click.uieAct", "#uie-activity-act-add", (e) => {
+        try { e?.preventDefault?.(); } catch (_) {}
+        try { e?.stopPropagation?.(); } catch (_) {}
+        try { e?.stopImmediatePropagation?.(); } catch (_) {}
+        try {
+            const menu = document.getElementById("uie-activity-menu");
+            if (menu) menu.style.display = "none";
+        } catch (_) {}
+        try {
+            const inp = document.getElementById("uie-activity-new-name");
+            if (inp) { inp.scrollIntoView?.({ block: "center" }); inp.focus?.(); }
+        } catch (_) {}
+    });
+
+    $win.off("click.uieAct", "#uie-activity-act-station").on("click.uieAct", "#uie-activity-act-station", (e) => {
+        try { e?.preventDefault?.(); } catch (_) {}
+        try { e?.stopPropagation?.(); } catch (_) {}
+        try { e?.stopImmediatePropagation?.(); } catch (_) {}
+        try {
+            const menu = document.getElementById("uie-activity-menu");
+            if (menu) menu.style.display = "none";
+        } catch (_) {}
         if (window.UIE_openCreateStation) {
             window.UIE_openCreateStation();
-        } else {
-            console.warn("[UIE] openCreateStation not available");
         }
     });
 
@@ -312,6 +570,7 @@ export function initActivities() {
     if (win) {
         observer.observe(win, { attributes: true, attributeFilter: ["style"] });
         // Initial render if visible or to populate defaults
+        setActiveTab(activeTab);
         render();
     }
 

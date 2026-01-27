@@ -1,4 +1,4 @@
-<div id="uie-stats-window" class="uie-window uie-rpg-theme" style="display:none; top:10%; left:10%; width:450px; height:600px; padding:0; background:#1a1a1d; border:2px solid #cba35c; box-shadow:0 0 20px rgba(0,0,0,0.8); border-radius:12px; overflow:hidden; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+<div id="uie-stats-window" class="uie-window uie-rpg-theme" style="display:none; padding:0; background:#1a1a1d; border:2px solid #cba35c; box-shadow:0 0 20px rgba(0,0,0,0.8); border-radius:12px; overflow:hidden; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
     <style>
         .uie-rpg-theme ::-webkit-scrollbar { width: 6px; }
         .uie-rpg-theme ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
@@ -7,27 +7,23 @@
         /* CRITICAL: Force header to be at top, horizontal, normal size */
         #uie-stats-window {
             flex-direction: column !important;
+            top: 15vh;
+            left: 15vw;
+            transform: none;
+            width: min(500px, 80vw);
+            height: min(600px, 70vh);
+            position: fixed;
         }
         
         /* Full menu on desktop, normal size on mobile */
-        @media (min-width: 768px) {
+        @media (max-width: 700px), (pointer: coarse) {
             #uie-stats-window {
-                width: 45vw !important;
-                max-width: 600px !important;
-                height: 85vh !important;
-                top: 5vh !important;
-                left: 50% !important;
-                transform: translateX(-50%) !important;
-            }
-        }
-        
-        @media (max-width: 767px) {
-            #uie-stats-window {
-                width: min(92vw, 520px) !important;
-                height: min(82dvh, 720px) !important;
-                top: 50% !important;
-                left: 50% !important;
-                transform: translate(-50%, -50%) !important;
+                top: 6vh;
+                left: 4vw;
+                width: 91vw;
+                max-width: 91vw;
+                height: 87vh;
+                max-height: 87vh;
             }
         }
         

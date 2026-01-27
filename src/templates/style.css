@@ -31,11 +31,34 @@
     color: var(--uie-text-main);
     border-radius: 2px;
     font-family: var(--uie-font-body);
-    width: 380px;
-    max-width: 95vw;
     display: flex;
     flex-direction: column;
     z-index: 20000;
+}
+
+/* --- MOBILE-FIRST LAYOUT OVERRIDES --- */
+@media (max-width: 768px), (pointer: coarse) {
+    .uie-header {
+        padding: 8px 10px;
+        gap: 10px;
+    }
+    .uie-controls {
+        gap: 8px;
+        font-size: 1em;
+    }
+    .uie-menu-btn {
+        padding: 10px;
+        gap: 4px;
+    }
+    .uie-menu-btn i {
+        font-size: 18px;
+    }
+    .uie-window .uie-content {
+        max-height: calc(100% - 56px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
 }
 
 /* --- HEADER AREA --- */
@@ -284,40 +307,6 @@ textarea.uie-edit-field { resize: vertical; min-height: 60px; }
     .uie-grid-view { grid-template-columns: repeat(5, 1fr); }
     .uie-header { padding: 5px 10px; }
     .uie-avatar { width: 40px; height: 40px; }
-}
-
-@media (max-width: 700px), (pointer: coarse) {
-    #uie-main-menu {
-        position: fixed !important;
-        top: 50% !important;
-        left: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        width: min(420px, 94vw) !important;
-        max-width: 94vw !important;
-        max-height: 90vh !important;
-    }
-
-    .uie-window:not(#uie-inventory-window) {
-        position: fixed !important;
-        top: 50% !important;
-        left: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        width: min(820px, 94vw) !important;
-        height: min(820px, 90vh) !important;
-        max-width: 94vw !important;
-        max-height: 90vh !important;
-    }
-
-    #uie-phone-window.uie-phone {
-        position: fixed !important;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: min(380px, 95vw) !important;
-        height: 90vh !important;
-        max-width: 95vw !important;
-        max-height: 90vh !important;
-    }
 }
 
 /* --- EQUIPMENT PAPER DOLL (Layered) --- */

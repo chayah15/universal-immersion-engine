@@ -1,20 +1,20 @@
 <style>
-  #uie-journal-window{ top: 80px; left: 80px; transform:none; }
+  #uie-journal-window{ top: 15vh; left: 15vw; transform:none; width:min(500px, 80vw); height:min(600px, 70vh); background:rgba(11,15,21,0.96); position: fixed; z-index:2147483646; pointer-events:auto; display:flex; flex-direction:column; border:1px solid rgba(225,193,122,0.2); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); }
+  #uie-journal-window::before,
+  #uie-journal-window::after{ content:none !important; }
+  #uie-journal-window .uie-content{ position: relative; z-index:1; flex:1; min-height:0; overflow:auto; }
   @media (max-width: 700px), (pointer: coarse) {
     #uie-journal-window {
-      position: fixed !important;
-      inset: auto !important;
-      top: 12vh !important;
-      left: 3vw !important;
-      transform: none !important;
-      width: 94vw !important;
-      height: 80vh !important;
-      max-width: 94vw !important;
-      max-height: 80vh !important;
+      top: 4vh;
+      left: 2vw;
+      width: 96vw;
+      max-width: 96vw;
+      height: 92vh;
+      max-height: 92vh;
     }
   }
 </style>
-<div id="uie-journal-window" class="uie-window" style="display:none; width:700px; height:760px; background:#0b0f15;">
+<div id="uie-journal-window" class="uie-window" style="display:none;">
     <div class="uie-header" style="border-bottom:1px solid rgba(203,163,92,0.35); background:linear-gradient(90deg,#1b202b,#0e121a);">
         <div class="uie-info">
             <h2 style="margin:0; font-family:serif; color:#cba35c; letter-spacing:1px;">Journal</h2>

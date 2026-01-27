@@ -1,4 +1,4 @@
-<div id="uie-social-window" style="display:none; width:min(760px, 92vw); height:min(760px, 92vh); backdrop-filter: blur(8px);">
+<div id="uie-social-window" class="uie-window" style="display:none; width:min(760px, 92vw); height:min(760px, 92vh); backdrop-filter: blur(8px);">
     <style>
         /* HARVEST/STARDEW THEME */
         #uie-social-window {
@@ -88,6 +88,18 @@
             gap: 6px;
             min-width: 200px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        @media (max-width: 768px), (pointer: coarse) {
+            #uie-social-window {
+                top: 6vh;
+                left: 4vw;
+                transform: none;
+                width: 92vw;
+                max-width: 92vw;
+                height: 86vh;
+                max-height: 86vh;
+            }
         }
         #uie-social-window .uie-dd-item {
             padding: 8px 12px;
@@ -302,13 +314,8 @@
 
         @media (max-width: 700px), (pointer: coarse) {
             #uie-social-window {
-                position: fixed !important;
-                inset: auto !important;
-                width: 96vw !important; height: 80vh !important;
-                top: 12vh !important; left: 2vw !important;
-                transform: none !important;
-                max-width: 96vw !important;
-                max-height: 80vh !important;
+                width: 96vw;
+                max-height: 80vh;
             }
             #uie-social-window .uie-social-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }

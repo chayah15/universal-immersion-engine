@@ -87,6 +87,7 @@
         </label>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <button id="uie-world-open-sprites" style="height:44px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Sprite Library</button>
+            <button id="uie-world-open-mods" style="display:none; height:44px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">User Mods</button>
         </div>
     </div>
 </template>
@@ -109,7 +110,14 @@
         overflow: hidden;
         z-index: 2147483640; /* Maximize Z-Index to cover everything */
         display: none;
+        pointer-events: auto;
         touch-action: manipulation;
+    }
+
+    /* When ST UI is shown behind the stage, do NOT let the stage itself eat clicks.
+       This fixes blocked clicks on the SillyTavern launcher/system menu. */
+    body:not([data-reality-stage="1"]) #reality-stage {
+        pointer-events: none;
     }
 
     /* Aggressively hide SillyTavern UI elements when stage is active */
@@ -190,7 +198,6 @@
         filter: drop-shadow(0 12px 28px rgba(0,0,0,0.65));
         animation: reBreathe 4.8s ease-in-out infinite;
         transition: all 0.5s ease-in-out;
-        pointer-events: none;
     }
     @keyframes reBreathe {
         0%, 100% { transform: translateX(-50%) scale(1); }
@@ -241,6 +248,7 @@
         pointer-events: none;
         display: flex;
         flex-direction: column;
+        z-index: 120;
     }
 
     #re-hud {
@@ -331,6 +339,7 @@
         transform:translateX(-50%);
         width:min(820px, 96vw);
         pointer-events:auto;
+        z-index: 120;
     }
 
     #re-action-grid{
@@ -531,8 +540,7 @@
     }
 
     @media (max-width: 768px) {
-        /* Sprites are .re-sprite (not #re-sprite) */
-        .re-sprite {
+        #re-sprite {
             height: 50dvh;
             bottom: 25dvh;
         }
@@ -591,7 +599,7 @@
                 <textarea id="re-user-input" placeholder="Type a reply..."></textarea>
                 <div class="re-quick" id="re-quick">
                     <!-- Static System Buttons -->
-                    <button class="re-qbtn" id="re-q-menu" title="Menu" onclick="if(window.reToggleMenu) window.reToggleMenu(event)"><i class="fa-solid fa-bars"></i></button>
+                    <button class="re-qbtn" id="re-q-menu" title="Menu"><i class="fa-solid fa-bars"></i></button>
                     <button class="re-qbtn" id="re-q-scavenge" title="Inspect / Scavenge"><i class="fa-solid fa-magnifying-glass"></i></button>
                     <button class="re-qbtn" id="re-q-chatbox" title="Open Chatbox"><i class="fa-solid fa-comments"></i></button>
                     <button class="re-qbtn" id="re-q-add" title="Add Quick Action"><i class="fa-solid fa-plus"></i></button>
@@ -603,19 +611,7 @@
             <div class="re-menu-item" id="re-act-continue"><i class="fa-solid fa-forward"></i> Continue</div>
             <div class="re-menu-item" id="re-act-regenerate"><i class="fa-solid fa-rotate-right"></i> Regenerate</div>
             <div class="re-menu-item" id="re-act-stop"><i class="fa-solid fa-stop"></i> Stop</div>
-            <div style="height:1px; background:rgba(255,255,255,0.1); margin:4px 0;"></div>
             <div class="re-menu-item" id="re-act-impersonate"><i class="fa-solid fa-user-pen"></i> Impersonate</div>
-            <div class="re-menu-item" id="re-act-author"><i class="fa-solid fa-pen-nib"></i> Author's Note</div>
-            <div class="re-menu-item" id="re-act-cfg"><i class="fa-solid fa-sliders"></i> CFG / Presets</div>
-            <div class="re-menu-item" id="re-act-tokens"><i class="fa-solid fa-chart-pie"></i> Token Probs</div>
-            <div style="height:1px; background:rgba(255,255,255,0.1); margin:4px 0;"></div>
-            <div class="re-menu-item" id="re-act-forge"><i class="fa-solid fa-wand-magic-sparkles"></i> Forge Background</div>
-            <div class="re-menu-item" id="re-act-toggle-map"><i class="fa-solid fa-map"></i> Toggle Map</div>
-            <div style="height:1px; background:rgba(255,255,255,0.1); margin:4px 0;"></div>
-            <div class="re-menu-item" id="re-act-newchat"><i class="fa-solid fa-comment"></i> Start New Chat</div>
-            <div class="re-menu-item" id="re-act-manage"><i class="fa-solid fa-folder-open"></i> Manage Chats</div>
-            <div class="re-menu-item" id="re-act-delete"><i class="fa-solid fa-trash"></i> Delete Messages</div>
-            <div class="re-menu-item" id="re-act-closechat"><i class="fa-solid fa-xmark"></i> Close Chat</div>
         </div>
 
         <!-- VN Settings Modal -->
@@ -663,6 +659,38 @@
             </div>
         </div>
 
+        <div id="uie-mods-window" class="uie-window" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:min(700px, 92vw); height:min(800px, 92vh); background:#0b0f15; border:1px solid rgba(203,163,92,0.45); flex-direction:column; z-index:20050;">
+            <div class="uie-header" style="border-bottom:1px solid rgba(255,255,255,0.12); padding:10px; background:linear-gradient(90deg, #1b202b, #0e121a); display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="margin:0; font-family:'Cinzel',serif; color:#cba35c; letter-spacing:1px;">USER MODS</h3>
+                <div class="uie-controls" style="display:flex; gap:10px;">
+                    <button id="uie-mods-close" class="uie-close-btn" style="height:32px; width:32px; border-radius:8px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+
+            <div style="padding:15px; display:flex; flex-direction:column; gap:15px; flex:1; overflow:hidden;">
+                <div style="display:flex; gap:10px;">
+                    <button id="uie-mods-import" style="flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#ccc; padding:8px; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-file-import"></i> Import</button>
+                    <button id="uie-mods-export-all" style="flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#ccc; padding:8px; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-file-export"></i> Export All</button>
+                </div>
+
+                <div id="uie-mods-list" class="custom-scroll" style="flex:1; overflow-y:auto; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); padding:10px; border-radius:8px;">
+                    <!-- Mods will be listed here -->
+                    <div style="text-align:center; opacity:0.5; padding:20px;">No mods installed.</div>
+                </div>
+
+                <div style="border-top:1px solid rgba(255,255,255,0.1); padding-top:15px;">
+                    <h4 style="margin:0 0 10px 0; color:#cba35c; font-size:14px;">CREATE NEW MOD</h4>
+                    <div style="display:flex; gap:10px;">
+                        <textarea id="uie-mods-prompt" placeholder="Describe what you want (e.g., 'A magic system with mana bars and spells')" style="flex:1; height:60px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); color:#fff; padding:10px; border-radius:8px; resize:none; font-family:inherit;"></textarea>
+                        <button id="uie-mods-create" style="width:100px; background:#cba35c; color:#000; font-weight:bold; border:none; border-radius:8px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;">
+                            <i class="fa-solid fa-wand-magic-sparkles" style="font-size:1.2em;"></i>
+                            <span>Create</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="re-forge-modal">
             <div id="re-forge-card">
                 <div style="display:flex; gap:10px; align-items:center;">
@@ -681,26 +709,20 @@
                 </div>
             </div>
         </div>
+    </div>
+</div>
 
-        <!-- One-time Dev Notice (shows once, then never again) -->
-        <div id="re-dev-notice" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:2147483660; align-items:center; justify-content:center; pointer-events:auto;">
-            <div style="background:#1a1110; border:1px solid rgba(203,163,92,0.55); padding:22px; border-radius:16px; width:min(520px, 92vw); color:#fff; box-shadow:0 0 60px rgba(0,0,0,0.65);">
-                <div style="display:flex; gap:12px; align-items:flex-start;">
-                    <i class="fa-solid fa-circle-info" style="font-size:1.8em; color:#cba35c; margin-top:2px;"></i>
-                    <div style="flex:1;">
-                        <div style="font-family:'Cinzel',serif; font-weight:900; letter-spacing:0.6px; color:#cba35c; font-size:1.05em;">Reality Engine is still in development</div>
-                        <div style="opacity:0.92; line-height:1.55; margin-top:8px;">
-                            You can still use it, but you may encounter bugs, visual glitches, or incomplete features.
-                        </div>
-                        <div style="opacity:0.75; font-size:12px; margin-top:10px;">
-                            This notice will only appear once.
-                        </div>
-                    </div>
-                </div>
-                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px;">
-                    <button id="re-dev-ok" style="background:#cba35c; border:none; color:#000; font-weight:900; padding:10px 16px; border-radius:10px; cursor:pointer;">OK</button>
-                </div>
-            </div>
+<div id="re-warning-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:2147483660; align-items:center; justify-content:center; flex-direction:column; text-align:center;">
+    <div style="background:#1a1110; border:1px solid #cba35c; padding:30px; border-radius:16px; width:min(500px, 90vw); color:#fff; box-shadow:0 0 50px rgba(203,163,92,0.15);">
+        <i class="fa-solid fa-triangle-exclamation" style="font-size:3em; color:#e67e22; margin-bottom:20px;"></i>
+        <h2 style="margin:0 0 15px 0; color:#cba35c; font-family:'Cinzel',serif;">REALITY ENGINE ALPHA</h2>
+        <p style="opacity:0.9; line-height:1.6; margin-bottom:25px;">
+            This feature is currently in <strong>early production</strong>. <br>
+            You may encounter bugs, visual glitches, or incomplete features.<br>
+        </p>
+        <div style="display:flex; gap:15px; justify-content:center;">
+            <button id="re-warn-cancel" style="background:transparent; border:1px solid #666; color:#ccc; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold;">Cancel</button>
+            <button id="re-warn-continue" style="background:#cba35c; border:none; color:#000; font-weight:bold; padding:10px 20px; border-radius:8px; cursor:pointer;">Continue Anyway</button>
         </div>
     </div>
 </div>

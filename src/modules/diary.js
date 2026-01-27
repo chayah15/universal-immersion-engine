@@ -648,4 +648,6 @@ export function initDiary() {
     }
 
     renderDiary();
+    // Force Hide on Init (User reported it opening on launch)
+    $("#uie-diary-window").hide();
 }

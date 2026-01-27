@@ -125,6 +125,7 @@ function stripCssBlocks(text) {
 export async function scanEverything(opts = {}) {
     const s = getSettings();
     if (s.enabled === false) return;
+    if (s.generation?.scanAllEnabled === false) return;
     const force = !!opts?.force;
     ensureState(s);
     const gate = (() => {
@@ -180,8 +181,8 @@ export async function scanEverything(opts = {}) {
     }
 
     // --- PHASE 2: AI SCAN (Everything Else) ---
-    // Only proceed if AI features are enabled
-    if (s.enabled === false) return;
+    // Only proceed if system checks are allowed
+    if (s.enabled === false || s.generation?.allowSystemChecks === false) return;
 
     const ctx = getContext ? getContext() : {};
     const userName = String(ctx.name1 || "User").trim();
@@ -718,3 +719,32 @@ export function getWorldState() {
 
 // Deprecated individual exports if needed for backward compat, but we replace usage.
 export const scanWorldState = scanEverything;
+
+// Event-based auto scan (no interval)
+export function initAutoScanning() {
+    try {
+        if (window.UIE_autoScanBound) return;
+        window.UIE_autoScanBound = true;
+    } catch (_) {}
+
+    try {
+        const src = window.eventSource;
+        const types = window.event_types;
+        if (!src || !types) return;
+
+        let t = null;
+        const trigger = () => {
+            try {
+                const s = getSettings();
+                if (!s || s.enabled === false) return;
+                if (s.generation?.scanAllEnabled === false) return;
+                if (s.generation?.scanOnlyOnGenerateButtons === true) return;
+            } catch (_) {}
+            if (t) clearTimeout(t);
+            t = setTimeout(() => { scanEverything().catch(() => {}); }, 400);
+        };
+
+        src.on(types.MESSAGE_RECEIVED, trigger);
+        src.on(types.GENERATION_ENDED, trigger);
+    } catch (_) {}
+}
