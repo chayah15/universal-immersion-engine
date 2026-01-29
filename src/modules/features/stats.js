@@ -2,10 +2,13 @@
 import { getSettings, saveSettings } from "../core.js";
 import { notify } from "../notifications.js";
 
+let isEditing = false;
+
 export function initStats() {
     // Bind global events or window specific events
     // Scope to main menu
     $("#uie-main-menu").off("click.uieStats").on("click.uieStats", "#uie-btn-stats", () => {
+        isEditing = false; // Reset on open
         renderStats();
     });
 
@@ -16,6 +19,42 @@ export function initStats() {
         e.stopPropagation();
         const stat = $(this).data("stat");
         upgradeStat(stat);
+    });
+
+    // Bind Edit Toggle
+    $("#uie-stats-window").off("click.uieStatEdit").on("click.uieStatEdit", "#uie-stats-edit-toggle", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        isEditing = !isEditing;
+        $(this).css("color", isEditing ? "#cba35c" : "");
+        renderStats();
+    });
+
+    // Bind Input Changes
+    $("#uie-stats-window").off("change.uieStatInput").on("change.uieStatInput", ".uie-stat-input", function(e) {
+        const key = $(this).data("key");
+        const type = $(this).data("type"); // 'root', 'char', 'stat'
+        let val = $(this).val();
+
+        const s = getSettings();
+        if (!s.character) s.character = {};
+        if (!s.character.stats) s.character.stats = {};
+
+        // Parse number if needed
+        if ($(this).attr("type") === "number") val = Number(val);
+
+        if (type === "root") {
+            s[key] = val;
+        } else if (type === "char") {
+            s.character[key] = val;
+        } else if (type === "stat") {
+            s.character.stats[key] = val;
+        }
+
+        saveSettings();
+        // Don't re-render immediately to avoid losing focus, unless needed?
+        // Actually, re-rendering might be safer to sync UI states, but input focus is tricky.
+        // Let's just update the setting silently.
     });
 
     // Bind refresh/render on window show
@@ -52,8 +91,26 @@ export function renderStats() {
     const pts = s.character.statPoints || 0;
     const portrait = s.character.portrait || s.character.avatar || "";
 
-    $("#uie-stats-name").text(name);
-    $("#uie-stats-class").text(`${cls} - Lv. ${lvl}`);
+    if (isEditing) {
+        $("#uie-stats-name").html(`<input type="text" class="uie-stat-input" data-key="name" data-type="char" value="${name}" style="background:rgba(0,0,0,0.5); border:1px solid #555; color:#fff; text-align:center; width:100%;">`);
+        $("#uie-stats-class").html(`
+            <input type="text" class="uie-stat-input" data-key="className" data-type="char" value="${cls}" style="background:rgba(0,0,0,0.5); border:1px solid #555; color:#cba35c; text-align:center; width:120px;">
+            Lv. <input type="number" class="uie-stat-input" data-key="level" data-type="char" value="${lvl}" style="background:rgba(0,0,0,0.5); border:1px solid #555; color:#fff; text-align:center; width:50px;">
+        `);
+    } else {
+        $("#uie-stats-name").text(name);
+        // Make Class clickable to toggle edit mode as a hint
+        $("#uie-stats-class").html(`<span style="cursor:pointer; border-bottom:1px dashed #666;" title="Click 'Edit' icon (pencil) to change class">${cls} - Lv. ${lvl}</span>`);
+        $("#uie-stats-class").off("click").on("click", () => {
+             // Flash the edit button to show user where it is
+             const btn = $("#uie-stats-edit-toggle");
+             btn.css("transition", "color 0.2s").css("color", "#fff");
+             setTimeout(() => btn.css("color", ""), 200);
+             setTimeout(() => btn.css("color", "#fff"), 400);
+             setTimeout(() => btn.css("color", ""), 600);
+             if(window.toastr) toastr.info("Click the Pencil icon to edit stats & class.", "Tip");
+        });
+    }
 
     if (portrait) {
         $("#uie-stats-portrait").attr("src", portrait).show();
@@ -65,7 +122,9 @@ export function renderStats() {
 
     const ptsEl = $("#uie-stats-points");
     // Always show the container but change text
-    if (pts > 0) {
+    if (isEditing) {
+        ptsEl.addClass("uie-char-points").html(`Points: <input type="number" class="uie-stat-input" data-key="statPoints" data-type="char" value="${pts}" style="background:rgba(0,0,0,0.5); border:none; color:#2ecc71; width:40px;">`);
+    } else if (pts > 0) {
         ptsEl.addClass("uie-char-points").text(`Points: ${pts}`);
     } else {
         ptsEl.removeClass("uie-char-points").text("");
@@ -92,15 +151,19 @@ export function renderStats() {
         const label = STAT_NAMES[key] || key.toUpperCase();
 
         let btnHtml = "";
-        if (pts > 0) {
-            btnHtml = `<div class="uie-stat-up-btn" data-stat="${key}">+</div>`;
+        if (isEditing) {
+            btnHtml = `<input type="number" class="uie-stat-input" data-key="${key}" data-type="stat" value="${val}" style="width:50px; background:rgba(0,0,0,0.5); border:1px solid #555; color:#fff; text-align:center;">`;
+        } else {
+            btnHtml = `<div class="uie-stat-val">${val}</div>`;
+            if (pts > 0) {
+                btnHtml += `<div class="uie-stat-up-btn" data-stat="${key}">+</div>`;
+            }
         }
 
         const html = `
             <div class="uie-stat-card">
                 <div class="uie-stat-label">${label}</div>
                 <div style="display:flex; align-items:center;">
-                    <div class="uie-stat-val">${val}</div>
                     ${btnHtml}
                 </div>
             </div>
@@ -112,27 +175,42 @@ export function renderStats() {
     const vitalsEl = $("#uie-stats-vitals");
     vitalsEl.empty();
 
-    const renderBar = (label, cur, max, type) => {
-        const c = Math.round(cur || 0);
-        const m = Math.round(max || 0);
-        const pct = m > 0 ? Math.max(0, Math.min(100, (c / m) * 100)) : 0;
-        return `
-            <div class="uie-bar-container">
-                <div class="uie-bar-labels">
-                    <span>${label}</span>
-                    <span>${c} / ${m}</span>
+    const renderBar = (label, cur, max, type, keyCur, keyMax) => {
+        if (isEditing) {
+            return `
+                <div class="uie-bar-container" style="background:rgba(0,0,0,0.3); padding:5px; border-radius:6px;">
+                    <div class="uie-bar-labels" style="align-items:center;">
+                        <span>${label}</span>
+                        <div style="display:flex; gap:5px; align-items:center;">
+                            <input type="number" class="uie-stat-input" data-key="${keyCur}" data-type="root" value="${cur||0}" style="width:60px; background:rgba(0,0,0,0.5); border:1px solid #555; color:#fff; text-align:right;">
+                            /
+                            <input type="number" class="uie-stat-input" data-key="${keyMax}" data-type="root" value="${max||0}" style="width:60px; background:rgba(0,0,0,0.5); border:1px solid #555; color:#fff; text-align:right;">
+                        </div>
+                    </div>
                 </div>
-                <div class="uie-bar-track">
-                    <div class="uie-bar-fill uie-bar-${type}" style="width:${pct}%;"></div>
+            `;
+        } else {
+            const c = Math.round(cur || 0);
+            const m = Math.round(max || 0);
+            const pct = m > 0 ? Math.max(0, Math.min(100, (c / m) * 100)) : 0;
+            return `
+                <div class="uie-bar-container">
+                    <div class="uie-bar-labels">
+                        <span>${label}</span>
+                        <span>${c} / ${m}</span>
+                    </div>
+                    <div class="uie-bar-track">
+                        <div class="uie-bar-fill uie-bar-${type}" style="width:${pct}%;"></div>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
+        }
     };
 
-    vitalsEl.append(renderBar("Health", s.hp, s.maxHp, "hp"));
-    vitalsEl.append(renderBar("Mana", s.mp, s.maxMp, "mp"));
-    vitalsEl.append(renderBar("Stamina", s.ap, s.maxAp, "ap"));
-    vitalsEl.append(renderBar("Experience", s.xp, s.maxXp, "xp"));
+    vitalsEl.append(renderBar("Health", s.hp, s.maxHp, "hp", "hp", "maxHp"));
+    vitalsEl.append(renderBar("Mana", s.mp, s.maxMp, "mp", "mp", "maxMp"));
+    vitalsEl.append(renderBar("Stamina", s.ap, s.maxAp, "ap", "ap", "maxAp"));
+    vitalsEl.append(renderBar("Experience", s.xp, s.maxXp, "xp", "xp", "maxXp"));
 }
 
 function resetStats() {

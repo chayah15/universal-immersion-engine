@@ -599,11 +599,123 @@
             </div>
 
             <div id="books-view-guide" class="books-pane">
-                <div class="books-card" style="background:rgba(0,0,0,0.22);">
+                <div class="books-card" style="background:rgba(0,0,0,0.22); margin-bottom:15px;">
                     <div style="font-weight:900; font-size:1.4em; margin-bottom:12px; color:#cba35c; text-align:center; border-bottom:1px solid rgba(225,193,122,0.3); padding-bottom:8px;">UIE User Manual</div>
                     <div style="opacity:0.92; color:#e5e5e5; line-height:1.6; font-size:0.95em;">
-                        <p>Welcome to the Universal Immersion Engine. This manual covers all core features.</p>
+                        <p>Welcome to the Universal Immersion Engine. Tap a section below or use the "Help" buttons in apps to jump here.</p>
                     </div>
+                </div>
+
+                <div id="guide-map" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#f1c40f; margin-top:0;">World Map</h3>
+                    <p>The Map allows you to travel between locations. Areas are procedurally generated or defined by your chat.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Travel:</strong> Click a node to move. Consumes time.</li>
+                        <li><strong>Biomes:</strong> Different areas affect encounter rates and resources.</li>
+                        <li><strong>Fast Travel:</strong> You can teleport to previously visited safe zones.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-social" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#e74c3c; margin-top:0;">Social & Relationships</h3>
+                    <p>Track your standing with NPCs. Relationships are dynamic and affect how characters treat you.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Affinity:</strong> 0-100 scale. Determines friendliness.</li>
+                        <li><strong>Disposition:</strong> Current mood (e.g., Hostile, Warm, Devoted).</li>
+                        <li><strong>Social Memory:</strong> Important interactions are recorded here.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-party" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#2ecc71; margin-top:0;">Party Management</h3>
+                    <p>Manage your followers and companions.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Recruit:</strong> Ask friendly NPCs to join you.</li>
+                        <li><strong>Roles:</strong> Assign roles like Healer or Tank for bonuses.</li>
+                        <li><strong>Chat:</strong> Party members will participate in group chats automatically.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-shop" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#f39c12; margin-top:0;">Shops & Economy</h3>
+                    <p>Buy and sell items using Gold (GP).</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Buy:</strong> Purchase equipment, consumables, and materials.</li>
+                        <li><strong>Sell:</strong> Trade your loot for gold. Prices vary by shop keeper affinity.</li>
+                        <li><strong>Haggling:</strong> High charisma can lower prices.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-inventory" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#3498db; margin-top:0;">Inventory & Items</h3>
+                    <p>Manage your gear and resources.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Equip:</strong> Wear armor and weapons to boost stats.</li>
+                        <li><strong>Use:</strong> Consume potions or food for health and buffs.</li>
+                        <li><strong>Weight:</strong> Carrying too much will slow you down.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-crafting" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#9b59b6; margin-top:0;">Crafting</h3>
+                    <p>Create new items from raw materials.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Alchemy:</strong> Brew potions and poisons.</li>
+                        <li><strong>Forge:</strong> Create weapons and armor.</li>
+                        <li><strong>Cooking:</strong> Prepare meals for buffs.</li>
+                        <li><strong>Enchanting:</strong> Add magical properties to gear.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-warroom" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#c0392b; margin-top:0;">Battle System</h3>
+                    <p>Turn-based combat engagements.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Actions:</strong> Attack, Defend, or use Skills.</li>
+                        <li><strong>Initiative:</strong> Determines turn order.</li>
+                        <li><strong>Victory:</strong> Defeating enemies grants XP and loot.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-journal" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#1abc9c; margin-top:0;">Journal & Databank</h3>
+                    <p>Your record of the world.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Quests:</strong> Track active missions and objectives.</li>
+                        <li><strong>Lore:</strong> Information about the world, factions, and history.</li>
+                        <li><strong>Bestiary:</strong> Details on creatures you've encountered.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-calendar" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#e67e22; margin-top:0;">Time & Calendar</h3>
+                    <p>Track the passage of time.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Day/Night:</strong> Affects encounters and shop opening hours.</li>
+                        <li><strong>Events:</strong> Holidays and scheduled occurrences.</li>
+                        <li><strong>Seasons:</strong> Weather changes with the season.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-phone" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#34495e; margin-top:0;">Phone Features</h3>
+                    <p>Your communication and utility device.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Messages:</strong> Text NPCs. They will reply!</li>
+                        <li><strong>Calls:</strong> Voice calls with characters.</li>
+                        <li><strong>Browser:</strong> "Surf" a generated internet.</li>
+                        <li><strong>Apps:</strong> Use or create custom apps in the Store.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-settings" class="books-card" style="margin-bottom:50px;">
+                    <h3 style="color:#7f8c8d; margin-top:0;">Settings</h3>
+                    <p>Configure the Universal Immersion Engine.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>AI Options:</strong> Toggle specific AI features on/off.</li>
+                        <li><strong>Visuals:</strong> Customize the phone look and UI themes.</li>
+                        <li><strong>Data:</strong> Manage save data and backups.</li>
+                    </ul>
                 </div>
             </div>
 

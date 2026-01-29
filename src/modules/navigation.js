@@ -48,8 +48,8 @@ function renderNavHud() {
         e.preventDefault();
         e.stopPropagation();
         if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
-        const vn = document.getElementById("re-vn-box");
-        if (vn && vn.style.display !== "none") return;
+        // const vn = document.getElementById("re-vn-box");
+        // if (vn && vn.style.display !== "none") return;
         const dir = e.currentTarget?.dataset?.dir || e.target?.dataset?.dir;
         if (!dir) return;
         moveDirectionSilent(dir);
@@ -125,7 +125,7 @@ function updateNavVisibility() {
     const wantsNav = s.realityEngine?.ui?.showNav !== false;
     const vn = document.getElementById("re-vn-box");
     const vnOpen = vn && vn.style.display !== "none";
-    const show = wantsNav && !vnOpen;
+    const show = wantsNav;
     layer.style.display = show ? "block" : "none";
 }
 

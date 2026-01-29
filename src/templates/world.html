@@ -306,7 +306,7 @@
         gap: 10px;
         box-shadow: 0 10px 40px rgba(0,0,0,0.8);
         z-index: 2147483643; /* Above arrows (wait, arrows are 2147483642? No, let arrows be on top?) */
-        /* User said south button not visible to box. If box covers button, button is hidden. 
+        /* User said south button not visible to box. If box covers button, button is hidden.
            If button is z=...42 and box is z=...43, box covers button.
            If button is at bottom:110px and box is bottom:35vh (~350px on 1080p), they don't overlap.
            But to be safe, let's keep box lower z-index than arrows if they overlap?
@@ -344,7 +344,15 @@
 
     @media (max-width: 700px), (pointer: coarse) {
         #re-composer-wrap{
-            position:fixed;
+            position:fixed !important;
+            bottom: 10px !important;
+            z-index: 2147483645 !important;
+            display: flex !important;
+            visibility: visible !important;
+        }
+        #re-hud {
+            z-index: 2147483645 !important;
+            position: relative !important;
         }
     }
 
@@ -612,6 +620,7 @@
     <div id="re-ui">
         <div id="re-hud">
             <!-- Bars removed -->
+            <button class="re-hud-btn" id="re-toggle-nav" title="Toggle Navigation"><i class="fa-solid fa-compass"></i></button>
             <button class="re-hud-btn" id="re-toggle-view" title="Toggle Map"><i class="fa-solid fa-map"></i></button>
             <button class="re-hud-btn" id="re-exit" title="Exit"><i class="fa-solid fa-xmark"></i></button>
         </div>
@@ -757,17 +766,4 @@
     </div>
 </div>
 
-<div id="re-warning-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:2147483660; align-items:center; justify-content:center; flex-direction:column; text-align:center;">
-    <div style="background:#1a1110; border:1px solid #cba35c; padding:30px; border-radius:16px; width:min(500px, 90vw); color:#fff; box-shadow:0 0 50px rgba(203,163,92,0.15);">
-        <i class="fa-solid fa-triangle-exclamation" style="font-size:3em; color:#e67e22; margin-bottom:20px;"></i>
-        <h2 style="margin:0 0 15px 0; color:#cba35c; font-family:'Cinzel',serif;">REALITY ENGINE ALPHA</h2>
-        <p style="opacity:0.9; line-height:1.6; margin-bottom:25px;">
-            This feature is currently in <strong>early production</strong>. <br>
-            You may encounter bugs, visual glitches, or incomplete features.<br>
-        </p>
-        <div style="display:flex; gap:15px; justify-content:center;">
-            <button id="re-warn-cancel" style="background:transparent; border:1px solid #666; color:#ccc; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold;">Cancel</button>
-            <button id="re-warn-continue" style="background:#cba35c; border:none; color:#000; font-weight:bold; padding:10px 20px; border-radius:8px; cursor:pointer;">Continue Anyway</button>
-        </div>
-    </div>
-</div>
+

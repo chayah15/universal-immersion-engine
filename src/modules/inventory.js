@@ -1,8 +1,8 @@
 
-import { 
-    getSettings, 
-    saveSettings, 
-    updateLayout 
+import {
+    getSettings,
+    saveSettings,
+    updateLayout
 } from "./core.js";
 import { loadFeatureTemplate } from "./featureLoader.js";
 import { getContext } from "/scripts/extensions.js";
@@ -845,7 +845,7 @@ function ensureCreateStationOverlay() {
     div.innerHTML = '<div id="uie-create-station-shell" style="width:min(380px, 92vw); height:min(600px, 90vh); position:relative;"></div>';
     document.body.appendChild(div);
   }
-  
+
   // Attach close listener
   $("#uie-create-station-overlay").on("click", function (e) {
       if ($(e.target).closest("#uie-inv-sparkle-menu").length) return;
@@ -865,13 +865,13 @@ function openCreateStation() {
   const ov = document.getElementById("uie-create-station-overlay");
   const shell = document.getElementById("uie-create-station-shell");
   if (!ov || !shell) return;
-  
+
   if (!createStation.open) {
     createStation.parent = menu.parentElement;
     createStation.next = menu.nextSibling;
   }
   createStation.open = true;
-  
+
   // Ensure we move it to the shell
   if (menu.parentElement !== shell) {
       shell.appendChild(menu);
@@ -887,7 +887,7 @@ function openCreateStation() {
   menu.style.borderRadius = "0";
   menu.style.overflow = "auto";
   menu.style.zIndex = "2147483655";
-  
+
   ov.style.display = "flex"; // Flex to center
   ov.style.zIndex = "2147483654";
 }
@@ -1030,7 +1030,27 @@ export function initInventory() {
       e.preventDefault();
       e.stopPropagation();
       setEditMode(!isEditMode());
+      updateVitals();
       notify("success", isEditMode() ? "Edit mode on" : "Edit mode off", "Inventory", "inventory");
+    });
+
+  $win.off("change.uieInvInput", ".uie-inv-input")
+    .on("change.uieInvInput", ".uie-inv-input", function (e) {
+      const key = $(this).data("key");
+      let val = $(this).val();
+
+      const s = getSettings();
+      if (!s.character) s.character = {};
+
+      if (key === "level") {
+        val = Math.max(1, Number(val));
+        s.character.level = val;
+      } else {
+        s.character[key] = String(val).trim();
+      }
+
+      saveSettings();
+      // No need to re-render immediately as it might kill focus
     });
 
   const editName = () => {
@@ -1102,6 +1122,7 @@ export function initInventory() {
 
   $win.off("click.uieInvEditName", ".uie-inv-title .name, #uie-inv-mobile-name")
     .on("click.uieInvEditName", ".uie-inv-title .name, #uie-inv-mobile-name", function (e) {
+      if ($(e.target).is("input")) return;
       if (!isEditMode()) return;
       e.preventDefault();
       e.stopPropagation();
@@ -1110,6 +1131,7 @@ export function initInventory() {
 
   $win.off("click.uieInvEditClass", ".uie-inv-title .meta, #uie-inv-classline, #uie-inv-mobile-meta")
     .on("click.uieInvEditClass", ".uie-inv-title .meta, #uie-inv-classline, #uie-inv-mobile-meta", function (e) {
+      if ($(e.target).is("input")) return;
       if (!isEditMode()) return;
       e.preventDefault();
       e.stopPropagation();
@@ -2046,16 +2068,29 @@ export function updateVitals() {
   if (currencyEl) currencyEl.textContent = `${Number(s.currency || 0)} ${String(s.currencySymbol || "G")}`;
 
   const nameEl = root.querySelector(".uie-inv-title .name");
-  if (nameEl) nameEl.textContent = String(s.character.name || "User");
   const metaEl = root.querySelector(".uie-inv-title .meta");
-  if (metaEl) metaEl.textContent = `${String(s.character.className || "Adventurer")} · Lv ${Number(s.character.level || 1)}`;
   const classLine = root.querySelector("#uie-inv-classline");
-  if (classLine) classLine.textContent = String(s.character.className || "Adventurer");
-
   const mobileName = root.querySelector("#uie-inv-mobile-name");
-  if (mobileName) mobileName.textContent = String(s.character.name || "User");
   const mobileMeta = root.querySelector("#uie-inv-mobile-meta");
-  if (mobileMeta) mobileMeta.textContent = `Lv ${Number(s.character.level || 1)}`;
+
+  if (isEditMode()) {
+    if (nameEl) nameEl.innerHTML = `<input type="text" class="uie-inv-input" data-key="name" value="${String(s.character.name || "User")}" style="width:100%; background:rgba(0,0,0,0.5); border:1px solid #555; color:var(--inv-gold); border-radius:4px; padding:2px; text-align:center;">`;
+    if (metaEl) {
+      metaEl.innerHTML = `
+        <input type="text" class="uie-inv-input" data-key="className" value="${String(s.character.className || "Adventurer")}" style="width:100px; background:rgba(0,0,0,0.5); border:1px solid #555; color:#ccc; border-radius:4px; text-align:center;">
+        Lv <input type="number" class="uie-inv-input" data-key="level" value="${Number(s.character.level || 1)}" style="width:40px; background:rgba(0,0,0,0.5); border:1px solid #555; color:#ccc; border-radius:4px; text-align:center;">
+      `;
+    }
+    if (classLine) classLine.innerHTML = `<input type="text" class="uie-inv-input" data-key="className" value="${String(s.character.className || "Adventurer")}" style="width:100%; background:rgba(0,0,0,0.5); border:1px solid #555; color:#ccc; border-radius:4px;">`;
+    if (mobileName) mobileName.innerHTML = `<input type="text" class="uie-inv-input" data-key="name" value="${String(s.character.name || "User")}" style="width:100%; background:rgba(0,0,0,0.5); border:1px solid #555; color:#fff; border-radius:4px; padding:2px; font-size:1em;">`;
+    if (mobileMeta) mobileMeta.innerHTML = `Lv <input type="number" class="uie-inv-input" data-key="level" value="${Number(s.character.level || 1)}" style="width:50px; background:rgba(0,0,0,0.5); border:1px solid #555; color:#fff; border-radius:4px;">`;
+  } else {
+    if (nameEl) nameEl.textContent = String(s.character.name || "User");
+    if (metaEl) metaEl.textContent = `${String(s.character.className || "Adventurer")} · Lv ${Number(s.character.level || 1)}`;
+    if (classLine) classLine.textContent = String(s.character.className || "Adventurer");
+    if (mobileName) mobileName.textContent = String(s.character.name || "User");
+    if (mobileMeta) mobileMeta.textContent = `Lv ${Number(s.character.level || 1)}`;
+  }
 
   const avatar = root.querySelector(".uie-inv-avatar");
   if (avatar && s.character.avatar) {

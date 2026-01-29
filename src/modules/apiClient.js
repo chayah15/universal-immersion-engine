@@ -287,6 +287,25 @@ function battleStateCheck() {
     }
 }
 
+function statsCheck() {
+    try {
+        const s = getSettings();
+        const c = s?.character || {};
+        const stats = c.stats || {};
+        const kv = Object.entries(stats).map(([k,v]) => `${k.toUpperCase()}=${v}`).join(" ");
+        
+        const hp = `${s.hp || 0}/${s.maxHp || 100}`;
+        const mp = `${s.mp || 0}/${s.maxMp || 100}`; // Assuming MP exists in settings root like HP
+        const xp = `${s.xp || 0}`;
+        const lvl = c.level || 1;
+        const cls = c.className || "Unknown";
+        
+        return `[CHARACTER SHEET]\nClass: ${cls} (Lv.${lvl})\nVitals: HP=${hp} MP=${mp} XP=${xp}\nStats: ${kv}`;
+    } catch (_) {
+        return "";
+    }
+}
+
 function statusEffectCheck() {
     try {
         const s = getSettings();
@@ -366,6 +385,7 @@ export async function rootProtocolBlock(seedText) {
     const temporal = temporalAnchor();
     const mem = retrieveMemories(`${seedText}\n${chat}`);
     const combat = battleStateCheck();
+    const stats = statsCheck();
     const status = statusEffectCheck();
     const world = worldStateCheck();
     const quest = questLogCheck();
@@ -387,7 +407,7 @@ Do not reset the scene.
 ${chat}
 
 1B) OMNISCIENT GAME STATE (High Priority Overrides)
-${[combat, status, world, quest, texts].filter(Boolean).join("\n") || "[GAME STATE = None]"}
+${[combat, stats, status, world, quest, texts].filter(Boolean).join("\n") || "[GAME STATE = None]"}
 
 2) INVENTORY AUDIT
 Scan user's current inventory. If user attempts to use an unowned item -> NARRATE FAILURE.

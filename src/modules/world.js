@@ -6,7 +6,8 @@ import { initAtmosphere, updateAtmosphere } from "./atmosphere.js";
 import { updateSpriteStage, initSprites } from "./sprites.js";
 import { initScavenge, initSpriteInteraction, spawnScavengeNodes } from "./interaction.js";
 import { initChatSync } from "./chat_sync.js";
-import { initNavigation } from "./navigation.js";
+import { initNavigation, setNavVisible, refreshNavVisibility } from "./navigation.js";
+import { generateContent } from "./apiClient.js";
 import {
     initGestures,
     initSensory,
@@ -290,7 +291,7 @@ class RealityEngine {
 
         const prev = document.getElementById("re-vn-prev");
         const next = document.getElementById("re-vn-next");
-        
+
         // Show box if hidden (sanity check)
         const box = document.getElementById("re-vn-box");
         if (box && box.style.display === "none") box.style.display = "flex";
@@ -304,7 +305,7 @@ class RealityEngine {
             // Always show next (it acts as "Close" on last page)
             next.style.opacity = "1";
             next.style.pointerEvents = "auto";
-            
+
             // Optional: Change icon on last page?
             // next.innerHTML = this.vn.pageIdx < this.vn.pages.length - 1 ? '<i class="fa-solid fa-chevron-right"></i>' : '<i class="fa-solid fa-xmark"></i>';
         }
@@ -313,12 +314,12 @@ class RealityEngine {
     scheduleAutoAdvance() {
         if (this.vn.autoTimer) clearTimeout(this.vn.autoTimer);
         const text = this.vn.pages[this.vn.pageIdx] || "";
-        // reading speed: ~200 wpm -> ~3 words/sec. 
+        // reading speed: ~200 wpm -> ~3 words/sec.
         // 20 words -> ~6-7 sec.
         // Formula: base 1s + words * 300ms
         const words = text.split(/\s+/).length;
         const delay = 1000 + (words * 300) + Number(this.vn.settings.speed) * 10;
-        
+
         this.vn.autoTimer = setTimeout(() => {
             if (!this.vn.autoMode) return;
             this.advancePage();
@@ -364,12 +365,53 @@ class RealityEngine {
             if (v3 && typeof v3.getBackground === "function") bg = String(v3.getBackground(locId) || "").trim();
         } catch (_) {}
         if (!bg) bg = String(s.realityEngine.backgrounds?.[locId] || "").trim();
+        if (bg.includes("No-Image-Placeholder")) bg = "";
+
+        // Lazy Generation Check
+        if (!bg && s.worldState?.mapData?.nodes) {
+            const node = s.worldState.mapData.nodes.find(n => slug(n.id) === locId || slug(n.name) === locId);
+            if (node && node.desc && !s.realityEngine._generating?.[locId]) {
+                if (!s.realityEngine._generating) s.realityEngine._generating = {};
+                s.realityEngine._generating[locId] = true;
+
+                try { notify("info", `Generating scene: ${node.name || locId}...`, "Reality Engine"); } catch (_) {}
+
+                import("./imageGen.js").then(mod => {
+                    mod.generateImageAPI(`[UIE_LOCKED]\n${node.desc}`).then(url => {
+                        delete s.realityEngine._generating[locId];
+                        if (url) {
+                            s.realityEngine.backgrounds[locId] = url;
+                            saveSettings();
+                            // Only apply if we are still in the same location
+                            if (this.getLocationId() === locId) {
+                                this.applyBackground();
+                            }
+                            try { notify("success", "Scene generated.", "Reality Engine"); } catch (_) {}
+                        }
+                    }).catch(() => {
+                        delete s.realityEngine._generating[locId];
+                    });
+                });
+            }
+        }
+
         const bgEl = document.getElementById("re-bg");
         if (bgEl) {
-            if (bg) {
-                bgEl.style.backgroundImage = `url("${bg}")`;
-                bgEl.style.backgroundSize = "cover";
-                bgEl.style.backgroundPosition = "center";
+            if (bg && bg !== "null" && bg !== "undefined") {
+                // Pre-validate image to avoid "broken image" icon
+                const img = new Image();
+                img.onload = () => {
+                    if (bgEl) {
+                        bgEl.style.backgroundImage = `url("${bg}")`;
+                        bgEl.style.backgroundSize = "cover";
+                        bgEl.style.backgroundPosition = "center";
+                    }
+                };
+                img.onerror = () => {
+                    console.warn("[UIE] Failed to load background:", bg);
+                    if (bgEl) bgEl.style.backgroundImage = ""; // Fallback to empty (dark color)
+                };
+                img.src = bg;
             } else {
                 bgEl.style.backgroundImage = "";
             }
@@ -541,7 +583,7 @@ class RealityEngine {
         // Show box and render
         const box = document.getElementById("re-vn-box");
         if (box) box.style.display = "flex";
-        
+
         this.vn.text = clean;
         this.vn.pages = this.paginateText(clean);
         this.vn.pageIdx = 0;
@@ -636,6 +678,44 @@ class RealityEngine {
         if (!text) return;
         const imgEl = document.getElementById("re-forge-img");
         const empty = document.getElementById("re-forge-empty");
+
+        // Multi-scene / Map Detection
+        if (/(?:entire|full|whole)\s+map|castle\s+layout|home\s+layout|multiple\s+scenes/i.test(text)) {
+            if (empty) empty.textContent = "Generating map layout (structure only)...";
+            if (imgEl) imgEl.style.display = "none";
+
+            try {
+                const sys = `You are a World Forge engine. The user wants a multi-scene layout.
+Output ONLY valid JSON containing a list of nodes (scenes).
+Schema: { "nodes": [ { "id": "unique_id", "name": "Display Name", "desc": "Visual description for image generation" } ] }
+Do not output markdown or explanations.`;
+                const userPrompt = `[UIE_LOCKED]\nGenerate a map layout based on: ${text}`;
+
+                const jsonStr = await generateContent(userPrompt, "Map");
+                let data = null;
+                try { data = JSON.parse(jsonStr); } catch(_) {}
+
+                if (data && Array.isArray(data.nodes)) {
+                     const s = getSettings();
+                     ensureReality(s);
+                     if (!s.worldState) s.worldState = {};
+                     s.worldState.mapData = data;
+                     saveSettings();
+
+                     if (empty) {
+                         empty.textContent = `Layout generated: ${data.nodes.length} scenes. Images will generate upon entry.`;
+                         empty.style.display = "block";
+                     }
+                     try { notify("success", `Map layout created with ${data.nodes.length} scenes.`, "World Forge"); } catch(_) {}
+                     return;
+                }
+            } catch (e) {
+                console.error("Map Gen Error", e);
+                if (empty) empty.textContent = "Map generation failed.";
+            }
+            return;
+        }
+
         if (empty) empty.textContent = "Generating...";
         if (imgEl) imgEl.style.display = "none";
         let url = "";
@@ -841,7 +921,7 @@ class RealityEngine {
             this.vn.settings.speed = speed;
             this.vn.settings.wordsPerBox = words;
             this.vn.settings.promptPrefix = prompt;
-            
+
             if (autoCheck) {
                 this.vn.autoMode = autoCheck.checked;
                 // Update the toggle button UI too
@@ -851,7 +931,7 @@ class RealityEngine {
                     btn.style.opacity = this.vn.autoMode ? "1" : "0.5";
                 }
             }
-            
+
             this.saveVnSettings();
 
             $("#re-vn-settings-modal").hide();
@@ -878,6 +958,17 @@ class RealityEngine {
             ensureReality(s);
             const next = s.realityEngine.view === "map" ? "room" : "map";
             this.setView(next);
+        });
+
+        $roots.on("pointerup click", "#re-toggle-nav", (e) => {
+            if (!actGate("togglenav")) return;
+            e.preventDefault(); e.stopPropagation();
+            const s = getSettings();
+            ensureReality(s);
+            if (!s.realityEngine.ui) s.realityEngine.ui = {};
+            s.realityEngine.ui.showNav = !s.realityEngine.ui.showNav;
+            saveSettings();
+            import("./navigation.js").then(m => m.refreshNavVisibility?.()).catch(() => {});
         });
 
         // Input Handling
@@ -1073,7 +1164,7 @@ class RealityEngine {
         menuToggleLock = now;
 
         if(e) { try{e.preventDefault(); e.stopPropagation();}catch(_){} }
-        
+
         // --- INJECTION: Ensure Menu Exists ---
         let m = document.getElementById("re-st-menu");
         if (!m) {
@@ -1081,7 +1172,7 @@ class RealityEngine {
             m = document.createElement("div");
             m.id = "re-st-menu";
             m.style.cssText = "position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:min(320px, 86vw); display:none; flex-direction:column; gap:8px; padding:10px; border-radius:16px; border:1px solid rgba(255,255,255,0.14); background:rgba(15,10,10,0.96); box-shadow:0 20px 40px rgba(0,0,0,0.75); z-index:2147483660; pointer-events:auto;";
-            
+
             const items = [
                 { id: "re-act-continue", icon: "fa-forward", label: "Continue" },
                 { id: "re-act-regenerate", icon: "fa-rotate-right", label: "Regenerate" },
@@ -1119,22 +1210,22 @@ class RealityEngine {
             try { notify("error", "Menu element not found!", "UIE"); } catch (_) {}
             return;
         }
-        
+
         // If hidden, show it
         const isHidden = window.getComputedStyle(m).display === "none";
-        
+
         if (isHidden) {
             // First make it display flex but hidden to measure
             m.style.visibility = "hidden";
             m.style.display = "flex";
             m.style.zIndex = "2147483660"; // Force max z-index
             m.style.pointerEvents = "auto"; // Force clickable
-            
+
             const isMobile = (() => {
                 try { return isMobileUI(); } catch (_) {}
                 try { return window.matchMedia("(max-width: 768px), (pointer: coarse)").matches; } catch (_) { return window.innerWidth < 768; }
             })();
-            
+
             if (isMobile) {
                 // Mobile: place near the menu button, but relative to the VISUAL viewport (keyboard/address-bar safe).
                 const anchor = document.getElementById("re-q-menu") || document.getElementById("uie-launcher");
@@ -1150,20 +1241,20 @@ class RealityEngine {
                     m.style.left = `${btnRect.right + 8}px`;
                     m.style.top = `${btnRect.top}px`;
                     m.style.transform = "none";
-                    
+
                     // Keep on screen - clamp to viewport bounds
                     let left = parseFloat(m.style.left) || 0;
                     let top = parseFloat(m.style.top) || 0;
-                    
+
                     // If it doesn't fit to the right, place it on the left
                     if (left + menuRect.width > window.innerWidth - 10) {
                         left = btnRect.left - menuRect.width - 8;
                     }
-                    
+
                     // Clamp to viewport bounds (never off-screen)
                     left = Math.max(10, Math.min(left, window.innerWidth - menuRect.width - 10));
                     top = Math.max(10, Math.min(top, window.innerHeight - menuRect.height - 10));
-                    
+
                     m.style.left = `${left}px`;
                     m.style.top = `${top}px`;
                 } else {
@@ -1174,7 +1265,7 @@ class RealityEngine {
                     m.style.transform = "translate(-50%, -50%)";
                 }
             }
-            
+
             m.style.visibility = "visible";
             ensureReViewportWatcher();
             rePulseWhileOpen();
@@ -1207,7 +1298,7 @@ class RealityEngine {
     // Ensure clicks on the grid items are not blocked
     $roots.on("pointerup click", ".re-actbtn", (e) => {
         // Allow the native onclick to fire, but stop propagation to prevent stage clicks
-        e.stopPropagation(); 
+        e.stopPropagation();
     });
     // Fix "Add" button if needed (Open Modal)
     $roots.on("pointerup click", "#re-q-add", (e) => {
@@ -1241,7 +1332,7 @@ class RealityEngine {
         }
     });
 
-    
+
     // Menu binding is handled via window.reToggleMenu + $roots handler above.
 
     $roots.on("pointerup click", ".re-qbtn, .re-custom-btn", async (e) => {
@@ -1378,7 +1469,7 @@ class RealityEngine {
             const els = stEls(); if (els.cont) els.cont.click();
             $("#re-st-menu").hide();
         });
-        
+
         $roots.on("pointerup click", "#re-act-impersonate", (e) => {
             if (!actGate("imp")) return;
             e.preventDefault(); e.stopPropagation();
@@ -1570,7 +1661,7 @@ class RealityEngine {
                 // CUSTOM QUICK BUTTONS LOGIC
                 if (q && grid) {
                     // Do NOT clear q.innerHTML (System buttons are in HTML now)
-                    // q.innerHTML = ""; 
+                    // q.innerHTML = "";
                     grid.innerHTML = ""; // Clear Action Grid (Custom buttons only)
 
                     const s = getSettings();
@@ -1596,11 +1687,11 @@ class RealityEngine {
                         grid.appendChild(guide);
                     }
 
-                    // System Buttons are static in HTML. 
+                    // System Buttons are static in HTML.
                     // We only need to bind specific dynamic behaviors if they aren't global.
                     // The event listeners in bindUi handle clicks.
                     // Note: Menu positioning (qMenuPos) logic for the button itself is deprecated in favor of CSS flow,
-                    // but if users want floating menu button, that would need specific handling. 
+                    // but if users want floating menu button, that would need specific handling.
                     // For now, we respect the HTML layout.
 
                     // 2. Render Custom Action Buttons -> #re-action-grid (Above)
@@ -1637,7 +1728,7 @@ class RealityEngine {
                     });
 
                     const show = s.realityEngine.ui?.showQuickButtons !== false;
-                    
+
                     // Toggle visibility
                     if (!show) {
                         q.style.display = "none";
@@ -1722,7 +1813,7 @@ export function initWorld() {
         }
 
         content.find("#uie-world-toggle-re").text(s2.realityEngine.enabled ? "Projector: ON" : "Projector: OFF");
-        
+
         // Save Mode Toggle
         const saveMode = s2.realityEngine.saveMode || "local"; // Default to local per user request for "option" (usually local is better for immersion)
         // Actually, user said "give people the option".
@@ -1748,7 +1839,7 @@ export function initWorld() {
             const s = getSettings();
             if (!s.realityEngine) s.realityEngine = {};
             if (!s.realityEngine.quickButtons) s.realityEngine.quickButtons = [];
-            
+
             // Check for duplicate
             if (s.realityEngine.quickButtons.some(b => b.label === skillName)) {
                 try { notify("info", "Skill already in Quick Menu", "Skills"); } catch (_) {}
@@ -1814,7 +1905,8 @@ export function initWorld() {
         finally { btn.removeClass("fa-spin"); }
     });
 
-    // --- Warning Modal Bindings ---
+    // --- Warning Modal Bindings Removed ---
+    /*
     const $warn = $("#re-warning-modal");
     $warn.off("click.uieWorld", "#re-warn-cancel").on("click.uieWorld", "#re-warn-cancel", (e) => {
         e.preventDefault();
@@ -1835,6 +1927,7 @@ export function initWorld() {
         try { reEngine.syncEnabled(); } catch (_) {}
         try { notify("success", "Reality Stage enabled.", "Reality Engine", "api"); } catch (_) {}
     });
+    */
 
     $worldWin.on("click.uieWorld", "#uie-world-projector, #uie-world-toggle-re", async (e) => {
         e.preventDefault();
@@ -1845,30 +1938,20 @@ export function initWorld() {
         // Force enable if it was false
         if (!s2.realityEngine.enabled) {
              s2.realityEngine.enabled = true;
-             // Auto-ack warning if needed, or show modal?
-             // User complained about "Projector clicked. Enabled: false".
-             // We'll trust the user wants it ON.
-             if (!s2.realityEngine.warningAck) {
-                 const modal = $("#re-warning-modal");
-                 if (modal.length) {
-                     modal.css("display", "flex");
-                     return; // Wait for modal
-                 } else {
-                     s2.realityEngine.warningAck = true; // Auto-ack if modal missing
-                 }
-             }
+             // Warning removed per user request
+             s2.realityEngine.warningAck = true;
         } else {
              s2.realityEngine.enabled = false;
         }
 
         saveSettings();
         render();
-        
+
         // SYNC VISIBILITY IMMEDIATELY
         setStageEnabled(s2.realityEngine.enabled);
-        
+
         try { reEngine.syncEnabled(); } catch (_) {}
-        
+
         if (s2.realityEngine.enabled) {
             try { notify("success", "Reality Stage enabled.", "Reality Engine", "api"); } catch (_) {}
         } else {
@@ -1985,7 +2068,7 @@ export function initWorld() {
     // In world.html, it is: <div id="re-quick-modal" ...> (No class uie-window).
     // So document binding is safe for it.
     $(document).off("click.world"); // Clear old
-    
+
     const $quickModal = $("#re-quick-modal");
     $quickModal.off("click.world").on("click.world", "#re-quick-save", (e) => {
         e.preventDefault(); e.stopPropagation();

@@ -135,11 +135,39 @@ function getSettingsStore() {
 
 export function getSettings() {
     const store = getSettingsStore();
+    // 1. Try Global Store
+    if (!store[EXT_ID]) {
+        // 2. Try LocalStorage Backup (Persistence Fix)
+        try {
+            const backup = localStorage.getItem("uie_settings_backup");
+            if (backup) {
+                const parsed = JSON.parse(backup);
+                if (parsed && typeof parsed === "object") {
+                    console.log("[UIE] Restored settings from localStorage backup.");
+                    store[EXT_ID] = parsed;
+                }
+            }
+        } catch (_) {}
+    }
+    // 3. Initialize Defaults if still missing
     if (!store[EXT_ID]) store[EXT_ID] = deepClone(SETTINGS_DEFAULT);
     return store[EXT_ID];
 }
 
 export function saveSettings() {
+    try {
+        // Ensure the snapshot is always in sync with live data before saving
+        const s = getSettings();
+        if (s.chatState && s.chatState.activeKey) {
+            s.chatState.states[s.chatState.activeKey] = snapshotChatState(s);
+        }
+
+        // 1. Save to LocalStorage (Backup)
+        try {
+            localStorage.setItem("uie_settings_backup", JSON.stringify(s));
+        } catch (_) {}
+
+    } catch (_) {}
     try { if (typeof saveSettingsDebounced === "function") saveSettingsDebounced(); } catch (_) {}
 }
 export function emitStateUpdated() {
@@ -758,13 +786,13 @@ export function updateLayout() {
     if (isMobile) {
         // Always fullscreen on mobile
         inv.attr("data-fullscreen", "true");
-        inv.css({ 
-            top: 0, 
-            left: 0, 
-            width: "100vw", 
-            height: "100vh", 
-            transform: "none", 
-            maxWidth: "none", 
+        inv.css({
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            transform: "none",
+            maxWidth: "none",
             maxHeight: "none",
             position: "fixed",
             zIndex: "2147483600"

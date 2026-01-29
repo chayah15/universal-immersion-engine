@@ -2532,29 +2532,44 @@ Requirements:
 }
 
 export function openBooksGuide(sectionId) {
-    $("#uie-phone-window").show().css("display", "flex");
-    $("#uie-phone-lockscreen").hide();
-    $("#uie-phone-homescreen").hide();
-    $(".phone-app-window").hide();
-    $("#uie-app-books-view").css("display", "flex").show();
-    try { renderBooks(); } catch (_) {}
-    $("#books-view-guide").show();
-    $("#books-view-library").hide();
-    $("#books-tab-guide").addClass("active");
-    $("#books-tab-library").removeClass("active");
+    try {
+        const $p = $("#uie-phone-window");
+        // Force open phone if closed
+        $p.show().css("display", "flex");
+        
+        // Hide other screens
+        $("#uie-phone-lockscreen").hide();
+        $("#uie-phone-homescreen").hide();
+        $(".phone-app-window").hide();
+        
+        // Show Books App
+        $("#uie-app-books-view").css("display", "flex").show();
+        
+        // Ensure render
+        renderBooks();
+        
+        // Force Switch to Guide Tab
+        $("#books-view-guide").show();
+        $("#books-view-library").hide();
+        $("#books-tab-guide").addClass("active");
+        $("#books-tab-library").removeClass("active");
 
-    if (sectionId) {
-        setTimeout(() => {
-            const target = document.getElementById(sectionId);
-            if (target) {
-                target.scrollIntoView({ behavior: "smooth", block: "start" });
-                // Flash the section to draw attention
-                $(target).css("transition", "background 0.5s").css("background", "rgba(241, 196, 15, 0.2)");
-                setTimeout(() => $(target).css("background", ""), 1500);
-            }
-        }, 300);
+        if (sectionId) {
+            setTimeout(() => {
+                const target = document.getElementById(sectionId);
+                if (target) {
+                    target.scrollIntoView({ behavior: "smooth", block: "start" });
+                    $(target).css("transition", "background 0.5s").css("background", "rgba(241, 196, 15, 0.2)");
+                    setTimeout(() => $(target).css("background", ""), 1500);
+                }
+            }, 300);
+        }
+    } catch (e) {
+        console.error("openBooksGuide failed", e);
     }
 }
+// Expose globally for HTML onclicks
+try { window.UIE_openGuide = openBooksGuide; } catch (_) {}
 
 function renderBooks() {
     const s = getSettings();
