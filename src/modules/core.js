@@ -89,9 +89,52 @@ export function isMobileUI() {
 }
 
 export function updateLayout() {
+    const s = getSettings();
+
+    // Always keep the launcher visible (unless explicitly hidden) and on-screen.
+    // On mobile we skip window clamping, but the launcher must still be corrected.
+    try {
+        const launcher = document.getElementById("uie-launcher");
+        if (launcher) {
+            const hidden = s?.launcher?.hidden === true;
+            launcher.style.display = hidden ? "none" : "flex";
+
+            if (!hidden) {
+                const rect = launcher.getBoundingClientRect();
+                const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+                const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+                const w = rect.width || launcher.offsetWidth || 60;
+                const h = rect.height || launcher.offsetHeight || 60;
+
+                const pad = 6;
+                const outOfView =
+                    rect.right < pad ||
+                    rect.bottom < pad ||
+                    rect.left > vw - pad ||
+                    rect.top > vh - pad;
+
+                if (outOfView && vw > 0 && vh > 0) {
+                    let left = rect.left;
+                    let top = rect.top;
+                    if (!Number.isFinite(left)) left = pad;
+                    if (!Number.isFinite(top)) top = pad;
+                    if (left < pad) left = pad;
+                    if (top < pad) top = pad;
+                    if (left > vw - w - pad) left = vw - w - pad;
+                    if (top > vh - h - pad) top = vh - h - pad;
+
+                    launcher.style.position = "fixed";
+                    launcher.style.left = `${left}px`;
+                    launcher.style.top = `${top}px`;
+                    launcher.style.right = "auto";
+                    launcher.style.bottom = "auto";
+                }
+            }
+        }
+    } catch (_) {}
+
     if (isMobileUI()) return; // Skip rigid clamping on mobile to prevent crashes
 
-    const s = getSettings();
     if (!s.windows) return;
 
     // Apply saved positions
